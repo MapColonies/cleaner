@@ -1,0 +1,10 @@
+{
+  "jobnik": {
+    "sdk": {
+      "baseUrl": "http://localhost:8081"
+    },
+    "worker": {
+      "concurrency": 2
+    }
+  }
+}

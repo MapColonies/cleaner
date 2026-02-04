@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: jobnik-worker-boilerplate
+  description: A boilerplate github repo for a nodejs worker service
+  annotations:
+    github.com/project-slug: MapColonies/jobnik-worker-boilerplate
+  tags:
+    - nodejs
+    - typescript
+    - expressjs
+    - boilerplate
+    - worker
+spec:
+  type: service
+  lifecycle: production
+  owner: DevInfra
+  system: boilerplate

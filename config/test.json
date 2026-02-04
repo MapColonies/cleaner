@@ -1,0 +1,8 @@
+{
+  "jobnik": {
+    "sdk": {
+      "baseUrl": "http://localhost:8080"
+    },
+    "worker": {}
+  }
+}
