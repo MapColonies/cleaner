@@ -1,0 +1,232 @@
+# Common Patterns
+
+## Dependency Injection
+
+### Service Registration
+
+Services are registered in `containerConfig.ts`:
+
+```typescript
+import { registerDependencies } from '@common/dependencyRegistration';
+import { SERVICES } from '@common/constants';
+
+const dependencies: InjectionObject<unknown>[] = [
+  { token: SERVICES.CONFIG, provider: { useValue: configInstance } },
+  { token: SERVICES.LOGGER, provider: { useValue: logger } },
+  {
+    token: SERVICES.MY_SERVICE,
+    provider: {
+      useFactory: instancePerContainerCachingFactory((container) => {
+        // Factory function with access to container
+        return new MyService(container.resolve(SERVICES.LOGGER));
+      }),
+    },
+  },
+];
+
+return registerDependencies(dependencies);
+```
+
+### Creating Injectable Services
+
+```typescript
+import { injectable, inject } from 'tsyringe';
+import type { Logger } from '@map-colonies/js-logger';
+import { SERVICES } from '@common/constants';
+
+@injectable()
+export class CleanerService {
+  public constructor(
+    @inject(SERVICES.LOGGER) private readonly logger: Logger,
+    @inject(SERVICES.CONFIG) private readonly config: ConfigType
+  ) {}
+
+  public async cleanup(resourceId: string): Promise<void> {
+    this.logger.info({ msg: 'Starting cleanup', resourceId });
+    // Implementation
+  }
+}
+```
+
+### Adding New Service Tokens
+
+In `common/constants.ts`:
+
+```typescript
+export const SERVICES = {
+  CONFIG: Symbol.for('Config'),
+  LOGGER: Symbol.for('Logger'),
+  TRACER: Symbol.for('Tracer'),
+  METRICS: Symbol.for('Metrics'),
+  JOBNIK_SDK: Symbol.for('JobnikSDK'),
+  WORKER: Symbol.for('Worker'),
+  // Add new tokens here
+  CLEANER_SERVICE: Symbol.for('CleanerService'),
+} as const;
+```
+
+## Task Handling
+
+### Task Handler Structure
+
+```typescript
+import type { Task, TaskHandlerContext } from '@map-colonies/jobnik-sdk';
+import { injectable } from 'tsyringe';
+import type { CleanerJobTypes, CleanerStageTypes } from './types';
+
+@injectable()
+export class CleanerManager {
+  public async handleCleanupTask(
+    task: Task<CleanerStageTypes['cleanup']['task']>,
+    context: TaskHandlerContext<CleanerJobTypes, CleanerStageTypes, 'cleanerJob', 'cleanup'>
+  ): Promise<void> {
+    const { logger, job } = context;
+
+    logger.info({ msg: 'Processing cleanup task', taskId: task.id });
+
+    // Access task data
+    const { resourcePath, expirationDate } = task.data;
+
+    // Access job metadata
+    const jobMetadata = job.userMetadata;
+
+    // Do work...
+
+    // Update stage metadata on success
+    await context.updateStageUserMetadata({
+      cleanedAt: new Date().toISOString(),
+    });
+  }
+}
+```
+
+### Type Definitions
+
+```typescript
+import type { IJobnikSDK } from '@map-colonies/jobnik-sdk';
+
+export interface CleanerJobTypes {
+  cleanerJob: {
+    data: {
+      targetPath: string;
+      retentionDays: number;
+    };
+    userMetadata: {
+      initiatedBy: string;
+      scheduledAt: string;
+    };
+  };
+}
+
+export interface CleanerStageTypes {
+  cleanup: {
+    data: { batchSize: number };
+    userMetadata: { cleanedAt?: string };
+    task: {
+      data: { resourcePath: string; expirationDate: string };
+      userMetadata: { status?: string };
+    };
+  };
+}
+
+export type CleanerSDK = IJobnikSDK<CleanerJobTypes, CleanerStageTypes>;
+```
+
+### Worker Factory
+
+```typescript
+export const workerBuilder: FactoryFunction<IWorker> = (container) => {
+  const sdk = container.resolve<CleanerSDK>(SERVICES.JOBNIK_SDK);
+  const config = container.resolve<ConfigType>(SERVICES.CONFIG);
+  const manager = container.resolve(CleanerManager);
+
+  const worker = sdk.createWorker<'cleanerJob', 'cleanup'>('cleanup', manager.handleCleanupTask.bind(manager), config.get('jobnik.worker'));
+
+  worker.on('error', (err) => {
+    const logger = container.resolve<Logger>(SERVICES.LOGGER);
+    logger.error({ msg: 'Worker error', err });
+  });
+
+  return worker;
+};
+```
+
+## Configuration Access
+
+### Reading Configuration
+
+```typescript
+@injectable()
+export class MyService {
+  public constructor(@inject(SERVICES.CONFIG) private readonly config: ConfigType) {}
+
+  public getServerPort(): number {
+    return this.config.get('server.port');
+  }
+}
+```
+
+### Configuration Structure
+
+```
+config/
+  default.json      # Base config (always loaded)
+  development.json  # Merged when NODE_ENV=development
+  production.json   # Merged when NODE_ENV=production
+  test.json         # Merged when NODE_ENV=test
+  local.json        # Local overrides (gitignored)
+```
+
+## Error Handling
+
+### In Task Handlers
+
+Throwing an error automatically fails the task:
+
+```typescript
+public async handleTask(task: Task<...>, context: ...): Promise<void> {
+  if (!task.data.resourcePath) {
+    throw new Error('Resource path is required');
+  }
+
+  try {
+    await this.processResource(task.data.resourcePath);
+  } catch (error) {
+    context.logger.error({ msg: 'Processing failed', error });
+    throw error; // Task will be marked as failed
+  }
+}
+```
+
+### Structured Logging
+
+```typescript
+// Good - structured context
+logger.info({ msg: 'Task started', taskId: task.id, resourcePath });
+logger.error({ msg: 'Task failed', error, taskId: task.id });
+
+// Avoid - string concatenation
+logger.info(`Task ${task.id} started`);
+```
+
+## Graceful Shutdown
+
+The `onSignal` handler in `containerConfig.ts` handles cleanup:
+
+```typescript
+{
+  token: 'onSignal',
+  provider: {
+    useFactory: (container) => {
+      const worker = container.resolve<IWorker>(SERVICES.WORKER);
+      return async (): Promise<void> => {
+        await Promise.all([
+          getTracing().stop(),
+          worker.stop(),
+          // Add additional cleanup here
+        ]);
+      };
+    },
+  },
+}
+```
