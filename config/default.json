@@ -12,5 +12,25 @@
   },
   "server": {
     "port": 8080
+  },
+  "queue": {
+    "jobManagerBaseUrl": "http://job-manager:8080",
+    "heartbeatBaseUrl": "http://heartbeat:8080",
+    "heartbeatIntervalMs": 1000
+  },
+  "polling": {
+    "dequeueIntervalMs": 3000,
+    "pairs": [
+      {
+        "jobType": "Ingestion_Update",
+        "taskType": "tiles-deletion",
+        "maxAttempts": 3
+      }
+    ]
+  },
+  "httpRetry": {
+    "attempts": 3,
+    "delay": "exponential",
+    "shouldResetTimeout": true
   }
 }

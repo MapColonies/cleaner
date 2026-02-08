@@ -1,0 +1,27 @@
+{
+  "telemetry": {
+    "tracing": {
+      "isEnabled": "TELEMETRY_TRACING_ENABLED"
+    },
+    "logger": {
+      "level": "LOG_LEVEL",
+      "prettyPrint": "LOG_PRETTY_PRINT_ENABLED"
+    }
+  },
+  "server": {
+    "port": "SERVER_PORT"
+  },
+  "queue": {
+    "jobManagerBaseUrl": "QUEUE_JOB_MANAGER_BASE_URL",
+    "heartbeatBaseUrl": "QUEUE_HEARTBEAT_BASE_URL",
+    "heartbeatIntervalMs": "QUEUE_HEARTBEAT_INTERVAL_MS"
+  },
+  "polling": {
+    "dequeueIntervalMs": "POLLING_DEQUEUE_INTERVAL_MS"
+  },
+  "httpRetry": {
+    "attempts": "HTTP_RETRY_ATTEMPTS",
+    "delay": "HTTP_RETRY_DELAY",
+    "shouldResetTimeout": "HTTP_RETRY_SHOULD_RESET_TIMEOUT"
+  }
+}

@@ -18,5 +18,18 @@ data:
   CONFIG_VERSION: {{ .version | quote }}
   CONFIG_OFFLINE_MODE: {{ .offlineMode | quote }}
   CONFIG_SERVER_URL: {{ .serverUrl | quote }}
+  {{- end }}
+  {{- with $.Values.env.queue }}
+  QUEUE_JOB_MANAGER_BASE_URL: {{ .jobManagerBaseUrl | quote }}
+  QUEUE_HEARTBEAT_BASE_URL: {{ .heartbeatBaseUrl | quote }}
+  QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | quote }}
+  {{- end }}
+  {{- with $.Values.env.polling }}
+  POLLING_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | quote }}
+  {{- end }}
+  {{- with $.Values.env.httpRetry }}
+  HTTP_RETRY_ATTEMPTS: {{ .attempts | quote }}
+  HTTP_RETRY_DELAY: {{ .delay | quote }}
+  HTTP_RETRY_SHOULD_RESET_TIMEOUT: {{ .shouldResetTimeout | quote }}
   {{- end -}}
 {{- end }}

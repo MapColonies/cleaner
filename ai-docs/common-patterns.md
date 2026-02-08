@@ -170,12 +170,80 @@ export class MyService {
 
 ```
 config/
-  default.json      # Base config (always loaded)
-  development.json  # Merged when NODE_ENV=development
-  production.json   # Merged when NODE_ENV=production
-  test.json         # Merged when NODE_ENV=test
-  local.json        # Local overrides (gitignored)
+  default.json                   # Base config (always loaded)
+  development.json               # Merged when NODE_ENV=development
+  production.json                # Merged when NODE_ENV=production
+  test.json                      # Merged when NODE_ENV=test
+  local.json                     # Local overrides (gitignored)
+  custom-environment-variables.json  # Environment variable mappings
+helm/
+  values.yaml                    # Helm chart default values
+  local.yaml                     # Local Helm overrides (gitignored)
+  templates/configmap.yaml       # ConfigMap template
 ```
+
+### Adding New Configuration Values
+
+**IMPORTANT**: When adding new configuration values, you MUST update ALL configuration files to maintain sync across all deployment levels:
+
+1. **`config/default.json`** - Add the configuration with default values
+2. **`config/custom-environment-variables.json`** - Add environment variable mappings
+3. **`helm/values.yaml`** - Add Helm chart values
+4. **`helm/values-local.yaml`** - Add local development values (if needed)
+5. **`helm/templates/configmap.yaml`** - Add to ConfigMap template
+
+**Example:**
+
+Adding a new `queue.jobManagerBaseUrl` configuration:
+
+**1. config/default.json**
+
+```json
+{
+  "queue": {
+    "jobManagerBaseUrl": "http://job-manager:8080"
+  }
+}
+```
+
+**2. config/custom-environment-variables.json**
+
+```json
+{
+  "queue": {
+    "jobManagerBaseUrl": "QUEUE_JOB_MANAGER_BASE_URL"
+  }
+}
+```
+
+**3. helm/values.yaml**
+
+```yaml
+env:
+  queue:
+    jobManagerBaseUrl: 'http://job-manager:8080'
+```
+
+**4. helm/local.yaml** (for local development)
+
+```yaml
+env:
+  queue:
+    jobManagerBaseUrl: 'http://localhost:8080'
+```
+
+**5. helm/templates/configmap.yaml**
+
+```yaml
+data:
+  QUEUE_JOB_MANAGER_BASE_URL: { { .Values.env.queue.jobManagerBaseUrl | quote } }
+```
+
+This ensures configuration works correctly in:
+
+- Local development (default.json, local.json)
+- CI/CD environments (environment variables)
+- Kubernetes deployments (Helm charts)
 
 ## Error Handling
 

@@ -76,6 +76,16 @@ env:
   tracing:
     enabled: false
     url: http://localhost:55681/v1/trace
+  queue:
+    jobManagerBaseUrl: "http://job-manager:8080"
+    heartbeatBaseUrl: "http://heartbeat:8080"
+    heartbeatIntervalMs: 1000
+  polling:
+    dequeueIntervalMs: 3000
+  httpRetry:
+    attempts: 3
+    delay: "exponential"
+    shouldResetTimeout: true
 
 resources:
   enabled: true
