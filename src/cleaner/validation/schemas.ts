@@ -1,0 +1,13 @@
+import { z } from 'zod';
+
+export const tilesDeletionParamsSchema = z.object({
+  //TODO: implement tiles deletion params schema(will be imported from @map-colonies/raster-shared)
+});
+
+export type TilesDeletionParams = z.infer<typeof tilesDeletionParamsSchema>;
+
+export const taskSchemas = {
+  'tiles-deletion': tilesDeletionParamsSchema,
+} as const;
+
+export type TaskType = keyof typeof taskSchemas;
