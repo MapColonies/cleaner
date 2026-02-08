@@ -80,7 +80,6 @@ env:
     jobManagerBaseUrl: "http://job-manager:8080"
     heartbeatBaseUrl: "http://heartbeat:8080"
     heartbeatIntervalMs: 1000
-  polling:
     dequeueIntervalMs: 3000
   httpRetry:
     attempts: 3

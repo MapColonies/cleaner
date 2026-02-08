@@ -23,9 +23,7 @@ data:
   QUEUE_JOB_MANAGER_BASE_URL: {{ .jobManagerBaseUrl | quote }}
   QUEUE_HEARTBEAT_BASE_URL: {{ .heartbeatBaseUrl | quote }}
   QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | quote }}
-  {{- end }}
-  {{- with $.Values.env.polling }}
-  POLLING_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | quote }}
+  QUEUE_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | quote }}
   {{- end }}
   {{- with $.Values.env.httpRetry }}
   HTTP_RETRY_ATTEMPTS: {{ .attempts | quote }}

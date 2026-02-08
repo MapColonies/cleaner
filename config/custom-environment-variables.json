@@ -14,10 +14,8 @@
   "queue": {
     "jobManagerBaseUrl": "QUEUE_JOB_MANAGER_BASE_URL",
     "heartbeatBaseUrl": "QUEUE_HEARTBEAT_BASE_URL",
-    "heartbeatIntervalMs": "QUEUE_HEARTBEAT_INTERVAL_MS"
-  },
-  "polling": {
-    "dequeueIntervalMs": "POLLING_DEQUEUE_INTERVAL_MS"
+    "heartbeatIntervalMs": "QUEUE_HEARTBEAT_INTERVAL_MS",
+    "dequeueIntervalMs": "QUEUE_DEQUEUE_INTERVAL_MS"
   },
   "httpRetry": {
     "attempts": "HTTP_RETRY_ATTEMPTS",

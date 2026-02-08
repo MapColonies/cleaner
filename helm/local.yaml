@@ -6,7 +6,6 @@ env:
     jobManagerBaseUrl: "http://localhost:8080"
     heartbeatBaseUrl: "http://localhost:8081"
     heartbeatIntervalMs: 1000
-  polling:
     dequeueIntervalMs: 3000
   httpRetry:
     attempts: 3
