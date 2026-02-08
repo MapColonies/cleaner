@@ -54,16 +54,18 @@ In `common/constants.ts`:
 
 ```typescript
 export const SERVICES = {
-  CONFIG: Symbol.for('Config'),
-  LOGGER: Symbol.for('Logger'),
-  TRACER: Symbol.for('Tracer'),
-  METRICS: Symbol.for('Metrics'),
-  JOBNIK_SDK: Symbol.for('JobnikSDK'),
-  WORKER: Symbol.for('Worker'),
+  CONFIG: Symbol('Config'),
+  LOGGER: Symbol('Logger'),
+  TRACER: Symbol('Tracer'),
+  METRICS: Symbol('Metrics'),
+  JOBNIK_SDK: Symbol('JobnikSDK'),
+  WORKER: Symbol('Worker'),
   // Add new tokens here
-  CLEANER_SERVICE: Symbol.for('CleanerService'),
-} as const;
+  CLEANER_SERVICE: Symbol('CleanerService'),
+} satisfies Record<string, symbol>;
 ```
+
+**Note**: Strategy classes are registered using their task type string directly (e.g., `'tiles-deletion'`) rather than Symbol tokens. This eliminates the need for an additional mapping layer.
 
 ## Task Handling
 

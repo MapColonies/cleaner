@@ -12,6 +12,15 @@ export const SERVICES = {
   CONFIG: Symbol('Config'),
   TRACER: Symbol('Tracer'),
   METRICS: Symbol('METRICS'),
+  QUEUE_CLIENT: Symbol('QueueClient'),
+  TASK_POLLER: Symbol('TaskPoller'),
+  STRATEGY_FACTORY: Symbol('StrategyFactory'),
+  TASK_VALIDATOR: Symbol('TaskValidator'),
+  ERROR_HANDLER: Symbol('ErrorHandler'),
+  // =============================================================================
+  // TODO: When we move to the new job-manager, we will use @map-colonies/jobnik-sdk
+  // The tokens below are kept for future migration.
+  // =============================================================================
   JOBNIK_SDK: Symbol('JobnikSDK'),
   WORKER: Symbol('Worker'),
 } satisfies Record<string, symbol>;
