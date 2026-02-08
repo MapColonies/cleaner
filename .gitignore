@@ -80,6 +80,9 @@ config.json
 # Local configuration overrides
 config/local.json
 
+# Local documentation (can be regenerated)
+ai-docs/implementation-plan.md
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 
