@@ -9,19 +9,12 @@ import type { IWorker } from '@map-colonies/jobnik-sdk';
 import { SERVICES } from '@common/constants';
 import { ConfigType } from '@common/config';
 import { registerExternalValues } from './containerConfig';
-import { LogisticsSDK } from './logistics/types';
-import { seedData } from './seeder';
 
 void registerExternalValues()
   .then(async (container) => {
     const logger = container.resolve<Logger>(SERVICES.LOGGER);
     const config = container.resolve<ConfigType>(SERVICES.CONFIG);
     const worker = container.resolve<IWorker>(SERVICES.WORKER);
-
-    // REMOVE THIS IN PRODUCTION - for demo purposes only
-    const sdk = container.resolve<LogisticsSDK>(SERVICES.JOBNIK_SDK);
-    await seedData(sdk.getProducer());
-    // END REMOVE THIS IN PRODUCTION - for demo purposes only
 
     const port = config.get('server.port');
     const stubHealthCheck = async (): Promise<void> => Promise.resolve();

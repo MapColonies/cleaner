@@ -1,27 +1,14 @@
 import type { IWorker } from '@map-colonies/jobnik-sdk';
-import type { Logger } from '@map-colonies/js-logger';
-import type { DependencyContainer, FactoryFunction } from 'tsyringe';
-import { SERVICES } from './common/constants';
-import { LogisticsManager } from './logistics/manager';
-import { LogisticsSDK } from './logistics/types';
-import { ConfigType } from './common/config';
+import type { FactoryFunction } from 'tsyringe';
 
-export const workerBuilder: FactoryFunction<IWorker> = (container: DependencyContainer) => {
-  const sdk = container.resolve<LogisticsSDK>(SERVICES.JOBNIK_SDK);
-  const logger = container.resolve<Logger>(SERVICES.LOGGER);
-  const config = container.resolve<ConfigType>(SERVICES.CONFIG);
-
-  const logisticsManager = container.resolve(LogisticsManager);
-
-  const worker = sdk.createWorker<'hazmatTransport', 'delivery'>(
-    'delivery',
-    logisticsManager.handleDeliveryTask.bind(logisticsManager),
-    config.get('jobnik.worker')
-  );
-
-  worker.on('error', (err) => {
-    logger.error({ msg: 'Worker encountered an error:', err });
-  });
-
-  return worker;
+/**
+ * Worker factory function.
+ * TODO: Implement worker creation once TaskPoller is implemented.
+ * For now, this is a stub to satisfy the containerConfig registration.
+ */
+export const workerBuilder: FactoryFunction<IWorker> = () => {
+  // TODO: Replace with actual worker implementation
+  // When TaskPoller is ready, this will create and configure the worker
+  // For the skeleton, we return a minimal stub
+  throw new Error('Worker not implemented - TaskPoller integration pending');
 };

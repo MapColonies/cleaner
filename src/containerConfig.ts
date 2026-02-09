@@ -10,7 +10,6 @@ import { SERVICES, SERVICE_NAME } from '@common/constants';
 import { getTracing } from '@common/tracing';
 import { ConfigType, getConfig } from './common/config';
 import { workerBuilder } from './worker';
-import { LogisticJobTypes, LogisticStageTypes } from './logistics/types';
 
 export interface RegisterOptions {
   override?: InjectionObject<unknown>[];
@@ -40,7 +39,8 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
           const logger = container.resolve<Logger>(SERVICES.LOGGER);
           const config = container.resolve<ConfigType>(SERVICES.CONFIG);
           const metricsRegistry = container.resolve<Registry>(SERVICES.METRICS);
-          return new JobnikSDK<LogisticJobTypes, LogisticStageTypes>({
+          // TODO: Replace with actual job/stage types once TaskPoller is implemented
+          return new JobnikSDK({
             ...config.get('jobnik.sdk'),
             logger,
             metricsRegistry,
