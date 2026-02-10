@@ -20,6 +20,14 @@
       "__format": "number"
     }
   },
+  "worker": {
+    "capabilities": {
+      "pairs": {
+        "__name": "WORKER_CAPABILITY_PAIRS",
+        "__format": "json"
+      }
+    }
+  },
   "queue": {
     "jobManagerBaseUrl": "QUEUE_JOB_MANAGER_BASE_URL",
     "heartbeatBaseUrl": "QUEUE_HEARTBEAT_BASE_URL",
@@ -31,6 +39,10 @@
       "__name": "QUEUE_DEQUEUE_INTERVAL_MS",
       "__format": "number"
     }
+  },
+  "jobDefinitions": {
+    "__name": "JOB_DEFINITIONS",
+    "__format": "json"
   },
   "httpRetry": {
     "attempts": {

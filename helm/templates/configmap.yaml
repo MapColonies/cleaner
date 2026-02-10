@@ -19,11 +19,18 @@ data:
   CONFIG_OFFLINE_MODE: {{ .offlineMode | quote }}
   CONFIG_SERVER_URL: {{ .serverUrl | quote }}
   {{- end }}
+  {{- with .Values.env.worker.capabilities }}
+  WORKER_CAPABILITY_PAIRS: {{ .pairs | toJson | quote }}
+  {{- end }}
   {{- with .Values.env.queue }}
   QUEUE_JOB_MANAGER_BASE_URL: {{ .jobManagerBaseUrl | quote }}
   QUEUE_HEARTBEAT_BASE_URL: {{ .heartbeatBaseUrl | quote }}
   QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | quote }}
   QUEUE_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | quote }}
+  {{- end }}
+  {{- $jobDefinitions := fromYaml (include "common.jobDefinitions.merged" .) }}
+  {{- if $jobDefinitions }}
+  JOB_DEFINITIONS: {{ $jobDefinitions | toJson | quote }}
   {{- end }}
   {{- with .Values.env.httpRetry }}
   HTTP_RETRY_ATTEMPTS: {{ .attempts | quote }}

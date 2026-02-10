@@ -13,18 +13,41 @@
   "server": {
     "port": 8080
   },
+  "worker": {
+    "capabilities": {
+      "pairs": [
+        {
+          "job": "Ingestion_Update",
+          "task": "tiles-deletion"
+        },
+        {
+          "job": "Ingestion_Swap_Update",
+          "task": "tiles-deletion"
+        }
+      ]
+    }
+  },
   "queue": {
     "jobManagerBaseUrl": "http//localhost:8080",
     "heartbeatBaseUrl": "http//localhost:8081",
     "heartbeatIntervalMs": 1000,
-    "dequeueIntervalMs": 3000,
-    "pairs": [
-      {
-        "jobType": "Ingestion_Update",
-        "taskType": "tiles-deletion",
+    "dequeueIntervalMs": 3000
+  },
+  "jobDefinitions": {
+    "jobs": {
+      "update": {
+        "type": "Ingestion_Update"
+      },
+      "swapUpdate": {
+        "type": "Ingestion_Swap_Update"
+      }
+    },
+    "tasks": {
+      "tilesDeletion": {
+        "type": "tiles-deletion",
         "maxAttempts": 3
       }
-    ]
+    }
   },
   "httpRetry": {
     "attempts": 3,

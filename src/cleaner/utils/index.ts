@@ -1,0 +1,1 @@
+export { buildPollingPairs } from './pairBuilder';

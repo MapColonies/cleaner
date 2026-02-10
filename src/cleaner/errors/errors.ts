@@ -25,6 +25,17 @@ export class UnrecoverableError extends Error {
 }
 
 /**
+ * Configuration error - invalid or missing configuration.
+ * This is always unrecoverable and indicates a deployment/configuration issue.
+ */
+export class ConfigurationError extends UnrecoverableError {
+  public constructor(message: string) {
+    super(message);
+    this.name = ConfigurationError.name;
+  }
+}
+
+/**
  * Validation error - task parameters failed schema validation.
  * This is always unrecoverable since invalid parameters won't become valid on retry.
  */

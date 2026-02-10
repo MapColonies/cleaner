@@ -30,13 +30,13 @@ configManagement:
 jobDefinitions:
   jobs:
     update:
-      type: ""
+      type: "Ingestion_Update"
     swapUpdate:
-      type: ""
+      type: "Ingestion_Swap_Update"
   tasks:
-     tiles-deletion:
-        type: ""
-        maxAttempts: 3   
+    tilesDeletion:
+      type: "tiles-deletion"
+      maxAttempts: 3   
 
 livenessProbe:
   enabled: true
@@ -94,6 +94,13 @@ env:
     heartbeatBaseUrl: "http//localhost:8081"
     heartbeatIntervalMs: 1000
     dequeueIntervalMs: 3000
+  worker:
+    capabilities:
+      pairs:
+        - job: "Ingestion_Update"
+          task: "tiles-deletion"
+        - job: "Ingestion_Swap_Update"
+          task: "tiles-deletion"    
   httpRetry:
     attempts: 3
     delay: "exponential"
