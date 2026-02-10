@@ -1,19 +1,19 @@
 {{- $releaseName := .Release.Name -}}
-{{- $chartName := include "jobnik-worker-boilerplate.name" . -}}
-{{- $cloudProviderFlavor := include "jobnik-worker-boilerplate.cloudProviderFlavor" . -}}
-{{- $cloudProviderDockerRegistryUrl := include "jobnik-worker-boilerplate.cloudProviderDockerRegistryUrl" . -}}
-{{- $cloudProviderImagePullSecretName := include "jobnik-worker-boilerplate.cloudProviderImagePullSecretName" . -}}
-{{- $imageTag := include "jobnik-worker-boilerplate.tag" . -}}
+{{- $chartName := include "cleaner.name" . -}}
+{{- $cloudProviderFlavor := include "cleaner.cloudProviderFlavor" . -}}
+{{- $cloudProviderDockerRegistryUrl := include "cleaner.cloudProviderDockerRegistryUrl" . -}}
+{{- $cloudProviderImagePullSecretName := include "cleaner.cloudProviderImagePullSecretName" . -}}
+{{- $imageTag := include "cleaner.tag" . -}}
 {{- if .Values.enabled -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ printf "%s-deployment" (include "jobnik-worker-boilerplate.fullname" .) }}
+  name: {{ printf "%s-deployment" (include "cleaner.fullname" .) }}
   labels:
     app: {{ $chartName }}
     component: {{ $chartName }}
     release: {{ $releaseName }}
-    {{- include "jobnik-worker-boilerplate.labels" . | nindent 4 }}
+    {{- include "cleaner.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
@@ -22,14 +22,14 @@ spec:
       app: {{ $chartName }}
       release: {{ $releaseName }}
       run: {{ $releaseName }}-{{ $chartName }}
-      {{- include "jobnik-worker-boilerplate.selectorLabels" . | nindent 6 }}
+      {{- include "cleaner.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
         app: {{ $chartName }}
         release: {{ $releaseName }}
         run: {{ $releaseName }}-{{ $chartName }}
-        {{- include "jobnik-worker-boilerplate.labels" . | nindent 8 }}
+        {{- include "cleaner.labels" . | nindent 8 }}
       annotations:
         {{ include "mclabels.annotations" . | nindent 8 }}
       {{- if .Values.resetOnConfigChange }}
@@ -80,7 +80,7 @@ spec:
             {{- end }}            
           envFrom:
             - configMapRef:
-                name: {{ printf "%s-configmap" (include "jobnik-worker-boilerplate.fullname" .) }}
+                name: {{ printf "%s-configmap" (include "cleaner.fullname" .) }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}

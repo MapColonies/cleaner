@@ -1,5 +1,5 @@
 {
-  "name": "jobnik-worker-boilerplate",
+  "name": "cleaner",
   "version": "1.0.0",
   "description": "This is template for map colonies jobnik worker service",
   "main": "./src/index.ts",

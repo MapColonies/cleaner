@@ -1,6 +1,17 @@
 # Local development overrides
 # This file is gitignored and serves as an example for local Helm values
 
+jobDefinitions:
+  jobs:
+    update:
+      type: ""
+    swapUpdate:
+      type: ""
+  tasks:
+     tiles-deletion:
+        type: "tiles-deletion"
+        maxAttempts: 3   
+
 env:
   queue:
     jobManagerBaseUrl: "http://localhost:8080"

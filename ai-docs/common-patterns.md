@@ -203,7 +203,7 @@ Adding a new `queue.jobManagerBaseUrl` configuration:
 ```json
 {
   "queue": {
-    "jobManagerBaseUrl": "http://job-manager:8080"
+    "jobManagerBaseUrl": "http//localhost:8080"
   }
 }
 ```
@@ -223,7 +223,7 @@ Adding a new `queue.jobManagerBaseUrl` configuration:
 ```yaml
 env:
   queue:
-    jobManagerBaseUrl: 'http://job-manager:8080'
+    jobManagerBaseUrl: 'http//localhost:8080'
 ```
 
 **4. helm/local.yaml** (for local development)

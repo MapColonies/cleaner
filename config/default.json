@@ -14,8 +14,8 @@
     "port": 8080
   },
   "queue": {
-    "jobManagerBaseUrl": "http://job-manager:8080",
-    "heartbeatBaseUrl": "http://heartbeat:8080",
+    "jobManagerBaseUrl": "http//localhost:8080",
+    "heartbeatBaseUrl": "http//localhost:8081",
     "heartbeatIntervalMs": 1000,
     "dequeueIntervalMs": 3000,
     "pairs": [

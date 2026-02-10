@@ -4,7 +4,7 @@
 
 **Cleaner** is a TypeScript-based worker service built on the MapColonies Jobnik SDK framework. It is a distributed task processing worker that handles cleanup operations as part of the raster processing pipeline.
 
-This project is based on the `jobnik-worker-boilerplate` template and follows the MapColonies ecosystem conventions for observability, configuration, and deployment.
+This project is based on the `cleaner` template and follows the MapColonies ecosystem conventions for observability, configuration, and deployment.
 
 ## Quick Reference
 
@@ -64,7 +64,7 @@ npm run lint:fix      # Auto-fix linting issues
 
 2. **Remove Demo Code**: The `logistics/` folder and `seeder.ts` are examples. Replace with actual cleaner implementation.
 
-3. **Package Metadata**: Update `package.json` name from `jobnik-worker-boilerplate` to `cleaner`.
+3. **Package Metadata**: Update `package.json` name from `cleaner` to `cleaner`.
 
 4. **Type Safety**: Define job/stage types in `src/cleaner/types.ts` and update `worker.ts` with correct generic parameters.
 

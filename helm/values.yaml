@@ -2,11 +2,13 @@ global:
   cloudProvider: {}
   tracing: {}
   metrics: {}
+  jobDefinitions: {}
+
 
 mclabels:
   component: backend
-  partOf: boilerplates
-  owner: common
+  partOf: core
+  owner: raster
   prometheus:
     enabled: true
 
@@ -21,9 +23,20 @@ fullnameOverride: ""
 
 configManagement:
   offlineMode: false
-  name: 'jobnik-worker-boilerplate'
+  name: 'cleaner'
   version: 'latest'
   serverUrl: 'http://localhost:8080/api'
+
+jobDefinitions:
+  jobs:
+    update:
+      type: ""
+    swapUpdate:
+      type: ""
+  tasks:
+     tiles-deletion:
+        type: ""
+        maxAttempts: 3   
 
 livenessProbe:
   enabled: true
@@ -64,7 +77,7 @@ caPath: '/usr/local/share/ca-certificates'
 caKey: 'ca.crt'
 
 image:
-  repository: jobnik-worker-boilerplate
+  repository: cleaner
   # If commented, appVersion will be taken. See: _helpers.tpl
   # tag: 'latest'
   pullPolicy: IfNotPresent
@@ -77,8 +90,8 @@ env:
     enabled: false
     url: http://localhost:55681/v1/trace
   queue:
-    jobManagerBaseUrl: "http://job-manager:8080"
-    heartbeatBaseUrl: "http://heartbeat:8080"
+    jobManagerBaseUrl: "http//localhost:8080"
+    heartbeatBaseUrl: "http//localhost:8081"
     heartbeatIntervalMs: 1000
     dequeueIntervalMs: 3000
   httpRetry:

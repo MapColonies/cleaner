@@ -156,7 +156,7 @@ export const workerBuilder: FactoryFunction<IWorker> = (container: DependencyCon
 
 ### 5. Rename Throughout the Project
 
-Update references to `jobnik-worker-boilerplate` in:
+Update references to `cleaner` in:
 - `package.json` - name, description, author
 - `helm/Chart.yaml` - name, description
 - `helm/values.yaml` - mclabels, configManagement.name, image.repository
