@@ -79,6 +79,7 @@ config.json
 
 # Local configuration overrides
 config/local.json
+helm/local.yaml
 
 # Local documentation (can be regenerated)
 ai-docs/implementation-plan.md
