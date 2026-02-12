@@ -13,5 +13,6 @@ export function createMockLogger(): Logger {
     warn: vi.fn(),
     fatal: vi.fn(),
     trace: vi.fn(),
+    child: vi.fn(() => createMockLogger()),
   } as unknown as Logger;
 }

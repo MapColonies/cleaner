@@ -5,9 +5,3 @@ export const tilesDeletionParamsSchema = z.object({
 });
 
 export type TilesDeletionParams = z.infer<typeof tilesDeletionParamsSchema>;
-
-export const taskSchemas = {
-  'tiles-deletion': tilesDeletionParamsSchema,
-} as const;
-
-export type TaskType = keyof typeof taskSchemas;

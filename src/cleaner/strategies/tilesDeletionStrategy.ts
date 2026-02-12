@@ -1,7 +1,8 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '@common/constants';
-import type { TilesDeletionParams } from '../validation/schemas';
+import { tilesDeletionParamsSchema, type TilesDeletionParams } from '../validation/schemas';
+import { validateSchema } from '../utils';
 import type { ITaskStrategy } from './taskStrategy';
 
 /**
@@ -13,10 +14,17 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   public constructor(@inject(SERVICES.LOGGER) private readonly logger: Logger) {}
 
   /**
-   * Executes tiles deletion task.
+   * Validates task parameters against tiles-deletion schema.
    *
-   * @param params - Validated tiles deletion parameters
+   * @param params - Unknown task parameters to validate
+   * @param taskType - Task type from polled task (for logging)
+   * @returns Typed and validated tiles deletion parameters
+   * @throws ValidationError if parameters fail schema validation
    */
+  public validate(params: unknown, taskType: string): TilesDeletionParams {
+    return validateSchema(tilesDeletionParamsSchema, params, taskType);
+  }
+
   public async execute(params: TilesDeletionParams): Promise<void> {
     this.logger.info({
       msg: 'Executing tiles deletion task',

@@ -1,2 +1,1 @@
-export { TaskValidator } from './taskValidator';
-export { taskSchemas, type TaskType } from './schemas';
+export { tilesDeletionParamsSchema, type TilesDeletionParams } from './schemas';

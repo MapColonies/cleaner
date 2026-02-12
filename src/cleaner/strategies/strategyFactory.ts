@@ -5,8 +5,14 @@ import { SERVICES } from '@common/constants';
 import { StrategyNotFoundError } from '../errors';
 import type { ITaskStrategy } from './taskStrategy';
 
+export interface TaskContext {
+  jobId: string;
+  taskId: string;
+  jobType: string;
+  taskType: string;
+}
+
 /**
- * Factory for resolving task strategies by task type.
  * Strategies are registered in the DI container with their task type as the token.
  */
 export class StrategyFactory {
@@ -16,22 +22,29 @@ export class StrategyFactory {
   ) {}
 
   /**
-   * Resolves a strategy for the given task type.
-   *
-   * @param taskType - The task type to resolve (e.g., 'tiles-deletion')
-   * @returns The registered strategy instance
+   * Resolves a strategy with enriched logger context for a specific task.
+   * @param taskContext - Task context (jobId, taskId, jobType, taskType)
+   * @returns Strategy instance with enriched logger
    * @throws StrategyNotFoundError if no strategy is registered for the task type
    */
-  public resolve(taskType: string): ITaskStrategy {
-    this.logger.debug({ msg: 'Resolving strategy', taskType });
+  public resolveWithContext(taskContext: TaskContext): ITaskStrategy {
+    this.logger.debug({ msg: 'Resolving strategy with task context', ...taskContext });
 
-    if (!this.container.isRegistered(taskType)) {
-      throw new StrategyNotFoundError(taskType);
+    if (!this.container.isRegistered(taskContext.taskType)) {
+      throw new StrategyNotFoundError(taskContext.taskType);
     }
 
-    const strategy = this.container.resolve<ITaskStrategy>(taskType);
+    const taskContainer = this.container.createChildContainer();
 
-    this.logger.debug({ msg: 'Strategy resolved successfully', taskType });
+    const taskLogger = this.logger.child({
+      ...taskContext,
+    });
+
+    taskContainer.register(SERVICES.LOGGER, { useValue: taskLogger });
+
+    const strategy = taskContainer.resolve<ITaskStrategy>(taskContext.taskType);
+
+    taskLogger.debug({ msg: 'Strategy resolved successfully with task context' });
 
     return strategy;
   }
