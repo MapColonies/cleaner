@@ -32,6 +32,7 @@ export class ConfigurationError extends UnrecoverableError {
   public constructor(message: string) {
     super(message);
     this.name = ConfigurationError.name;
+    Error.captureStackTrace(this, this.constructor);
   }
 }
 
@@ -46,6 +47,7 @@ export class ValidationError extends UnrecoverableError {
   ) {
     super(message);
     this.name = ValidationError.name;
+    Error.captureStackTrace(this, this.constructor);
   }
 }
 
@@ -57,5 +59,6 @@ export class StrategyNotFoundError extends UnrecoverableError {
   public constructor(taskType: string) {
     super(`No strategy registered for task type: ${taskType}`);
     this.name = StrategyNotFoundError.name;
+    Error.captureStackTrace(this, this.constructor);
   }
 }
