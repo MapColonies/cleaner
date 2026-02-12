@@ -1,7 +1,6 @@
 import type { Logger } from '@map-colonies/js-logger';
 import type { ZodSchema } from 'zod';
 import { container } from 'tsyringe';
-import { SERVICES } from '@common/constants';
 import { ValidationError } from '../errors';
 
 /**
@@ -17,23 +16,15 @@ import { ValidationError } from '../errors';
  * @param taskType - Task type name for error messages
  * @returns Typed and validated parameters
  * @throws {ValidationError} If validation fails
- *
- * @example
- * const validatedParams = validateSchema(
- *   tilesDeletionParamsSchema,
- *   rawParams,
- *   'tiles-deletion'
- * );
  */
-export function validateSchema<T>(schema: ZodSchema<T>, params: unknown, taskType: string): T {
-  const logger = container.resolve<Logger>(SERVICES.LOGGER);
+export function validateSchema<T>(schema: ZodSchema<T>, params: unknown, logger: Logger): T {
   const result = schema.safeParse(params);
 
   if (!result.success) {
-    logger.error({ taskType, errors: result.error.errors }, 'Task parameter validation failed');
-    throw new ValidationError(`Invalid parameters for task type: ${taskType}`, result.error.errors);
+    logger.error({ errors: result.error.errors }, 'Task parameter validation failed');
+    throw new ValidationError(`Invalid parameters for task`, result.error.errors);
   }
 
-  logger.debug({ taskType }, 'Task parameters validated successfully');
+  logger.debug('Task parameters validated successfully');
   return result.data;
 }

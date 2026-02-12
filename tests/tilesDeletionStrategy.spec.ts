@@ -18,35 +18,23 @@ describe('TilesDeletionStrategy', () => {
   describe('validate', () => {
     it('should validate and return typed parameters when schema passes', () => {
       const params = {}; // Empty object is valid for current TODO schema
-      const taskType = 'tiles-deletion';
 
-      const result = strategy.validate(params, taskType);
+      const result = strategy.validate(params);
 
       expect(result).toEqual({});
-      expect(mockLogger.debug).toHaveBeenCalledWith({ taskType }, 'Task parameters validated successfully');
     });
 
     it('should throw ValidationError when schema validation fails', () => {
       const invalidParams = null; // null is not a valid object
-      const taskType = 'tiles-deletion';
 
-      expect(() => strategy.validate(invalidParams, taskType)).toThrow(ValidationError);
-      expect(() => strategy.validate(invalidParams, taskType)).toThrow(`Invalid parameters for task type: ${taskType}`);
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          taskType,
-          errors: expect.any(Array) as unknown[],
-        }),
-        'Task parameter validation failed'
-      );
+      expect(() => strategy.validate(invalidParams)).toThrow(ValidationError);
     });
 
     it('should throw ValidationError with Zod error details', () => {
       const invalidParams = 'not an object';
-      const taskType = 'tiles-deletion';
 
       try {
-        strategy.validate(invalidParams, taskType);
+        strategy.validate(invalidParams);
         expect.fail('Should have thrown ValidationError');
       } catch (error) {
         expect(error).toBeInstanceOf(ValidationError);
@@ -54,15 +42,6 @@ describe('TilesDeletionStrategy', () => {
         expect(validationError.validationDetails).toBeDefined();
         expect(Array.isArray(validationError.validationDetails)).toBe(true);
       }
-    });
-
-    it('should use task type from polled task for logging', () => {
-      const params = {};
-      const taskType = 'custom-task-type'; // Different task type
-
-      strategy.validate(params, taskType);
-
-      expect(mockLogger.debug).toHaveBeenCalledWith({ taskType: 'custom-task-type' }, 'Task parameters validated successfully');
     });
   });
 
@@ -76,21 +55,6 @@ describe('TilesDeletionStrategy', () => {
         msg: 'Executing tiles deletion task',
         params: validParams,
       });
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        msg: 'Tiles deletion task completed',
-      });
-    });
-  });
-
-  describe('validate + execute flow', () => {
-    it('should validate then execute successfully', async () => {
-      const rawParams = {};
-      const taskType = 'tiles-deletion';
-
-      const validatedParams = strategy.validate(rawParams, taskType);
-      await strategy.execute(validatedParams);
-
-      expect(mockLogger.debug).toHaveBeenCalledWith({ taskType }, 'Task parameters validated successfully');
       expect(mockLogger.info).toHaveBeenCalledWith({
         msg: 'Tiles deletion task completed',
       });

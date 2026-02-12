@@ -56,6 +56,6 @@ export class ValidationError extends UnrecoverableError {
 export class StrategyNotFoundError extends UnrecoverableError {
   public constructor(taskType: string) {
     super(`No strategy registered for task type: ${taskType}`);
-    this.name = 'StrategyNotFoundError';
+    this.name = StrategyNotFoundError.name;
   }
 }

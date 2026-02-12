@@ -17,12 +17,11 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
    * Validates task parameters against tiles-deletion schema.
    *
    * @param params - Unknown task parameters to validate
-   * @param taskType - Task type from polled task (for logging)
    * @returns Typed and validated tiles deletion parameters
    * @throws ValidationError if parameters fail schema validation
    */
-  public validate(params: unknown, taskType: string): TilesDeletionParams {
-    return validateSchema(tilesDeletionParamsSchema, params, taskType);
+  public validate(params: unknown): TilesDeletionParams {
+    return validateSchema(tilesDeletionParamsSchema, params, this.logger);
   }
 
   public async execute(params: TilesDeletionParams): Promise<void> {
