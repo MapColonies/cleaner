@@ -56,6 +56,7 @@ tests/
 ### Basic Structure
 
 ```typescript
+import { faker } from '@faker-js/faker';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ErrorHandler } from '../src/cleaner/errors';
 import { createMockLogger } from './helpers/mocks';
@@ -71,7 +72,7 @@ describe('ErrorHandler', () => {
 
   it('should retry recoverable errors when attempts remain', () => {
     const error = new RecoverableError('Network timeout');
-    const context = { jobId: '123', taskId: '456', attemptNumber: 1, maxAttempts: 3, error };
+    const context = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), attemptNumber: 1, maxAttempts: 3, error };
 
     const decision = errorHandler.handleError(context);
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { container, DependencyContainer } from 'tsyringe';
+import { faker } from '@faker-js/faker';
 import type { Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '../src/common/constants';
 import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
@@ -41,8 +42,8 @@ describe('StrategyFactory', () => {
       childContainer.register(taskType, { useClass: TilesDeletionStrategy });
 
       const taskContext: TaskContext = {
-        jobId: 'job-abc123',
-        taskId: 'task-123',
+        jobId: faker.string.uuid(),
+        taskId: faker.string.uuid(),
         jobType: 'Ingestion_Update',
         taskType,
       };
@@ -53,10 +54,10 @@ describe('StrategyFactory', () => {
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.objectContaining({
           msg: 'Resolving strategy with task context',
-          jobId: 'job-abc123',
-          taskId: 'task-123',
-          jobType: 'Ingestion_Update',
-          taskType: 'tiles-deletion',
+          jobId: taskContext.jobId,
+          taskId: taskContext.taskId,
+          jobType: taskContext.jobType,
+          taskType: taskContext.taskType,
         })
       );
     });
@@ -66,8 +67,8 @@ describe('StrategyFactory', () => {
       childContainer.register(taskType, { useClass: TilesDeletionStrategy });
 
       const taskContext: TaskContext = {
-        jobId: 'job-def456',
-        taskId: 'task-456',
+        jobId: faker.string.uuid(),
+        taskId: faker.string.uuid(),
         jobType: 'Ingestion_Swap_Update',
         taskType,
       };
@@ -76,17 +77,17 @@ describe('StrategyFactory', () => {
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockLogger.child).toHaveBeenCalledWith({
-        jobId: 'job-def456',
-        taskId: 'task-456',
-        jobType: 'Ingestion_Swap_Update',
-        taskType: 'tiles-deletion',
+        jobId: taskContext.jobId,
+        taskId: taskContext.taskId,
+        jobType: taskContext.jobType,
+        taskType: taskContext.taskType,
       });
     });
 
     it('should throw StrategyNotFoundError for unregistered task type', () => {
       const taskContext: TaskContext = {
-        jobId: 'job-xyz789',
-        taskId: 'task-789',
+        jobId: faker.string.uuid(),
+        taskId: faker.string.uuid(),
         jobType: 'Export',
         taskType: 'non-existent-task',
       };
@@ -98,8 +99,8 @@ describe('StrategyFactory', () => {
       const taskType = 'tiles-deletion';
       childContainer.register(taskType, { useClass: TilesDeletionStrategy });
 
-      const context1: TaskContext = { jobId: 'job-1', taskId: 'task-1', jobType: 'Ingestion_Update', taskType };
-      const context2: TaskContext = { jobId: 'job-1', taskId: 'task-2', jobType: 'Ingestion_Update', taskType };
+      const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
+      const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
 
       const strategy1 = strategyFactory.resolveWithContext(context1);
       const strategy2 = strategyFactory.resolveWithContext(context2);
@@ -115,8 +116,8 @@ describe('StrategyFactory', () => {
       childContainer.register(taskType1, { useClass: TilesDeletionStrategy });
       childContainer.register(taskType2, { useClass: MockStrategy });
 
-      const context1: TaskContext = { jobId: 'job-multi', taskId: 'task-1', jobType: 'Ingestion_Update', taskType: taskType1 };
-      const context2: TaskContext = { jobId: 'job-multi', taskId: 'task-2', jobType: 'Ingestion_Update', taskType: taskType2 };
+      const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType1 };
+      const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType2 };
 
       const strategy1 = strategyFactory.resolveWithContext(context1);
       const strategy2 = strategyFactory.resolveWithContext(context2);
@@ -131,8 +132,8 @@ describe('StrategyFactory', () => {
       childContainer.register(taskType, { useClass: MockStrategy });
 
       const taskContext: TaskContext = {
-        jobId: 'job-special',
-        taskId: 'task-special',
+        jobId: faker.string.uuid(),
+        taskId: faker.string.uuid(),
         jobType: 'CustomJob',
         taskType,
       };
