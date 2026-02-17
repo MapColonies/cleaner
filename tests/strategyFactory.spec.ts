@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { container, DependencyContainer } from 'tsyringe';
 import { faker } from '@faker-js/faker';
 import type { Logger } from '@map-colonies/js-logger';
@@ -48,9 +48,9 @@ describe('StrategyFactory', () => {
         taskType,
       };
 
-      const strategy = strategyFactory.resolveWithContext(taskContext);
+      const handle = strategyFactory.resolveWithContext(taskContext);
 
-      expect(strategy).toBeInstanceOf(TilesDeletionStrategy);
+      expect(handle.strategy).toBeInstanceOf(TilesDeletionStrategy);
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.objectContaining({
           msg: 'Resolving strategy with task context',
@@ -102,11 +102,11 @@ describe('StrategyFactory', () => {
       const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
       const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
 
-      const strategy1 = strategyFactory.resolveWithContext(context1);
-      const strategy2 = strategyFactory.resolveWithContext(context2);
+      const handle1 = strategyFactory.resolveWithContext(context1);
+      const handle2 = strategyFactory.resolveWithContext(context2);
 
       // Different instances because of child containers
-      expect(strategy1).not.toBe(strategy2);
+      expect(handle1.strategy).not.toBe(handle2.strategy);
     });
 
     it('should resolve different strategies for different task types', () => {
@@ -119,12 +119,12 @@ describe('StrategyFactory', () => {
       const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType1 };
       const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType2 };
 
-      const strategy1 = strategyFactory.resolveWithContext(context1);
-      const strategy2 = strategyFactory.resolveWithContext(context2);
+      const handle1 = strategyFactory.resolveWithContext(context1);
+      const handle2 = strategyFactory.resolveWithContext(context2);
 
-      expect(strategy1).toBeInstanceOf(TilesDeletionStrategy);
-      expect(strategy2).toBeInstanceOf(MockStrategy);
-      expect(strategy1).not.toBe(strategy2);
+      expect(handle1.strategy).toBeInstanceOf(TilesDeletionStrategy);
+      expect(handle2.strategy).toBeInstanceOf(MockStrategy);
+      expect(handle1.strategy).not.toBe(handle2.strategy);
     });
 
     it('should handle special characters in task type', () => {
@@ -138,9 +138,29 @@ describe('StrategyFactory', () => {
         taskType,
       };
 
-      const strategy = strategyFactory.resolveWithContext(taskContext);
+      const handle = strategyFactory.resolveWithContext(taskContext);
 
-      expect(strategy).toBeInstanceOf(MockStrategy);
+      expect(handle.strategy).toBeInstanceOf(MockStrategy);
+    });
+
+    it('should have asyncDispose method for cleanup', async () => {
+      const taskType = 'tiles-deletion';
+      childContainer.register(taskType, { useClass: TilesDeletionStrategy });
+
+      const taskContext: TaskContext = {
+        jobId: faker.string.uuid(),
+        taskId: faker.string.uuid(),
+        jobType: 'Ingestion_Update',
+        taskType,
+      };
+
+      const handle = strategyFactory.resolveWithContext(taskContext);
+
+      expect(handle[Symbol.asyncDispose]).toBeDefined();
+      expect(typeof handle[Symbol.asyncDispose]).toBe('function');
+
+      // Cleanup should not throw
+      await expect(handle[Symbol.asyncDispose]()).resolves.not.toThrow();
     });
   });
 });

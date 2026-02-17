@@ -1,6 +1,5 @@
 import type { Logger } from '@map-colonies/js-logger';
 import type { ZodSchema } from 'zod';
-import { container } from 'tsyringe';
 import { ValidationError } from '../errors';
 
 /**
