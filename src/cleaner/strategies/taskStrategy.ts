@@ -13,7 +13,7 @@ export interface ITaskStrategy<T = Record<string, unknown>> {
    * @returns Typed and validated parameters
    * @throws ValidationError if parameters fail schema validation
    */
-  validate: (params: unknown, taskType: string) => T;
+  validate: (params: unknown) => T;
 
   /**
    * Executes the task with validated parameters.

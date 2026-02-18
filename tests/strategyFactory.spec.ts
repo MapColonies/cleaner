@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { container, DependencyContainer } from 'tsyringe';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { container } from 'tsyringe';
 import { faker } from '@faker-js/faker';
 import type { Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '../src/common/constants';
@@ -7,7 +7,6 @@ import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskCo
 import { StrategyNotFoundError } from '../src/cleaner/errors';
 import { createMockLogger } from './helpers/mocks';
 
-// Mock strategy for testing
 class MockStrategy implements ITaskStrategy {
   public validate(params: unknown): Record<string, unknown> {
     return params as Record<string, unknown>;
@@ -21,25 +20,25 @@ class MockStrategy implements ITaskStrategy {
 describe('StrategyFactory', () => {
   let strategyFactory: StrategyFactory;
   let mockLogger: Logger;
-  let childContainer: DependencyContainer;
 
   beforeEach(() => {
     mockLogger = createMockLogger();
-    childContainer = container.createChildContainer();
-    childContainer.register(SERVICES.LOGGER, { useValue: mockLogger });
 
-    // Create factory with child container
-    strategyFactory = new StrategyFactory(mockLogger, childContainer);
+    // Register in global container (which StrategyFactory uses)
+    container.register(SERVICES.LOGGER, { useValue: mockLogger });
+
+    strategyFactory = new StrategyFactory(mockLogger);
   });
 
   afterEach(() => {
-    childContainer.clearInstances();
+    // Clear registrations from global container
+    container.clearInstances();
   });
 
   describe('resolveWithContext', () => {
     it('should resolve registered strategy with enriched logger context', () => {
       const taskType = 'tiles-deletion';
-      childContainer.register(taskType, { useClass: TilesDeletionStrategy });
+      container.register(taskType, { useClass: TilesDeletionStrategy });
 
       const taskContext: TaskContext = {
         jobId: faker.string.uuid(),
@@ -48,9 +47,9 @@ describe('StrategyFactory', () => {
         taskType,
       };
 
-      const handle = strategyFactory.resolveWithContext(taskContext);
+      const strategy = strategyFactory.resolveWithContext(taskContext);
 
-      expect(handle.strategy).toBeInstanceOf(TilesDeletionStrategy);
+      expect(strategy).toBeInstanceOf(TilesDeletionStrategy);
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.objectContaining({
           msg: 'Resolving strategy with task context',
@@ -64,7 +63,7 @@ describe('StrategyFactory', () => {
 
     it('should create child logger with task context', () => {
       const taskType = 'tiles-deletion';
-      childContainer.register(taskType, { useClass: TilesDeletionStrategy });
+      container.register(taskType, { useClass: TilesDeletionStrategy });
 
       const taskContext: TaskContext = {
         jobId: faker.string.uuid(),
@@ -97,39 +96,38 @@ describe('StrategyFactory', () => {
 
     it('should create separate instances for different tasks (child container isolation)', () => {
       const taskType = 'tiles-deletion';
-      childContainer.register(taskType, { useClass: TilesDeletionStrategy });
+      container.register(taskType, { useClass: TilesDeletionStrategy });
 
       const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
       const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
 
-      const handle1 = strategyFactory.resolveWithContext(context1);
-      const handle2 = strategyFactory.resolveWithContext(context2);
+      const strategy1 = strategyFactory.resolveWithContext(context1);
+      const strategy2 = strategyFactory.resolveWithContext(context2);
 
-      // Different instances because of child containers
-      expect(handle1.strategy).not.toBe(handle2.strategy);
+      expect(strategy1).not.toBe(strategy2);
     });
 
     it('should resolve different strategies for different task types', () => {
       const taskType1 = 'tiles-deletion';
       const taskType2 = 'files-deletion';
 
-      childContainer.register(taskType1, { useClass: TilesDeletionStrategy });
-      childContainer.register(taskType2, { useClass: MockStrategy });
+      container.register(taskType1, { useClass: TilesDeletionStrategy });
+      container.register(taskType2, { useClass: MockStrategy });
 
       const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType1 };
       const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType2 };
 
-      const handle1 = strategyFactory.resolveWithContext(context1);
-      const handle2 = strategyFactory.resolveWithContext(context2);
+      const strategy1 = strategyFactory.resolveWithContext(context1);
+      const strategy2 = strategyFactory.resolveWithContext(context2);
 
-      expect(handle1.strategy).toBeInstanceOf(TilesDeletionStrategy);
-      expect(handle2.strategy).toBeInstanceOf(MockStrategy);
-      expect(handle1.strategy).not.toBe(handle2.strategy);
+      expect(strategy1).toBeInstanceOf(TilesDeletionStrategy);
+      expect(strategy2).toBeInstanceOf(MockStrategy);
+      expect(strategy1).not.toBe(strategy2);
     });
 
     it('should handle special characters in task type', () => {
       const taskType = 'task-with-special_chars.v2';
-      childContainer.register(taskType, { useClass: MockStrategy });
+      container.register(taskType, { useClass: MockStrategy });
 
       const taskContext: TaskContext = {
         jobId: faker.string.uuid(),
@@ -138,29 +136,9 @@ describe('StrategyFactory', () => {
         taskType,
       };
 
-      const handle = strategyFactory.resolveWithContext(taskContext);
+      const strategy = strategyFactory.resolveWithContext(taskContext);
 
-      expect(handle.strategy).toBeInstanceOf(MockStrategy);
-    });
-
-    it('should have asyncDispose method for cleanup', async () => {
-      const taskType = 'tiles-deletion';
-      childContainer.register(taskType, { useClass: TilesDeletionStrategy });
-
-      const taskContext: TaskContext = {
-        jobId: faker.string.uuid(),
-        taskId: faker.string.uuid(),
-        jobType: 'Ingestion_Update',
-        taskType,
-      };
-
-      const handle = strategyFactory.resolveWithContext(taskContext);
-
-      expect(handle[Symbol.asyncDispose]).toBeDefined();
-      expect(typeof handle[Symbol.asyncDispose]).toBe('function');
-
-      // Cleanup should not throw
-      await expect(handle[Symbol.asyncDispose]()).resolves.not.toThrow();
+      expect(strategy).toBeInstanceOf(MockStrategy);
     });
   });
 });

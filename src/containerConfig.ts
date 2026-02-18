@@ -10,6 +10,7 @@ import { SERVICES, SERVICE_NAME } from '@common/constants';
 import { getTracing } from '@common/tracing';
 import { ConfigType, getConfig } from './common/config';
 import { workerBuilder } from './worker';
+import { StrategyFactory } from './cleaner/strategies';
 
 export interface RegisterOptions {
   override?: InjectionObject<unknown>[];
@@ -54,7 +55,12 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
         useFactory: instancePerContainerCachingFactory(workerBuilder),
       },
     },
-
+    {
+      token: SERVICES.STRATEGY_FACTORY,
+      provider: {
+        useClass: StrategyFactory,
+      },
+    },
     {
       token: 'onSignal',
       provider: {
