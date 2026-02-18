@@ -20,10 +20,10 @@ export function validateSchema<T>(schema: ZodSchema<T>, params: unknown, logger:
   const result = schema.safeParse(params);
 
   if (!result.success) {
-    logger.error({ errors: result.error.errors }, 'Task parameter validation failed');
+    logger.error({ msg: 'Task parameter validation failed', errors: result.error.errors });
     throw new ValidationError(`Invalid parameters for task`, result.error.errors);
   }
 
-  logger.debug('Task parameters validated successfully');
+  logger.debug({ msg: 'Task parameters validated successfully' });
   return result.data;
 }

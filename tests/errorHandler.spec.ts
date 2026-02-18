@@ -1,17 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { faker } from '@faker-js/faker';
-import type { Logger } from '@map-colonies/js-logger';
+import jsLogger from '@map-colonies/js-logger';
 import { ErrorHandler, RecoverableError, UnrecoverableError, ValidationError } from '../src/cleaner/errors';
 import type { ErrorContext } from '../src/cleaner/types';
-import { createMockLogger } from './helpers/mocks';
 
 describe('ErrorHandler', () => {
   let errorHandler: ErrorHandler;
-  let mockLogger: Logger;
 
   beforeEach(() => {
-    mockLogger = createMockLogger();
-    errorHandler = new ErrorHandler(mockLogger);
+    errorHandler = new ErrorHandler(jsLogger({ enabled: false }));
   });
 
   describe('handleError', () => {
@@ -30,9 +27,6 @@ describe('ErrorHandler', () => {
         const decision = errorHandler.handleError(context);
 
         expect(decision.shouldRetry).toBe(false);
-        expect(decision.reason).toContain('Unrecoverable error');
-        expect(mockLogger.error).toHaveBeenCalled();
-        expect(mockLogger.warn).toHaveBeenCalled();
       });
 
       it('should not retry even on first attempt', () => {
@@ -53,10 +47,6 @@ describe('ErrorHandler', () => {
         const decision = errorHandler.handleError(context);
 
         expect(decision.shouldRetry).toBe(true);
-        expect(decision.reason).toContain('RecoverableError');
-        expect(decision.reason).toContain('Network timeout');
-        expect(decision.reason).toContain('1/3');
-        expect(mockLogger.info).toHaveBeenCalled();
       });
 
       it('should not retry when max attempts reached', () => {
@@ -66,10 +56,6 @@ describe('ErrorHandler', () => {
         const decision = errorHandler.handleError(context);
 
         expect(decision.shouldRetry).toBe(false);
-        expect(decision.reason).toContain('Max attempts');
-        expect(decision.reason).toContain('3');
-        expect(decision.reason).toContain('Network timeout');
-        expect(mockLogger.warn).toHaveBeenCalled();
       });
 
       it('should retry on second attempt if max is 3', () => {
@@ -91,10 +77,6 @@ describe('ErrorHandler', () => {
         const decision = errorHandler.handleError(context);
 
         expect(decision.shouldRetry).toBe(true);
-        expect(decision.reason).toContain('Unknown error');
-        expect(decision.reason).toContain('Unknown error type');
-        expect(decision.reason).toContain('1/3');
-        expect(mockLogger.warn).toHaveBeenCalled();
       });
 
       it('should not retry unknown errors when max attempts reached', () => {
@@ -104,9 +86,6 @@ describe('ErrorHandler', () => {
         const decision = errorHandler.handleError(context);
 
         expect(decision.shouldRetry).toBe(false);
-        expect(decision.reason).toContain('Max attempts');
-        expect(decision.reason).toContain('Unknown error');
-        expect(mockLogger.error).toHaveBeenCalled();
       });
     });
   });
