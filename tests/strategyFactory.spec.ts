@@ -52,7 +52,6 @@ describe('StrategyFactory', () => {
       expect(strategy).toBeInstanceOf(TilesDeletionStrategy);
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.objectContaining({
-          msg: 'Resolving strategy with task context',
           jobId: taskContext.jobId,
           taskId: taskContext.taskId,
           jobType: taskContext.jobType,

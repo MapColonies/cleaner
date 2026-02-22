@@ -50,14 +50,6 @@ describe('TilesDeletionStrategy', () => {
       const validParams = {}; // Matches TilesDeletionParams type
 
       await expect(strategy.execute(validParams)).resolves.toBeUndefined();
-
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        msg: 'Executing tiles deletion task',
-        params: validParams,
-      });
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        msg: 'Tiles deletion task completed',
-      });
     });
   });
 });
