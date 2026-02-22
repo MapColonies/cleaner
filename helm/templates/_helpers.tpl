@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "jobnik-worker-boilerplate.name" -}}
+{{- define "cleaner.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "jobnik-worker-boilerplate.fullname" -}}
+{{- define "cleaner.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "jobnik-worker-boilerplate.chart" -}}
+{{- define "cleaner.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "jobnik-worker-boilerplate.labels" -}}
-helm.sh/chart: {{ include "jobnik-worker-boilerplate.chart" . }}
-{{ include "jobnik-worker-boilerplate.selectorLabels" . }}
+{{- define "cleaner.labels" -}}
+helm.sh/chart: {{ include "cleaner.chart" . }}
+{{ include "cleaner.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -46,15 +46,15 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Returns the tag of the chart.
 */}}
-{{- define "jobnik-worker-boilerplate.tag" -}}
+{{- define "cleaner.tag" -}}
 {{- default (printf "v%s" .Chart.AppVersion) .Values.image.tag }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
-{{- define "jobnik-worker-boilerplate.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "jobnik-worker-boilerplate.name" . }}
+{{- define "cleaner.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "cleaner.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{ include "mclabels.selectorLabels" . }}
 {{- end }}
@@ -62,7 +62,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/*
 Returns the cloud provider name from global if exists or from the chart's values, defaults to minikube
 */}}
-{{- define "jobnik-worker-boilerplate.cloudProviderFlavor" -}}
+{{- define "cleaner.cloudProviderFlavor" -}}
 {{- if .Values.global.cloudProvider.flavor }}
     {{- .Values.global.cloudProvider.flavor -}}
 {{- else if .Values.cloudProvider -}}
@@ -75,7 +75,7 @@ Returns the cloud provider name from global if exists or from the chart's values
 {{/*
 Returns the cloud provider docker registry url from global if exists or from the chart's values
 */}}
-{{- define "jobnik-worker-boilerplate.cloudProviderDockerRegistryUrl" -}}
+{{- define "cleaner.cloudProviderDockerRegistryUrl" -}}
 {{- if .Values.global.cloudProvider.dockerRegistryUrl }}
     {{- printf "%s/" .Values.global.cloudProvider.dockerRegistryUrl -}}
 {{- else if .Values.cloudProvider.dockerRegistryUrl -}}
@@ -87,7 +87,7 @@ Returns the cloud provider docker registry url from global if exists or from the
 {{/*
 Returns the cloud provider image pull secret name from global if exists or from the chart's values
 */}}
-{{- define "jobnik-worker-boilerplate.cloudProviderImagePullSecretName" -}}
+{{- define "cleaner.cloudProviderImagePullSecretName" -}}
 {{- if .Values.global.cloudProvider.imagePullSecretName }}
     {{- .Values.global.cloudProvider.imagePullSecretName -}}
 {{- else if .Values.cloudProvider.imagePullSecretName -}}
@@ -98,7 +98,7 @@ Returns the cloud provider image pull secret name from global if exists or from 
 {{/*
 Returns the tracing url from global if exists or from the chart's values
 */}}
-{{- define "jobnik-worker-boilerplate.tracingUrl" -}}
+{{- define "cleaner.tracingUrl" -}}
 {{- if .Values.global.tracing.url }}
     {{- .Values.global.tracing.url -}}
 {{- else if .Values.cloudProvider -}}
@@ -109,7 +109,7 @@ Returns the tracing url from global if exists or from the chart's values
 {{/*
 Returns the tracing url from global if exists or from the chart's values
 */}}
-{{- define "jobnik-worker-boilerplate.metricsUrl" -}}
+{{- define "cleaner.metricsUrl" -}}
 {{- if .Values.global.metrics.url }}
     {{- .Values.global.metrics.url -}}
 {{- else -}}

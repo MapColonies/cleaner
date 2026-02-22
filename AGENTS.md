@@ -4,7 +4,7 @@
 
 **Cleaner** is a TypeScript-based worker service built on the MapColonies Jobnik SDK framework. It is a distributed task processing worker that handles cleanup operations as part of the raster processing pipeline.
 
-This project is based on the `jobnik-worker-boilerplate` template and follows the MapColonies ecosystem conventions for observability, configuration, and deployment.
+This project is based on the `cleaner` template and follows the MapColonies ecosystem conventions for observability, configuration, and deployment.
 
 ## Quick Reference
 
@@ -55,15 +55,22 @@ npm run lint:fix      # Auto-fix linting issues
 
 ## Important Notes for AI Agents
 
-1. **Remove Demo Code**: The `logistics/` folder and `seeder.ts` are examples. Replace with actual cleaner implementation.
+1. **Incremental Commits & PRs**: Always implement changes in small commits grouped into reviewable PRs. After implementing each part:
+   - Stage files with `git add`
+   - Stop and wait for user confirmation before committing
+   - Only commit after explicit user approval
+   - Use conventional commits: `<type>(<scope>): <description>`
+   - When enough commits are accumulated (3-5 related commits), STOP and tell user to create PR before continuing
 
-2. **Package Metadata**: Update `package.json` name from `jobnik-worker-boilerplate` to `cleaner`.
+2. **Remove Demo Code**: The `logistics/` folder and `seeder.ts` are examples. Replace with actual cleaner implementation.
 
-3. **Type Safety**: Define job/stage types in `src/cleaner/types.ts` and update `worker.ts` with correct generic parameters.
+3. **Package Metadata**: Update `package.json` name from `cleaner` to `cleaner`.
 
-4. **Path Aliases**: Use `@common/` for imports from `src/common/`.
+4. **Type Safety**: Define job/stage types in `src/cleaner/types.ts` and update `worker.ts` with correct generic parameters.
 
-5. **Endpoints**: `/metrics` (Prometheus), `/liveness` (health check).
+5. **Path Aliases**: Use `@common/` for imports from `src/common/`.
+
+6. **Endpoints**: `/metrics` (Prometheus), `/liveness` (health check).
 
 ## Common Tasks
 

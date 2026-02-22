@@ -1,10 +1,10 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: jobnik-worker-boilerplate
+  name: cleaner
   description: A boilerplate github repo for a nodejs worker service
   annotations:
-    github.com/project-slug: MapColonies/jobnik-worker-boilerplate
+    github.com/project-slug: MapColonies/cleaner
   tags:
     - nodejs
     - typescript

@@ -1,0 +1,61 @@
+{
+  "telemetry": {
+    "tracing": {
+      "isEnabled": {
+        "__name": "TELEMETRY_TRACING_ENABLED",
+        "__format": "boolean"
+      }
+    },
+    "logger": {
+      "level": "LOG_LEVEL",
+      "prettyPrint": {
+        "__name": "LOG_PRETTY_PRINT_ENABLED",
+        "__format": "boolean"
+      }
+    }
+  },
+  "server": {
+    "port": {
+      "__name": "SERVER_PORT",
+      "__format": "number"
+    }
+  },
+  "worker": {
+    "capabilities": {
+      "pairs": {
+        "__name": "WORKER_CAPABILITY_PAIRS",
+        "__format": "json"
+      }
+    }
+  },
+  "queue": {
+    "jobManagerBaseUrl": "QUEUE_JOB_MANAGER_BASE_URL",
+    "heartbeatBaseUrl": "QUEUE_HEARTBEAT_BASE_URL",
+    "heartbeatIntervalMs": {
+      "__name": "QUEUE_HEARTBEAT_INTERVAL_MS",
+      "__format": "number"
+    },
+    "dequeueIntervalMs": {
+      "__name": "QUEUE_DEQUEUE_INTERVAL_MS",
+      "__format": "number"
+    }
+  },
+  "jobDefinitions": {
+    "__name": "JOB_DEFINITIONS",
+    "__format": "json"
+  },
+  "httpRetry": {
+    "attempts": {
+      "__name": "HTTP_RETRY_ATTEMPTS",
+      "__format": "number"
+    },
+    "delay": {
+      "__name": "HTTP_RETRY_DELAY",
+      "__format": "number"
+    },
+    "shouldResetTimeout": {
+      "__name": "HTTP_RETRY_SHOULD_RESET_TIMEOUT",
+      "__format": "boolean"
+    }
+  }
+}
