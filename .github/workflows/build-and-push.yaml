@@ -22,7 +22,7 @@ jobs:
         with:
           # Example:
           # domain: infra
-          domain: YOUR_DOMAIN
+          domain: raster
           registry: ${{ secrets.ACR_URL }}
 
       - name: Push Docker Image
@@ -37,19 +37,26 @@ jobs:
           # Example:
           # context: ./helm (default value)
           # domain: infra
-          context: YOUR_CHART_PATH
-          domain: YOUR_DOMAIN
+          context: ./helm
+          domain: raster
           registry: ${{ secrets.ACR_URL }}
 
-      - name: Update Artifacts File
+      - name: Update Artifacts File- Docker
         uses: MapColonies/shared-workflows/actions/update-artifacts-file@update-artifacts-file-v1.1.1
         with:
-          # Example:
-          # domain: infra
-          # type: docker
-          domain: YOUR_DOMAIN
+          domain: raster
           artifact_name: ${{ github.event.repository.name }}
           artifact_tag: ${{ github.ref_name }}
-          type: YOUR_ARTIFACT_TYPE
+          type: docker
+          registry: ${{ secrets.ACR_URL }}
+          github_token: ${{ secrets.GH_PAT }}
+
+      - name: Update Artifacts File- Helm
+        uses: MapColonies/shared-workflows/actions/update-artifacts-file@update-artifacts-file-v1.1.1
+        with:
+          domain: raster
+          artifact_name: ${{ github.event.repository.name }}
+          artifact_tag: ${{ github.ref_name }}
+          type: helm
           registry: ${{ secrets.ACR_URL }}
           github_token: ${{ secrets.GH_PAT }}
