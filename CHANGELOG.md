@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/MapColonies/cleaner/compare/v1.0.0...v1.0.1) (2026-02-23)
+
+
+### Bug Fixes
+
+* **ci:** modify build-and-push workflow for raster domain ([8f85e07](https://github.com/MapColonies/cleaner/commit/8f85e077b7e71367322731754c5256f640a41f08))
+
 ## 1.0.0 (2026-02-22)
 
 
