@@ -36,7 +36,7 @@
     "@map-colonies/js-logger": "^3.0.2",
     "@map-colonies/mc-priority-queue": "^9.0.2",
     "@map-colonies/read-pkg": "^1.0.0",
-    "@map-colonies/schemas": "^1.13.0",
+    "@map-colonies/schemas": "^1.17.0",
     "@map-colonies/telemetry": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
     "compression": "^1.8.0",
