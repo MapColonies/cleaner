@@ -6,7 +6,7 @@ import type { WorkerCapabilities, JobDefinitions, PollingPairConfig } from '../c
 import { buildPollingPairs } from '../cleaner/utils';
 import { TaskPoller } from './taskPoller';
 
-const workerBuilder: FactoryFunction<IWorker> = (container) => {
+export const workerBuilder: FactoryFunction<IWorker> = (container) => {
   const config = container.resolve<ConfigType>(SERVICES.CONFIG);
 
   const jobDefinitions = config.get('jobDefinitions') as JobDefinitions; //TODO:when we create worker config schema we can remove the cast
@@ -18,5 +18,3 @@ const workerBuilder: FactoryFunction<IWorker> = (container) => {
 
   return container.resolve(TaskPoller);
 };
-
-export { workerBuilder };

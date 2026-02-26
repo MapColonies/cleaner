@@ -13,7 +13,7 @@ import { UnrecoverableError, type ErrorHandler } from '../cleaner/errors';
  * TaskPoller - Simple bridge to implement IWorker using the old mc-priority-queue SDK
  */
 @injectable()
-class TaskPoller implements IWorker {
+export class TaskPoller implements IWorker {
   private shouldStop = false;
   private readonly dequeueIntervalMs: number;
 
@@ -140,5 +140,3 @@ class TaskPoller implements IWorker {
     }
   }
 }
-
-export { TaskPoller };
