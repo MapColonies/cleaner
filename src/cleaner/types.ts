@@ -70,7 +70,7 @@ export interface ErrorContext {
   taskId: string;
   attemptNumber: number;
   maxAttempts: number;
-  error: Error;
+  error: unknown;
 }
 
 /**

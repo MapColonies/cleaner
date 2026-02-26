@@ -151,7 +151,7 @@ describe('TaskPoller', () => {
       expect(queueClient.ack).not.toHaveBeenCalled();
     });
 
-    it('wraps a non-Error thrown value into an Error before calling errorHandler', async () => {
+    it('passes the raw thrown value to errorHandler without wrapping', async () => {
       const strategy = buildMockStrategy();
       vi.mocked(strategy.execute).mockRejectedValue('raw string');
       vi.mocked(strategyFactory.resolveWithContext).mockReturnValue(strategy);
@@ -160,9 +160,7 @@ describe('TaskPoller', () => {
 
       await poller.start();
 
-      const [{ error }] = vi.mocked(errorHandler.handleError).mock.calls[0] as [{ error: Error }];
-      expect(error).toBeInstanceOf(Error);
-      expect(error.message).toBe('raw string');
+      expect(errorHandler.handleError).toHaveBeenCalledWith(expect.objectContaining({ error: 'raw string' }));
     });
 
     it('continues polling when queueClient.reject itself throws', async () => {
