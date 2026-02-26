@@ -117,8 +117,8 @@ class TaskPoller implements IWorker {
 
       await this.queueClient.ack(task.jobId, task.id);
 
-      const duration = Date.now() - startTime;
-      this.logger.info({ msg: 'Task completed', taskId: task.id, duration });
+      const durationMs = Date.now() - startTime;
+      this.logger.info({ msg: 'Task completed', taskId: task.id, durationMs });
     } catch (error) {
       await this.handleTaskFailure(error, task, pair);
     }
@@ -130,7 +130,7 @@ class TaskPoller implements IWorker {
       taskId: task.id,
       attemptNumber: task.attempts,
       maxAttempts: pair.maxAttempts,
-      error: error instanceof Error ? error : new Error(String(error)),
+      error,
     });
 
     try {
