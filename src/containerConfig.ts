@@ -5,12 +5,15 @@ import { instancePerContainerCachingFactory } from 'tsyringe';
 import { DependencyContainer } from 'tsyringe/dist/typings/types';
 import jsLogger, { Logger } from '@map-colonies/js-logger';
 import { IWorker, JobnikSDK } from '@map-colonies/jobnik-sdk';
+import { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { InjectionObject, registerDependencies } from '@common/dependencyRegistration';
 import { SERVICES, SERVICE_NAME } from '@common/constants';
 import { getTracing } from '@common/tracing';
+import type { QueueConfig } from './cleaner/types';
 import { ConfigType, getConfig } from './common/config';
 import { workerBuilder } from './worker';
-import { StrategyFactory } from './cleaner/strategies';
+import { StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
+import { ErrorHandler } from './cleaner/errors';
 
 export interface RegisterOptions {
   override?: InjectionObject<unknown>[];
@@ -50,6 +53,24 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
       },
     },
     {
+      token: SERVICES.QUEUE_CLIENT,
+      provider: {
+        useFactory: instancePerContainerCachingFactory((container) => {
+          const logger = container.resolve<Logger>(SERVICES.LOGGER);
+          const config = container.resolve<ConfigType>(SERVICES.CONFIG);
+          const queueConfig = config.get('queue') as QueueConfig;
+
+          return new QueueClient(
+            logger,
+            queueConfig.jobManagerBaseUrl,
+            queueConfig.heartbeatBaseUrl,
+            queueConfig.dequeueIntervalMs,
+            queueConfig.heartbeatIntervalMs
+          );
+        }),
+      },
+    },
+    {
       token: SERVICES.WORKER,
       provider: {
         useFactory: instancePerContainerCachingFactory(workerBuilder),
@@ -59,6 +80,18 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
       token: SERVICES.STRATEGY_FACTORY,
       provider: {
         useClass: StrategyFactory,
+      },
+    },
+    {
+      token: SERVICES.ERROR_HANDLER,
+      provider: {
+        useClass: ErrorHandler,
+      },
+    },
+    {
+      token: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string, //TODO: when we create worker config schema we can move this to a constant and remove the cast
+      provider: {
+        useClass: TilesDeletionStrategy,
       },
     },
     {

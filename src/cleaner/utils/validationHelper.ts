@@ -17,6 +17,7 @@ import { ValidationError } from '../errors';
  * @throws {ValidationError} If validation fails
  */
 export function validateSchema<T>(schema: ZodSchema<T>, params: unknown, logger: Logger): T {
+  console.debug('Validating task parameters', { schema: schema.description, params });
   const result = schema.safeParse(params);
 
   if (!result.success) {

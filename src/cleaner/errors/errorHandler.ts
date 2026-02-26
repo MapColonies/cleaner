@@ -2,7 +2,7 @@ import { inject, injectable } from 'tsyringe';
 import { type Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '@common/constants';
 import type { ErrorContext, ErrorDecision } from '../types';
-import { RecoverableError, UnrecoverableError } from './errors';
+import { toError, RecoverableError, UnrecoverableError } from './errors';
 
 /**
  * ErrorHandler centralizes error handling logic for task processing.
@@ -20,18 +20,20 @@ export class ErrorHandler {
    */
   public handleError(context: ErrorContext): ErrorDecision {
     const { jobId, taskId, attemptNumber, maxAttempts, error } = context;
+    const normalizedError = toError(error); // Normalize error to ensure it's an Error instance
+
     this.logger.error({
       msg: 'Task processing error',
       jobId,
       taskId,
       attemptNumber,
       maxAttempts,
-      err: error,
+      err: normalizedError,
     });
 
-    const decision = this.evaluateError(context);
+    const decision = this.evaluateError(context, normalizedError);
 
-    this.logDecision(context, decision);
+    this.logDecision(context, normalizedError, decision);
 
     return decision;
   }
@@ -43,8 +45,8 @@ export class ErrorHandler {
    * - RecoverableError: retry if attempts remain
    * - Unknown errors: treated as recoverable, retry if attempts remain
    */
-  private evaluateError(context: ErrorContext): ErrorDecision {
-    const { attemptNumber, maxAttempts, error } = context;
+  private evaluateError(context: ErrorContext, error: Error): ErrorDecision {
+    const { attemptNumber, maxAttempts } = context;
 
     if (error instanceof UnrecoverableError) {
       return { shouldRetry: false, reason: `Unrecoverable error-${error.name}: ${error.message}` };
@@ -61,14 +63,13 @@ export class ErrorHandler {
     return { shouldRetry, reason };
   }
 
-  private logDecision(context: ErrorContext, decision: ErrorDecision): void {
-    const { jobId, taskId, error } = context;
+  private logDecision(context: ErrorContext, error: Error, decision: ErrorDecision): void {
     const isKnownError = error instanceof RecoverableError || error instanceof UnrecoverableError;
 
     const logData = {
       msg: decision.shouldRetry ? 'Task will be retried' : 'Task will be rejected',
-      jobId,
-      taskId,
+      jobId: context.jobId,
+      taskId: context.taskId,
       reason: decision.reason,
     };
 
