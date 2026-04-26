@@ -51,7 +51,7 @@
     "@faker-js/faker": "^10.1.0",
     "@map-colonies/commitlint-config": "^1.1.1",
     "@map-colonies/eslint-config": "^6.0.0",
-    "@map-colonies/prettier-config": "0.0.1",
+    "@map-colonies/prettier-config": "1.0.0",
     "@map-colonies/tsconfig": "^1.0.1",
     "@types/express": "^4.17.21",
     "@vitest/coverage-v8": "^3.1.4",
