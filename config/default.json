@@ -28,8 +28,8 @@
     }
   },
   "queue": {
-    "jobManagerBaseUrl": "http//localhost:8080",
-    "heartbeatBaseUrl": "http//localhost:8081",
+    "jobManagerBaseUrl": "http://localhost:8080",
+    "heartbeatBaseUrl": "http://localhost:8081",
     "heartbeatIntervalMs": 1000,
     "dequeueIntervalMs": 3000
   },

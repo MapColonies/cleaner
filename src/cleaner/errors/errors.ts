@@ -1,4 +1,19 @@
 /**
+ * Safely converts any thrown value to an Error instance.
+ * Handles the edge case where String(value) itself throws (e.g. a custom toString() that throws).
+ */
+export function toError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  try {
+    return new Error(String(value));
+  } catch {
+    return new Error('non-serializable thrown value');
+  }
+}
+
+/**
  * Base class for recoverable errors that can be retried.
  * Task will be retried if attempts < maxAttempts.
  */

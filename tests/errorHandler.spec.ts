@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { faker } from '@faker-js/faker';
 import jsLogger from '@map-colonies/js-logger';
-import { ErrorHandler, RecoverableError, UnrecoverableError, ValidationError } from '../src/cleaner/errors';
+import { toError, ErrorHandler, RecoverableError, UnrecoverableError, ValidationError } from '../src/cleaner/errors';
 import type { ErrorContext } from '../src/cleaner/types';
 
 describe('ErrorHandler', () => {
@@ -88,5 +88,41 @@ describe('ErrorHandler', () => {
         expect(decision.shouldRetry).toBe(false);
       });
     });
+  });
+});
+
+describe('toError', () => {
+  it('passes through an existing Error instance unchanged', () => {
+    const original = new UnrecoverableError('original');
+    expect(toError(original)).toBe(original);
+  });
+
+  it('wraps a string into an Error with that message', () => {
+    const result: Error = toError('raw string');
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe('raw string');
+  });
+
+  it('wraps a number into an Error', () => {
+    const result: Error = toError(42);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe('42');
+  });
+
+  it('wraps null into an Error', () => {
+    const result: Error = toError(null);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe('null');
+  });
+
+  it('falls back to a generic message when toString() throws', () => {
+    const hostile = {
+      toString: () => {
+        throw new Error('toString failed');
+      },
+    };
+    const result: Error = toError(hostile);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe('non-serializable thrown value');
   });
 });
