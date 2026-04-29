@@ -36,5 +36,16 @@ data:
   HTTP_RETRY_ATTEMPTS: {{ .attempts | quote }}
   HTTP_RETRY_DELAY: {{ .delay | quote }}
   HTTP_RETRY_SHOULD_RESET_TIMEOUT: {{ .shouldResetTimeout | quote }}
+  {{- end }}
+  {{- with .Values.env.s3 }}
+  S3_ENDPOINT: {{ .endpoint | quote }}
+  S3_ACCESS_KEY_ID: {{ .accessKeyId | quote }}
+  S3_SECRET_ACCESS_KEY: {{ .secretAccessKey | quote }}
+  S3_SSL_ENABLED: {{ .sslEnabled | quote }}
+  S3_FORCE_PATH_STYLE: {{ .forcePathStyle | quote }}
+  {{- end }}
+  {{- with .Values.env.tilesDeletion }}
+  TILES_DELETION_BATCH_SIZE: {{ .batchSize | quote }}
+  TILES_DELETION_CONCURRENCY: {{ .concurrency | quote }}
   {{- end -}}
 {{- end }}

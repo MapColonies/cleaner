@@ -53,5 +53,16 @@
     "attempts": 3,
     "delay": "exponential",
     "shouldResetTimeout": true
+  },
+  "s3": {
+    "endpoint": "http://localhost:9000",
+    "accessKeyId": "minioadmin",
+    "secretAccessKey": "minioadmin",
+    "sslEnabled": false,
+    "forcePathStyle": true
+  },
+  "tilesDeletion": {
+    "batchSize": 1000,
+    "concurrency": 10
   }
 }
