@@ -59,7 +59,8 @@
     "accessKeyId": "minioadmin",
     "secretAccessKey": "minioadmin",
     "sslEnabled": false,
-    "forcePathStyle": true
+    "forcePathStyle": true,
+    "region": "us-east-1"
   },
   "tilesDeletion": {
     "batchSize": 1000,

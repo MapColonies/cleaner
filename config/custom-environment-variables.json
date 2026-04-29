@@ -69,7 +69,8 @@
     "forcePathStyle": {
       "__name": "S3_FORCE_PATH_STYLE",
       "__format": "boolean"
-    }
+    },
+    "region": "S3_REGION"
   },
   "tilesDeletion": {
     "batchSize": {

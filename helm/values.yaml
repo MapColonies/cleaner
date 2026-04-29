@@ -102,6 +102,7 @@ env:
     secretAccessKey: "minioadmin"
     sslEnabled: false
     forcePathStyle: true
+    region: "us-east-1"
   tilesDeletion:
     batchSize: 1000
     concurrency: 10

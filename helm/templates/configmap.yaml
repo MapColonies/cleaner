@@ -43,6 +43,7 @@ data:
   S3_SECRET_ACCESS_KEY: {{ .secretAccessKey | quote }}
   S3_SSL_ENABLED: {{ .sslEnabled | quote }}
   S3_FORCE_PATH_STYLE: {{ .forcePathStyle | quote }}
+  S3_REGION: {{ .region | quote }}
   {{- end }}
   {{- with .Values.env.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | quote }}
