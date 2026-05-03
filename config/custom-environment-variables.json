@@ -72,14 +72,22 @@
     },
     "region": "S3_REGION"
   },
-  "tilesDeletion": {
-    "batchSize": {
-      "__name": "TILES_DELETION_BATCH_SIZE",
-      "__format": "number"
-    },
-    "concurrency": {
-      "__name": "TILES_DELETION_CONCURRENCY",
-      "__format": "number"
+  "strategies": {
+    "tilesDeletion": {
+      "s3Bucket": "TILES_DELETION_S3_BUCKET",
+      "fsBasePath": "TILES_DELETION_FS_BASE_PATH",
+      "batchSize": {
+        "__name": "TILES_DELETION_BATCH_SIZE",
+        "__format": "number"
+      },
+      "concurrency": {
+        "__name": "TILES_DELETION_CONCURRENCY",
+        "__format": "number"
+      },
+      "failureSampleSize": {
+        "__name": "TILES_DELETION_FAILURE_SAMPLE_SIZE",
+        "__format": "number"
+      }
     }
   }
 }

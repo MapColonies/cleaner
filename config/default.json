@@ -62,8 +62,13 @@
     "forcePathStyle": true,
     "region": "us-east-1"
   },
-  "tilesDeletion": {
-    "batchSize": 1000,
-    "concurrency": 10
+  "strategies": {
+    "tilesDeletion": {
+      "s3Bucket": "",
+      "fsBasePath": "/tiles",
+      "batchSize": 1000,
+      "concurrency": 10,
+      "failureSampleSize": 3
+    }
   }
 }

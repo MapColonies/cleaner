@@ -45,8 +45,11 @@ data:
   S3_FORCE_PATH_STYLE: {{ .forcePathStyle | quote }}
   S3_REGION: {{ .region | quote }}
   {{- end }}
-  {{- with .Values.env.tilesDeletion }}
+  {{- with .Values.env.strategies.tilesDeletion }}
+  TILES_DELETION_S3_BUCKET: {{ .s3Bucket | quote }}
+  TILES_DELETION_FS_BASE_PATH: {{ .fsBasePath | quote }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | quote }}
   TILES_DELETION_CONCURRENCY: {{ .concurrency | quote }}
+  TILES_DELETION_FAILURE_SAMPLE_SIZE: {{ .failureSampleSize | quote }}
   {{- end -}}
 {{- end }}
