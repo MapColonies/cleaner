@@ -14,6 +14,7 @@ import { ConfigType, getConfig } from './common/config';
 import { workerBuilder } from './worker';
 import { StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
 import { ErrorHandler } from './cleaner/errors';
+import { S3StorageProvider, FsStorageProvider, type IStorageProvider } from './cleaner/storageProviders';
 
 export interface RegisterOptions {
   override?: InjectionObject<unknown>[];
@@ -86,6 +87,19 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
       token: SERVICES.ERROR_HANDLER,
       provider: {
         useClass: ErrorHandler,
+      },
+    },
+    {
+      token: SERVICES.STORAGE_PROVIDERS,
+      provider: {
+        useFactory: instancePerContainerCachingFactory((container) => {
+          const config = container.resolve<ConfigType>(SERVICES.CONFIG);
+          const logger = container.resolve<Logger>(SERVICES.LOGGER);
+          return new Map<string, IStorageProvider>([
+            ['S3', new S3StorageProvider(config, logger)],
+            ['FS', new FsStorageProvider(logger)],
+          ]);
+        }),
       },
     },
     {

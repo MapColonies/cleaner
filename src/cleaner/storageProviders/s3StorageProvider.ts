@@ -11,6 +11,7 @@ interface S3Config {
   endpoint: string;
   accessKeyId: string;
   secretAccessKey: string;
+  sslEnabled: boolean;
   forcePathStyle: boolean;
   region: string;
 }
@@ -31,6 +32,7 @@ export class S3StorageProvider implements IStorageProvider {
       },
       forcePathStyle: s3Config.forcePathStyle,
       region: s3Config.region,
+      tls: s3Config.sslEnabled,
     });
   }
 
@@ -69,11 +71,9 @@ export class S3StorageProvider implements IStorageProvider {
       .filter(Boolean);
   }
 
-  private chunk(paths: string[], size: number): string[][] {
-    const chunks: string[][] = [];
+  private *chunk(paths: string[], size: number): Generator<string[]> {
     for (let i = 0; i < paths.length; i += size) {
-      chunks.push(paths.slice(i, i + size));
+      yield paths.slice(i, i + size);
     }
-    return chunks;
   }
 }
