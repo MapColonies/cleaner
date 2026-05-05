@@ -1,12 +1,16 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
+import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { SERVICES } from '@common/constants';
 import type { ConfigType } from '@common/config';
 import { tilesDeletionParamsSchema, type TilesDeletionParams, type TileRange } from '../validation/schemas';
 import { validateSchema } from '../utils';
 import { RecoverableError, UnrecoverableError } from '../errors';
 import type { IStorageProvider } from '../storageProviders';
+import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
+
+const PERCENTAGE_COMPLETE = 100;
 
 @injectable()
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
@@ -19,7 +23,9 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   public constructor(
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
     @inject(SERVICES.CONFIG) config: ConfigType,
-    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: Map<string, IStorageProvider>
+    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: Map<string, IStorageProvider>,
+    @inject(SERVICES.QUEUE_CLIENT) private readonly queueClient: QueueClient,
+    @inject(SERVICES.TASK_CONTEXT) private readonly taskContext: TaskContext
   ) {
     this.batchSize = config.get('strategies.tilesDeletion.batchSize') as unknown as number;
     this.concurrency = config.get('strategies.tilesDeletion.concurrency') as unknown as number;
@@ -34,18 +40,25 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
 
   public async execute(params: TilesDeletionParams): Promise<void> {
     const { provider, storageTarget } = this.resolveProvider(params);
+    const totalTiles = this.countTiles(params);
 
-    this.logger.info({ msg: 'Starting tiles deletion', provider: params.provider, storageTarget, rangeCount: params.ranges.length });
+    this.logger.info({ msg: 'Starting tiles deletion', provider: params.provider, storageTarget, rangeCount: params.ranges.length, totalTiles });
 
-    const failedPaths = await this.deleteAllTiles(provider, storageTarget, params);
+    const failedPaths = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
 
     if (failedPaths.length > 0) {
       const sample = failedPaths.slice(0, this.failureSampleSize);
-      this.logger.warn({ msg: 'Tiles deletion partially failed', failedCount: failedPaths.length, sample });
+      this.logger.warn({
+        msg: 'Tiles deletion partially failed',
+        totalTiles,
+        failedCount: failedPaths.length,
+        deletedCount: totalTiles - failedPaths.length,
+        sample,
+      });
       throw new RecoverableError(`Failed to delete ${failedPaths.length} tiles. Sample: ${sample.join(', ')}`);
     }
 
-    this.logger.info({ msg: 'Tiles deletion completed successfully' });
+    this.logger.info({ msg: 'Tiles deletion completed successfully', deletedCount: totalTiles });
   }
 
   private resolveProvider(params: TilesDeletionParams): { provider: IStorageProvider; storageTarget: string } {
@@ -57,10 +70,17 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     return { provider, storageTarget };
   }
 
-  private async deleteAllTiles(provider: IStorageProvider, storageTarget: string, params: TilesDeletionParams): Promise<string[]> {
+  private async deleteAllTiles(
+    provider: IStorageProvider,
+    storageTarget: string,
+    params: TilesDeletionParams,
+    totalTiles: number
+  ): Promise<string[]> {
+    const { jobId, taskId } = this.taskContext;
     const failedPaths: string[] = [];
     const pendingBatches: string[][] = [];
     let batch: string[] = [];
+    let processedTiles = 0;
 
     for (const tilePath of this.generateTilePaths(params)) {
       batch.push(tilePath);
@@ -68,7 +88,9 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
         pendingBatches.push(batch);
         batch = [];
         if (pendingBatches.length === this.concurrency) {
-          await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
+          processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
+          const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
+          await this.queueClient.updateProgress(jobId, taskId, percentage);
         }
       }
     }
@@ -78,12 +100,14 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     }
     if (pendingBatches.length > 0) {
       await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
+      await this.queueClient.updateProgress(jobId, taskId, PERCENTAGE_COMPLETE);
     }
 
     return failedPaths;
   }
 
-  private async flushBatches(provider: IStorageProvider, storageTarget: string, pendingBatches: string[][], failedPaths: string[]): Promise<void> {
+  private async flushBatches(provider: IStorageProvider, storageTarget: string, pendingBatches: string[][], failedPaths: string[]): Promise<number> {
+    const flushedCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
     const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(batch, storageTarget)));
     for (const result of results) {
       if (result.status === 'fulfilled') {
@@ -93,6 +117,11 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       }
     }
     pendingBatches.length = 0;
+    return flushedCount;
+  }
+
+  private countTiles(params: TilesDeletionParams): number {
+    return params.ranges.reduce((sum, r) => sum + (r.maxX - r.minX + 1) * (r.maxY - r.minY + 1), 0);
   }
 
   private *generateTilePaths(params: TilesDeletionParams): Generator<string> {

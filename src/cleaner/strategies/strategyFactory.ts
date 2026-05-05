@@ -37,6 +37,7 @@ export class StrategyFactory {
     });
 
     taskContainer.register(SERVICES.LOGGER, { useValue: taskLogger });
+    taskContainer.register(SERVICES.TASK_CONTEXT, { useValue: taskContext });
 
     const strategy = taskContainer.resolve<ITaskStrategy>(taskContext.taskType);
 
