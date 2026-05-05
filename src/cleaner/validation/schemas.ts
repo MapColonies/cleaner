@@ -24,10 +24,7 @@ const fsTilesDeletionParamsSchema = z.object({
   fileExtension: z.string().min(1),
 });
 
-export const tilesDeletionParamsSchema = z.discriminatedUnion('provider', [
-  s3TilesDeletionParamsSchema,
-  fsTilesDeletionParamsSchema,
-]);
+export const tilesDeletionParamsSchema = z.discriminatedUnion('provider', [s3TilesDeletionParamsSchema, fsTilesDeletionParamsSchema]);
 
 export type TilesDeletionParams = z.infer<typeof tilesDeletionParamsSchema>;
 export type TileRange = z.infer<typeof tileRangeSchema>;
