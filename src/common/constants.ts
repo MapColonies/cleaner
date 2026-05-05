@@ -27,3 +27,5 @@ export const SERVICES = {
   JOBNIK_SDK: Symbol('JobnikSDK'),
   WORKER: Symbol('Worker'),
 } satisfies Record<string, symbol>;
+
+export const PERCENTAGE_COMPLETE = 100;

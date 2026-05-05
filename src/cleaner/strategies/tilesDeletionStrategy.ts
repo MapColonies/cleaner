@@ -1,16 +1,14 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
+import { TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { SERVICES } from '@common/constants';
+import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import type { ConfigType } from '@common/config';
-import { tilesDeletionParamsSchema, type TilesDeletionParams, type TileRange } from '../validation/schemas';
 import { validateSchema } from '../utils';
 import { RecoverableError, UnrecoverableError } from '../errors';
 import type { IStorageProvider } from '../storageProviders';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
-
-const PERCENTAGE_COMPLETE = 100;
 
 @injectable()
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
@@ -42,7 +40,13 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     const { provider, storageTarget } = this.resolveProvider(params);
     const totalTiles = this.countTiles(params);
 
-    this.logger.info({ msg: 'Starting tiles deletion', provider: params.provider, storageTarget, rangeCount: params.ranges.length, totalTiles });
+    this.logger.info({
+      msg: 'Starting tiles deletion',
+      provider: params.sourceProvider,
+      storageTarget,
+      rangeCount: params.ranges.length,
+      totalTiles,
+    });
 
     const failedPaths = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
 
@@ -62,11 +66,11 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   }
 
   private resolveProvider(params: TilesDeletionParams): { provider: IStorageProvider; storageTarget: string } {
-    const provider = this.storageProviders.get(params.provider);
+    const provider = this.storageProviders.get(params.sourceProvider);
     if (provider === undefined) {
-      throw new UnrecoverableError(`Unknown storage provider: ${params.provider}`);
+      throw new UnrecoverableError(`Unknown storage provider: ${params.sourceProvider}`);
     }
-    const storageTarget = params.provider === 'S3' ? this.s3Bucket : this.fsBasePath;
+    const storageTarget = params.sourceProvider === 'S3' ? this.s3Bucket : this.fsBasePath;
     return { provider, storageTarget };
   }
 
