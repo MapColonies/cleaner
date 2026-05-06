@@ -137,7 +137,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   private *generateRangePaths(range: TileRange, tilesPath: string, fileExtension: string): Generator<string> {
     for (let x = range.minX; x <= range.maxX; x++) {
       for (let y = range.minY; y <= range.maxY; y++) {
-        yield `${tilesPath}/${range.zoom}/${x}/${y}${fileExtension}`;
+        yield `${tilesPath}/${range.zoom}/${x}/${y}.${fileExtension}`;
       }
     }
   }
