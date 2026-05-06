@@ -1,4 +1,5 @@
 import { getOtelMixin } from '@map-colonies/telemetry';
+import { SourceType } from '@map-colonies/raster-shared';
 import { trace } from '@opentelemetry/api';
 import { Registry } from 'prom-client';
 import { instancePerContainerCachingFactory } from 'tsyringe';
@@ -96,8 +97,8 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
           const config = container.resolve<ConfigType>(SERVICES.CONFIG);
           const logger = container.resolve<Logger>(SERVICES.LOGGER);
           return new Map<string, IStorageProvider>([
-            ['S3', new S3StorageProvider(config, logger)],
-            ['FS', new FsStorageProvider(logger)],
+            [SourceType.S3, new S3StorageProvider(config, logger)],
+            [SourceType.FS, new FsStorageProvider(logger)],
           ]);
         }),
       },
