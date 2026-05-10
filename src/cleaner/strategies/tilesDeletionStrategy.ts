@@ -1,6 +1,6 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
-import { TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
+import { SourceType, TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import type { ConfigType } from '@common/config';
@@ -21,7 +21,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   public constructor(
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
     @inject(SERVICES.CONFIG) config: ConfigType,
-    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: Map<string, IStorageProvider>,
+    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: Map<SourceType, IStorageProvider>,
     @inject(SERVICES.QUEUE_CLIENT) private readonly queueClient: QueueClient,
     @inject(SERVICES.TASK_CONTEXT) private readonly taskContext: TaskContext
   ) {
@@ -52,7 +52,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
 
     if (failedPaths.length > 0) {
       const sample = failedPaths.slice(0, this.failureSampleSize);
-      this.logger.warn({
+      this.logger.error({
         msg: 'Tiles deletion partially failed',
         totalTiles,
         failedCount: failedPaths.length,
@@ -70,7 +70,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     if (provider === undefined) {
       throw new UnrecoverableError(`Unknown storage provider: ${params.sourceProvider}`);
     }
-    const storageTarget = params.sourceProvider === 'S3' ? this.s3Bucket : this.fsBasePath;
+    const storageTarget = params.sourceProvider === SourceType.S3 ? this.s3Bucket : this.fsBasePath;
     return { provider, storageTarget };
   }
 
@@ -95,6 +95,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
           processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
           const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
           await this.queueClient.updateProgress(jobId, taskId, percentage);
+          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles - failedPaths.length}/${totalTiles}` });
         }
       }
     }
@@ -104,26 +105,43 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     }
     if (pendingBatches.length > 0) {
       await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
-      await this.queueClient.updateProgress(jobId, taskId, PERCENTAGE_COMPLETE);
+      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${totalTiles - failedPaths.length}/${totalTiles}` });
+      if (failedPaths.length === 0) {
+        await this.queueClient.updateProgress(jobId, taskId, PERCENTAGE_COMPLETE);
+      }
     }
 
     return failedPaths;
   }
 
+  /**
+   * Deletes all pending batches concurrently via Promise.allSettled.
+   * Soft failures (paths returned by provider.delete) and hard failures (rejected promises)
+   * are both collected into failedPaths; hard-failed batch paths are added by index so nothing
+   * is silently lost. pendingBatches is cleared in-place for reuse.
+   *
+   * @returns Total tile paths attempted (not necessarily deleted).
+   */
   private async flushBatches(provider: IStorageProvider, storageTarget: string, pendingBatches: string[][], failedPaths: string[]): Promise<number> {
     const flushedCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
     const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(batch, storageTarget)));
-    for (const result of results) {
+    for (const [index, result] of results.entries()) {
       if (result.status === 'fulfilled') {
         failedPaths.push(...result.value);
       } else {
         this.logger.error({ msg: 'Batch delete threw unexpectedly', error: result.reason });
+        failedPaths.push(...(pendingBatches[index] ?? []));
       }
     }
     pendingBatches.length = 0;
     return flushedCount;
   }
 
+  /**
+   * Calculates the total number of tiles across all ranges in the deletion params.
+   * For each range, the tile count is the product of the width (maxX - minX + 1)
+   * and height (maxY - minY + 1) of the range grid.
+   */
   private countTiles(params: TilesDeletionParams): number {
     return params.ranges.reduce((sum, r) => sum + (r.maxX - r.minX + 1) * (r.maxY - r.minY + 1), 0);
   }

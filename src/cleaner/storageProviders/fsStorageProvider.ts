@@ -40,14 +40,31 @@ export class FsStorageProvider implements IStorageProvider {
     return failedPaths;
   }
 
+  // Attempts to remove any directories that became empty after file deletion.
+  // Strategy: collect every ancestor directory of every deleted file, grouped by
+  // depth relative to the file (levelIdx 0 = direct parent, 1 = grandparent, …).
+  // Delete deepest dirs first so that once a directory is empty its parent can
+  // also be removed in a subsequent level. rmdir silently fails on non-empty dirs,
+  // so any directory still containing files is simply skipped.
+  //
+  // Example — deleting layer/v1/5/0/0.png and layer/v1/5/0/1.png collects:
+  //   levelIdx 0 → { storageTarget/layer/v1/5/0 }   (direct parent, tried first)
+  //   levelIdx 1 → { storageTarget/layer/v1/5 }
+  //   levelIdx 2 → { storageTarget/layer/v1 }
+  //   levelIdx 3 → { storageTarget/layer }            (root ancestor, tried last)
   private async cleanupEmptyDirs(relativePaths: string[], storageTarget: string): Promise<void> {
+    // Map from levelIdx → unique absolute dir paths at that depth.
+    // Using a Set per level deduplicates dirs shared by multiple deleted files
+    // (e.g. a shared parent directory when multiple files within it are deleted at once).
     const dirsByLevel = new Map<number, Set<string>>();
 
     for (const relativePath of relativePaths) {
       const parts = relativePath.split('/');
-      const segments = parts.slice(0, parts.length - 1); // strip filename
+      const segments = parts.slice(0, parts.length - 1); // strip filename, keep dir segments
       for (let count = segments.length; count >= 1; count--) {
-        const levelIdx = segments.length - count; // 0 = direct parent of tile
+        // levelIdx 0 is the innermost dir (direct parent of the tile file);
+        // higher values walk toward the storage root.
+        const levelIdx = segments.length - count;
         if (!dirsByLevel.has(levelIdx)) {
           dirsByLevel.set(levelIdx, new Set());
         }
@@ -55,10 +72,13 @@ export class FsStorageProvider implements IStorageProvider {
       }
     }
 
-    // Process closest-to-tile dirs first so ancestors can become empty
+    // Sort ascending so innermost dirs are attempted before their ancestors.
+    // This ordering is required: a parent directory can only be removed after its
+    // children have already been deleted.
     const sortedLevels = [...dirsByLevel.keys()].sort((a, b) => a - b);
     for (const level of sortedLevels) {
       const dirs = dirsByLevel.get(level)!;
+      // allSettled — rmdir rejects on non-empty dirs; we intentionally ignore those errors.
       await Promise.allSettled([...dirs].map(async (dir) => rmdir(dir)));
     }
   }
