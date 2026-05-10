@@ -4,7 +4,7 @@ import { trace } from '@opentelemetry/api';
 import { Registry } from 'prom-client';
 import { instancePerContainerCachingFactory } from 'tsyringe';
 import { DependencyContainer } from 'tsyringe/dist/typings/types';
-import jsLogger, { Logger } from '@map-colonies/js-logger';
+import { jsLogger, type Logger } from '@map-colonies/js-logger';
 import { IWorker, JobnikSDK } from '@map-colonies/jobnik-sdk';
 import { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { InjectionObject, registerDependencies } from '@common/dependencyRegistration';
@@ -27,7 +27,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
 
   const loggerConfig = configInstance.get('telemetry.logger');
 
-  const logger = jsLogger({ ...loggerConfig, prettyPrint: loggerConfig.prettyPrint, mixin: getOtelMixin() });
+  const logger = await jsLogger({ ...loggerConfig, prettyPrint: loggerConfig.prettyPrint, mixin: getOtelMixin() });
 
   const tracer = trace.getTracer(SERVICE_NAME);
   const metricsRegistry = new Registry();
