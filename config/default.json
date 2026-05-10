@@ -7,7 +7,12 @@
     "shared": {},
     "logger": {
       "level": "info",
-      "prettyPrint": false
+      "prettyPrint": false,
+      "opentelemetryOptions": {
+        "enabled": false,
+        "url": "",
+        "resourceAttributes": {}
+      }
     }
   },
   "server": {

@@ -11,6 +11,17 @@
       "prettyPrint": {
         "__name": "LOG_PRETTY_PRINT_ENABLED",
         "__format": "boolean"
+      },
+      "opentelemetryOptions": {
+        "enabled": {
+          "__name": "TELEMETRY_LOGGER_OTEL_ENABLED",
+          "__format": "boolean"
+        },
+        "url": "TELEMETRY_LOGGER_OTEL_URL",
+        "resourceAttributes": {
+          "__name": "TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES",
+          "__format": "json"
+        }
       }
     }
   },
