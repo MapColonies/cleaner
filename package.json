@@ -38,7 +38,7 @@
     "@map-colonies/mc-priority-queue": "^9.1.0",
     "@map-colonies/raster-shared": "^8.1.0-alpha.3",
     "@map-colonies/read-pkg": "^1.0.0",
-    "@map-colonies/schemas": "https://ghatmpstorage.blob.core.windows.net/npm-packages/schemas-37b213eb986bace966101606027c6fe8385010a3.tgz",
+    "@map-colonies/schemas": "^1.20.0",
     "@map-colonies/telemetry": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
     "compression": "^1.8.0",
