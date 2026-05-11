@@ -7,4 +7,11 @@ export interface IStorageProvider {
    * Returns the paths that failed to delete. Treats "not found" as success (idempotent).
    */
   delete: (paths: string[], storageTarget: string) => Promise<string[]>;
+
+  /**
+   * Returns true if relativePath exists within storageTarget and contains data.
+   * - S3:  storageTarget = bucket, relativePath = key prefix — lists objects (KeyCount > 0)
+   * - FS:  storageTarget = base directory, relativePath = subdirectory — checks fs.access
+   */
+  targetExists: (storageTarget: string, relativePath: string) => Promise<boolean>;
 }

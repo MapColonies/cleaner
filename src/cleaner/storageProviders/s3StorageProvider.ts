@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import { S3Client, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectsCommand, ListObjectsV2Command, NoSuchBucket } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { ConfigType } from '@common/config';
 import type { IStorageProvider } from './iStorageProvider';
@@ -56,6 +56,18 @@ export class S3StorageProvider implements IStorageProvider {
     }
 
     return failedPaths;
+  }
+
+  public async targetExists(bucket: string, relativePath: string): Promise<boolean> {
+    const prefix = relativePath.endsWith('/') ? relativePath : `${relativePath}/`;
+    try {
+      const result = await this.s3Client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1 }));
+      return (result.KeyCount ?? 0) > 0;
+    } catch (err) {
+      if (err instanceof NoSuchBucket) return false;
+      this.logger.error({ err, bucket, prefix }, 'targetExists check failed');
+      throw err;
+    }
   }
 
   private async deleteChunk(paths: string[], bucket: string): Promise<string[]> {

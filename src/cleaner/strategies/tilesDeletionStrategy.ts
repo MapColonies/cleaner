@@ -38,6 +38,11 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
 
   public async execute(params: TilesDeletionParams): Promise<void> {
     const { provider, storageTarget } = this.resolveProvider(params);
+
+    if (!(await provider.targetExists(storageTarget, params.tilesPath))) {
+      throw new UnrecoverableError(`${params.sourceProvider} storage target does not exist: ${storageTarget}/${params.tilesPath}`);
+    }
+
     const totalTiles = this.countTiles(params);
 
     this.logger.info({

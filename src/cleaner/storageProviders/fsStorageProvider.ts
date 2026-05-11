@@ -1,10 +1,20 @@
 import { join } from 'node:path';
-import { unlink, rmdir } from 'node:fs/promises';
+import { stat, unlink, rmdir } from 'node:fs/promises';
 import type { Logger } from '@map-colonies/js-logger';
 import type { IStorageProvider } from './iStorageProvider';
 
 export class FsStorageProvider implements IStorageProvider {
   public constructor(private readonly logger: Logger) {}
+
+  public async targetExists(storageTarget: string, relativePath: string): Promise<boolean> {
+    try {
+      await stat(join(storageTarget, relativePath));
+      return true;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw err;
+    }
+  }
 
   public async delete(paths: string[], storageTarget: string): Promise<string[]> {
     if (paths.length === 0) {
