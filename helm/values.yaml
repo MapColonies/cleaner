@@ -3,6 +3,28 @@ global:
   tracing: {}
   metrics: {}
   jobDefinitions: {}
+  storage: {}
+  serviceUrls: {}
+  ca: {}
+
+serviceUrls:
+  jobManager: ""
+  heartbeatManager: ""
+
+storage:
+  s3:
+    endpointUrl: ""
+    forcePathStyle: true
+    secretName: ""
+    sslEnabled: false
+    region: "us-east-1"
+    tilesBucket: ""
+  fs:
+    internalPvc:
+      enabled: false
+      name: ""
+      mountPath: ""
+      tilesSubPath: "tiles"
 
 
 mclabels:
@@ -75,14 +97,17 @@ image:
 
 env:
   port: 8080
-  logLevel: info
-  logPrettyPrintEnabled: false
+  logger:
+    level: info
+    prettyPrintEnabled: false
+    openTelemetryOptions:
+      enabled: false
+      url: ""
+      resourceAttributes: {}
   tracing:
     enabled: false
     url: http://localhost:55681/v1/trace
   queue:
-    jobManagerBaseUrl: "http//localhost:8080"
-    heartbeatBaseUrl: "http//localhost:8081"
     heartbeatIntervalMs: 1000
     dequeueIntervalMs: 3000
   worker:
@@ -91,22 +116,13 @@ env:
         - job: "Ingestion_Update"
           task: "tiles-deletion"
         - job: "Ingestion_Swap_Update"
-          task: "tiles-deletion"    
+          task: "tiles-deletion"
   httpRetry:
     attempts: 3
     delay: "exponential"
     shouldResetTimeout: true
-  s3:
-    endpoint: "http://localhost:9000"
-    accessKeyId: "minioadmin"
-    secretAccessKey: "minioadmin"
-    sslEnabled: false
-    forcePathStyle: true
-    region: "us-east-1"
   strategies:
     tilesDeletion:
-      s3Bucket: ""
-      fsBasePath: "/tiles"
       batchSize: 1000
       concurrency: 10
       failureSampleSize: 3
