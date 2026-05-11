@@ -7,8 +7,8 @@
  *   node scripts/simulate-deletion.mjs --provider S3 --skip-seed   # 1M-tile scale test
  *   node scripts/simulate-deletion.mjs --provider FS --partial      # multi-zoom partial deletion
  *   node scripts/simulate-deletion.mjs --provider S3 --partial      # multi-zoom partial deletion
- *   node scripts/simulate-deletion.mjs --provider FS --real-tiles --source-tile /path/to/tile.png
- *   node scripts/simulate-deletion.mjs --provider S3 --real-tiles --source-tile /path/to/tile.png --zooms 17,18,19,20 --tile-count 400
+ *   node scripts/simulate-deletion.mjs --provider FS --real-tiles --source-tile scripts/tile_deletion_test.jpeg
+ *   node scripts/simulate-deletion.mjs --provider S3 --real-tiles --source-tile scripts/tile_deletion_test.jpeg --zooms 17,18,19,20 --tile-count 400
  *
  * --real-tiles: seed a real local tile file replicated across a multi-zoom grid.
  *   --source-tile <path>  : local file to use as tile content for every seeded tile (required)
@@ -33,16 +33,16 @@
  *     Zoom N+4 : seed 4×4 grid → task does NOT delete → dir and tiles must survive
  *
  * Scale example (1M tiles, no seeding needed):
- *   MAX_X=999 MAX_Y=999 ZOOM=18 S3_BUCKET=raster-dev \
+ *   MAX_X=999 MAX_Y=999 ZOOM=18 TILES_DELETION_S3_BUCKET=raster-dev \
  *     node scripts/simulate-deletion.mjs --provider S3 --skip-seed
  *
  * Real 100K tile scenario:
- *   MAX_X=99 MAX_Y=999 ZOOM=14 S3_BUCKET=raster-dev \
+ *   MAX_X=99 MAX_Y=999 ZOOM=14 TILES_DELETION_S3_BUCKET=raster-dev \
  *     node scripts/simulate-deletion.mjs --provider S3
  *
  * Override defaults with env vars:
- *   JOB_MANAGER_URL, S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY,
- *   S3_BUCKET, FS_BASE_PATH, TILES_PATH, ZOOM, MIN_X, MAX_X, MIN_Y, MAX_Y,
+ *   QUEUE_JOB_MANAGER_BASE_URL, S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY,
+ *   TILES_DELETION_S3_BUCKET, TILES_DELETION_FS_BASE_PATH, TILES_PATH, ZOOM, MIN_X, MAX_X, MIN_Y, MAX_Y,
  *   SEED_CONCURRENCY (default: 50)
  */
 
@@ -56,12 +56,56 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 // ─── CLI ──────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
+
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`
+Usage:
+  node scripts/simulate-deletion.mjs --provider <S3|FS> [options]
+
+Required:
+  --provider <S3|FS>          Storage provider to target
+
+Modes (mutually exclusive):
+  --partial                   Seed tiles across 3 zoom levels; task only deletes a subset
+  --real-tiles                Use a real tile file instead of fake content
+  --skip-seed                 Skip seeding; go straight to job creation (idempotent delete)
+
+Real-tiles options (require --real-tiles):
+  --source-tile <path>        Local tile file to replicate across the grid (required)
+                              A sample JPEG is bundled at scripts/tile_deletion_test.jpeg
+  --zooms <z1,z2,...>         Zoom levels, comma-separated (default: 17,18,19,20)
+  --tile-count <N>            Total tiles to seed across all zoom levels (default: 400)
+
+Env vars (all optional — pod ConfigMap values are used automatically):
+  QUEUE_JOB_MANAGER_BASE_URL  Job manager endpoint
+  S3_ENDPOINT                 S3 endpoint URL
+  S3_ACCESS_KEY_ID            S3 access key
+  S3_SECRET_ACCESS_KEY        S3 secret key
+  TILES_DELETION_S3_BUCKET    S3 bucket name
+  TILES_DELETION_FS_BASE_PATH FS base path for tile files
+  TILES_PATH                  Relative path prefix for tiles (default: simulate/layer/v1)
+  ZOOM                        Zoom level (default: 10)
+  MIN_X, MAX_X                X tile range (default: 0..3)
+  MIN_Y, MAX_Y                Y tile range (default: 0..3)
+  SEED_CONCURRENCY            Upload concurrency (default: 200)
+
+Examples:
+  node scripts/simulate-deletion.mjs --provider S3 --skip-seed
+  node scripts/simulate-deletion.mjs --provider FS --partial
+  node scripts/simulate-deletion.mjs --provider S3 --real-tiles --source-tile scripts/tile_deletion_test.jpeg
+  node scripts/simulate-deletion.mjs --provider FS --real-tiles --source-tile scripts/tile_deletion_test.jpeg
+  MAX_X=999 MAX_Y=999 ZOOM=18 node scripts/simulate-deletion.mjs --provider S3 --skip-seed
+`);
+  process.exit(0);
+}
+
 const providerFlag = args[args.indexOf('--provider') + 1];
 if (!providerFlag || !['S3', 'FS'].includes(providerFlag)) {
   console.error('Usage: node scripts/simulate-deletion.mjs --provider <S3|FS> [--skip-seed] [--partial]');
   console.error(
     '       node scripts/simulate-deletion.mjs --provider <S3|FS> --real-tiles --source-tile <path> [--zooms <z1,z2,...>] [--tile-count <N>]'
   );
+  console.error('\nRun with --help for full usage information.');
   process.exit(1);
 }
 const PROVIDER = providerFlag;
@@ -103,12 +147,14 @@ const cfg = {
 };
 
 const JOB_MANAGER_URL =
-  process.env.JOB_MANAGER_URL ?? cfg.queue.jobManagerBaseUrl ?? 'https://common-job-manager-route-raster-dev.apps.j1lk3njp.eastus.aroapp.io';
+  process.env.QUEUE_JOB_MANAGER_BASE_URL ??
+  cfg.queue.jobManagerBaseUrl ??
+  'https://common-job-manager-route-raster-dev.apps.j1lk3njp.eastus.aroapp.io';
 const S3_ENDPOINT = process.env.S3_ENDPOINT ?? cfg.s3.endpoint ?? 'http://localhost:9000';
 const S3_ACCESS_KEY_ID = process.env.S3_ACCESS_KEY_ID ?? cfg.s3.accessKeyId ?? 'minioadmin';
 const S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY ?? cfg.s3.secretAccessKey ?? 'minioadmin';
-const S3_BUCKET = process.env.S3_BUCKET ?? cfg.strategies.s3Bucket ?? '';
-const FS_BASE_PATH = process.env.FS_BASE_PATH ?? cfg.strategies.fsBasePath ?? '/tiles';
+const S3_BUCKET = process.env.TILES_DELETION_S3_BUCKET ?? cfg.strategies.s3Bucket ?? '';
+const FS_BASE_PATH = process.env.TILES_DELETION_FS_BASE_PATH ?? cfg.strategies.fsBasePath ?? '/tiles';
 const SEED_CONCURRENCY = Number(process.env.SEED_CONCURRENCY ?? 200);
 
 // Tile range to seed + delete
