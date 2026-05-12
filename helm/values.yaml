@@ -84,7 +84,7 @@ cloudProvider:
   dockerRegistryUrl: ''
   imagePullSecretName: ''
   flavor: openshift
-  
+
 ca:
   secretName: ''
   path: '/usr/local/share/ca-certificates'
@@ -98,7 +98,7 @@ image:
 
 env:
   port: 8080
-  level: info
+  logLevel: info
   prettyPrintEnabled: false
   openTelemetryOptions:
     enabled: false

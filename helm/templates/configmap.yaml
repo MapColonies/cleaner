@@ -10,7 +10,7 @@ kind: ConfigMap
 metadata:
   name: {{ printf "%s-configmap" (include "cleaner.fullname" .) }}
 data:
-  LOG_LEVEL: {{ .Values.env.level | quote }}
+  LOG_LEVEL: {{ .Values.env.logLevel | quote }}
   LOG_PRETTY_PRINT_ENABLED: {{ .Values.env.prettyPrintEnabled | quote }}
   {{- with .Values.env.openTelemetryOptions }}
   TELEMETRY_LOGGER_OTEL_ENABLED: {{ .enabled | default false | quote }}
