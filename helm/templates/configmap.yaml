@@ -10,14 +10,12 @@ kind: ConfigMap
 metadata:
   name: {{ printf "%s-configmap" (include "cleaner.fullname" .) }}
 data:
-  {{- with .Values.env.logger }}
-  LOG_LEVEL: {{ .level | quote }}
-  LOG_PRETTY_PRINT_ENABLED: {{ .prettyPrintEnabled | quote }}
-  {{- with .openTelemetryOptions }}
+  LOG_LEVEL: {{ .Values.env.level | quote }}
+  LOG_PRETTY_PRINT_ENABLED: {{ .Values.env.prettyPrintEnabled | quote }}
+  {{- with .Values.env.openTelemetryOptions }}
   TELEMETRY_LOGGER_OTEL_ENABLED: {{ .enabled | default false | quote }}
   TELEMETRY_LOGGER_OTEL_URL: {{ .url | default "" | quote }}
   TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES: {{ .resourceAttributes | default dict | toJson | quote }}
-  {{- end }}
   {{- end }}
   {{- if .Values.env.tracing.enabled }}
   TELEMETRY_TRACING_ENABLED: 'true'
