@@ -42,6 +42,8 @@ export class FsStorageProvider implements IStorageProvider {
         const relativePath = paths[idx]!;
         this.logger.warn({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), error: result.reason });
         failedPaths.push(relativePath);
+      } else if (result.value !== undefined) {
+        failedPaths.push(result.value);
       }
     }
 

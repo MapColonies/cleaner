@@ -121,3 +121,6 @@ dist
 # Jest
 jest_html_reporters.html
 reports
+
+# tmp files
+tmp

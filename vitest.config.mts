@@ -21,11 +21,15 @@ if (process.env.GITHUB_ACTIONS) {
 
 export default defineConfig({
   resolve: {
-    alias: pathAlias,
+    alias: {
+      ...pathAlias,
+      '@map-colonies/raster-shared': path.resolve(__dirname, 'node_modules/@map-colonies/raster-shared/dist/index.js'),
+    },
   },
   test: {
     setupFiles: ['./tests/setup/vite.setup.ts'],
     include: ['tests/**/*.spec.ts'],
+    exclude: ['tests/**/*.integration.spec.ts'],
     environment: 'node',
     reporters,
 
@@ -33,15 +37,32 @@ export default defineConfig({
       enabled: true,
       reporter: ['text', 'html', 'json', 'json-summary'],
       include: ['src/**/*.ts'],
-      exclude: ['**/vendor/**', 'node_modules/**', 'src/index.ts', 'src/worker.ts'],
+      exclude: [
+        '**/vendor/**',
+        'node_modules/**',
+        // Application entry points
+        'src/index.ts',
+        'src/worker.ts',
+        // DI wiring and bootstrap — integration concerns, not unit concerns
+        'src/containerConfig.ts',
+        'src/common/dependencyRegistration.ts',
+        'src/common/config.ts',
+        'src/common/tracing.ts',
+        'src/worker/workerBuilder.ts',
+        // Pure TypeScript interfaces — no executable code
+        'src/cleaner/types.ts',
+        'src/cleaner/strategies/taskStrategy.ts',
+        'src/common/interfaces.ts',
+        'src/cleaner/storageProviders/iStorageProvider.ts',
+        // Barrel re-export files
+        'src/cleaner/storageProviders/index.ts',
+      ],
       reportOnFailure: true,
       thresholds: {
-        global: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
-        },
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
       },
     },
   },
