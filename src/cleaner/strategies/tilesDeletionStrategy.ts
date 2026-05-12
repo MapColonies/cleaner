@@ -100,7 +100,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
           processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
           const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
           await this.queueClient.updateProgress(jobId, taskId, percentage);
-          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles - failedPaths.length}/${totalTiles}` });
+          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failedPaths.length });
         }
       }
     }
@@ -110,7 +110,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     }
     if (pendingBatches.length > 0) {
       await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
-      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${totalTiles - failedPaths.length}/${totalTiles}` });
+      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failedPaths.length });
       if (failedPaths.length === 0) {
         await this.queueClient.updateProgress(jobId, taskId, PERCENTAGE_COMPLETE);
       }

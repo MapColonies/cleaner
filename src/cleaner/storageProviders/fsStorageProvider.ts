@@ -29,7 +29,7 @@ export class FsStorageProvider implements IStorageProvider {
           await unlink(join(storageTarget, relativePath));
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-            return;
+            return relativePath; // treat missing file as a failed deletion, to be included in the failure report
           }
           throw error;
         }

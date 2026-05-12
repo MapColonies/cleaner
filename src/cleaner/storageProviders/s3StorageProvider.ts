@@ -77,10 +77,7 @@ export class S3StorageProvider implements IStorageProvider {
     });
 
     const response = await this.s3Client.send(command);
-    return (response.Errors ?? [])
-      .filter((e) => e.Code !== S3_ERROR_NO_SUCH_KEY) // ignore missing keys since our goal is to ensure they're gone
-      .map((e) => e.Key ?? '')
-      .filter(Boolean); // filter out any empty keys just in case, though they shouldn't occur
+    return (response.Errors ?? []).map((e) => e.Key ?? '').filter(Boolean); // filter out any empty keys just in case, though they shouldn't occur
   }
 
   private *chunk(paths: string[], size: number): Generator<string[]> {
