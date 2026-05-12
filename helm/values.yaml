@@ -84,10 +84,11 @@ cloudProvider:
   dockerRegistryUrl: ''
   imagePullSecretName: ''
   flavor: openshift
-
-caSecretName: ''
-caPath: '/usr/local/share/ca-certificates'
-caKey: 'ca.crt'
+  
+ca:
+  secretName: ''
+  path: '/usr/local/share/ca-certificates'
+  key: 'ca.crt'
 
 image:
   repository: cleaner
@@ -97,13 +98,12 @@ image:
 
 env:
   port: 8080
-  logger:
-    level: info
-    prettyPrintEnabled: false
-    openTelemetryOptions:
-      enabled: false
-      url: ""
-      resourceAttributes: {}
+  level: info
+  prettyPrintEnabled: false
+  openTelemetryOptions:
+    enabled: false
+    url: ""
+    resourceAttributes: {}
   tracing:
     enabled: false
     url: http://localhost:55681/v1/trace

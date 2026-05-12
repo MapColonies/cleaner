@@ -14,8 +14,10 @@ data:
   LOG_PRETTY_PRINT_ENABLED: {{ .Values.env.prettyPrintEnabled | quote }}
   {{- with .Values.env.openTelemetryOptions }}
   TELEMETRY_LOGGER_OTEL_ENABLED: {{ .enabled | default false | quote }}
+  {{- if .enabled }}
   TELEMETRY_LOGGER_OTEL_URL: {{ .url | default "" | quote }}
   TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES: {{ .resourceAttributes | default dict | toJson | quote }}
+  {{- end}}
   {{- end }}
   {{- if .Values.env.tracing.enabled }}
   TELEMETRY_TRACING_ENABLED: 'true'
@@ -47,7 +49,7 @@ data:
   HTTP_RETRY_SHOULD_RESET_TIMEOUT: {{ .shouldResetTimeout | quote }}
   {{- end }}
   JOBNIK_SDK_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
-  {{- with ((.Values.env.jobnik).worker) }}
+  {{- with .Values.env.jobnik.worker }}
   JOBNIK_WORKER_CONCURRENCY: {{ .concurrency | default 1 | quote }}
   {{- end }}
   S3_ENDPOINT: {{ if $s3.endpointUrl }}{{ printf "%s://%s" ($s3.sslEnabled | ternary "https" "http") $s3.endpointUrl | quote }}{{ else }}{{ "" | quote }}{{ end }}
@@ -56,7 +58,7 @@ data:
   S3_REGION: {{ $s3.region | default "us-east-1" | quote }}
   TILES_DELETION_S3_BUCKET: {{ $s3.tilesBucket | default "" | quote }}
   TILES_DELETION_FS_BASE_PATH: {{ $tilesFSBasePath | quote }}
-  {{- with ((.Values.env.strategies).tilesDeletion) }}
+  {{- with .Values.env.strategies.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
   TILES_DELETION_CONCURRENCY: {{ .concurrency | default 10 | quote }}
   TILES_DELETION_FAILURE_SAMPLE_SIZE: {{ .failureSampleSize | default 3 | quote }}
