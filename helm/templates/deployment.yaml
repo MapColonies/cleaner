@@ -4,6 +4,7 @@
 {{- $cloudProviderDockerRegistryUrl := include "cleaner.cloudProviderDockerRegistryUrl" . -}}
 {{- $cloudProviderImagePullSecretName := include "cleaner.cloudProviderImagePullSecretName" . -}}
 {{- $imageTag := include "cleaner.tag" . -}}
+{{- $ca := fromYaml (include "common.ca.merged" .) -}}
 {{- $storage := fromYaml (include "common.storage.merged" .) -}}
 {{- $s3 := ($storage.s3) | default dict -}}
 {{- $internalPvc := (($storage.fs).internalPvc) | default dict -}}
@@ -61,10 +62,10 @@ spec:
           {{- end }}
           {{- end }}
           volumeMounts:
-            {{- if .Values.ca.secretName }}
-            - mountPath: {{ printf "%s/%s" .Values.ca.path .Values.ca.key | quote }}
+            {{- if $ca.secretName }}
+            - mountPath: {{ printf "%s/%s" $ca.path $ca.key | quote }}
               name: root-ca
-              subPath: {{ quote .Values.ca.key }}
+              subPath: {{ quote $ca.key }}
             {{- end }}
             {{- if .Values.extraVolumeMounts -}}
               {{ toYaml .Values.extraVolumeMounts | nindent 12 }}
@@ -76,11 +77,11 @@ spec:
           env:
             - name: SERVER_PORT
               value: {{ .Values.env.targetPort | quote }}
-            {{- if .Values.ca.secretName }}
+            {{- if $ca.secretName }}
             - name: REQUESTS_CA_BUNDLE
-              value: {{ printf "%s/%s" .Values.ca.path .Values.ca.key | quote }}
+              value: {{ printf "%s/%s" $ca.path $ca.key | quote }}
             - name: NODE_EXTRA_CA_CERTS
-              value: {{ printf "%s/%s" .Values.ca.path .Values.ca.key | quote }}
+              value: {{ printf "%s/%s" $ca.path $ca.key | quote }}
             {{- end }}
             {{- if $s3.secretName }}
             - name: S3_ACCESS_KEY_ID
@@ -126,10 +127,10 @@ spec:
         {{ tpl (toYaml .Values.sidecars) . | nindent 8 }}
         {{- end }}
       volumes:
-        {{- if .Values.ca.secretName }}
+        {{- if $ca.secretName }}
         - name: root-ca
           secret:
-            secretName: {{ .Values.ca.secretName }}
+            secretName: {{ $ca.secretName }}
         {{- end }}
         {{- if .Values.extraVolumes -}}
           {{ tpl (toYaml .Values.extraVolumes) . | nindent 8 }}
