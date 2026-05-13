@@ -5,7 +5,6 @@ import type { ConfigType } from '@common/config';
 import type { IStorageProvider } from './iStorageProvider';
 
 const S3_MAX_DELETE_BATCH = 1000;
-const S3_ERROR_NO_SUCH_KEY = 'NoSuchKey';
 
 interface S3Config {
   endpoint: string;
