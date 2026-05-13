@@ -27,7 +27,7 @@ RUN npm ci --only=production
 
 COPY --chown=node:node --from=build /tmp/buildApp/dist .
 COPY --chown=node:node ./config ./config
-
+COPY --chown=node:node ./scripts ./scripts
 
 USER node
 EXPOSE 8080

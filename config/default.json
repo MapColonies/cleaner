@@ -7,7 +7,12 @@
     "shared": {},
     "logger": {
       "level": "info",
-      "prettyPrint": false
+      "prettyPrint": false,
+      "opentelemetryOptions": {
+        "enabled": false,
+        "url": "",
+        "resourceAttributes": {}
+      }
     }
   },
   "server": {
@@ -53,5 +58,22 @@
     "attempts": 3,
     "delay": "exponential",
     "shouldResetTimeout": true
+  },
+  "s3": {
+    "endpoint": "http://localhost:9000",
+    "accessKeyId": "minioadmin",
+    "secretAccessKey": "minioadmin",
+    "sslEnabled": false,
+    "forcePathStyle": true,
+    "region": "us-east-1"
+  },
+  "strategies": {
+    "tilesDeletion": {
+      "s3Bucket": "",
+      "fsBasePath": "/tiles",
+      "batchSize": 1000,
+      "concurrency": 10,
+      "failureSampleSize": 3
+    }
   }
 }

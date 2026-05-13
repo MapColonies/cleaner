@@ -5,7 +5,7 @@ import type { Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '../src/common/constants';
 import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
 import { StrategyNotFoundError } from '../src/cleaner/errors';
-import { createMockLogger } from './helpers/mocks';
+import { createMockLogger, createMockConfig, createMockQueueClient } from './helpers/mocks';
 
 class MockStrategy implements ITaskStrategy {
   public validate(params: unknown): Record<string, unknown> {
@@ -24,8 +24,10 @@ describe('StrategyFactory', () => {
   beforeEach(() => {
     mockLogger = createMockLogger();
 
-    // Register in global container (which StrategyFactory uses)
     container.register(SERVICES.LOGGER, { useValue: mockLogger });
+    container.register(SERVICES.CONFIG, { useValue: createMockConfig() });
+    container.register(SERVICES.STORAGE_PROVIDERS, { useValue: new Map() });
+    container.register(SERVICES.QUEUE_CLIENT, { useValue: createMockQueueClient() });
 
     strategyFactory = new StrategyFactory(mockLogger);
   });

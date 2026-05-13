@@ -11,6 +11,17 @@
       "prettyPrint": {
         "__name": "LOG_PRETTY_PRINT_ENABLED",
         "__format": "boolean"
+      },
+      "opentelemetryOptions": {
+        "enabled": {
+          "__name": "TELEMETRY_LOGGER_OTEL_ENABLED",
+          "__format": "boolean"
+        },
+        "url": "TELEMETRY_LOGGER_OTEL_URL",
+        "resourceAttributes": {
+          "__name": "TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES",
+          "__format": "json"
+        }
       }
     }
   },
@@ -56,6 +67,38 @@
     "shouldResetTimeout": {
       "__name": "HTTP_RETRY_SHOULD_RESET_TIMEOUT",
       "__format": "boolean"
+    }
+  },
+  "s3": {
+    "endpoint": "S3_ENDPOINT",
+    "accessKeyId": "S3_ACCESS_KEY_ID",
+    "secretAccessKey": "S3_SECRET_ACCESS_KEY",
+    "sslEnabled": {
+      "__name": "S3_SSL_ENABLED",
+      "__format": "boolean"
+    },
+    "forcePathStyle": {
+      "__name": "S3_FORCE_PATH_STYLE",
+      "__format": "boolean"
+    },
+    "region": "S3_REGION"
+  },
+  "strategies": {
+    "tilesDeletion": {
+      "s3Bucket": "TILES_DELETION_S3_BUCKET",
+      "fsBasePath": "TILES_DELETION_FS_BASE_PATH",
+      "batchSize": {
+        "__name": "TILES_DELETION_BATCH_SIZE",
+        "__format": "number"
+      },
+      "concurrency": {
+        "__name": "TILES_DELETION_CONCURRENCY",
+        "__format": "number"
+      },
+      "failureSampleSize": {
+        "__name": "TILES_DELETION_FAILURE_SAMPLE_SIZE",
+        "__format": "number"
+      }
     }
   }
 }

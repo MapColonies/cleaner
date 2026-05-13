@@ -30,13 +30,15 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1038.0",
     "@godaddy/terminus": "^4.12.1",
     "@map-colonies/config": "^4.0.1",
     "@map-colonies/jobnik-sdk": "^0.1.0",
-    "@map-colonies/js-logger": "^3.0.2",
-    "@map-colonies/mc-priority-queue": "^9.0.2",
+    "@map-colonies/js-logger": "^5.0.0",
+    "@map-colonies/mc-priority-queue": "^9.1.0",
+    "@map-colonies/raster-shared": "^8.1.0-alpha.3",
     "@map-colonies/read-pkg": "^1.0.0",
-    "@map-colonies/schemas": "^1.13.0",
+    "@map-colonies/schemas": "^1.20.0",
     "@map-colonies/telemetry": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
     "compression": "^1.8.0",

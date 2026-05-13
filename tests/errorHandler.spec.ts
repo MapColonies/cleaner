@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { faker } from '@faker-js/faker';
-import jsLogger from '@map-colonies/js-logger';
+import { jsLogger } from '@map-colonies/js-logger';
 import { toError, ErrorHandler, RecoverableError, UnrecoverableError, ValidationError } from '../src/cleaner/errors';
 import type { ErrorContext } from '../src/cleaner/types';
 
 describe('ErrorHandler', () => {
   let errorHandler: ErrorHandler;
 
-  beforeEach(() => {
-    errorHandler = new ErrorHandler(jsLogger({ enabled: false }));
+  beforeEach(async () => {
+    errorHandler = new ErrorHandler(await jsLogger({ enabled: false }));
   });
 
   describe('handleError', () => {

@@ -18,6 +18,8 @@ export const SERVICES = {
   STRATEGY_FACTORY: Symbol('StrategyFactory'),
   TASK_VALIDATOR: Symbol('TaskValidator'),
   POLLING_PAIRS: Symbol('PollingPairs'),
+  STORAGE_PROVIDERS: Symbol('StorageProviders'),
+  TASK_CONTEXT: Symbol('TaskContext'),
   // =============================================================================
   // TODO: When we move to the new job-manager, we will use @map-colonies/jobnik-sdk
   // The tokens below are kept for future migration.
@@ -25,3 +27,5 @@ export const SERVICES = {
   JOBNIK_SDK: Symbol('JobnikSDK'),
   WORKER: Symbol('Worker'),
 } satisfies Record<string, symbol>;
+
+export const PERCENTAGE_COMPLETE = 100;

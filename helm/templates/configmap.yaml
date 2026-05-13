@@ -1,5 +1,9 @@
 {{- $tracingUrl := include "cleaner.tracingUrl" . -}}
-{{- $metricsUrl := include "cleaner.metricsUrl" . -}}
+{{- $serviceUrls := fromYaml (include "common.serviceUrls.merged" .) -}}
+{{- $storage := fromYaml (include "common.storage.merged" .) -}}
+{{- $s3 := ($storage.s3) | default dict -}}
+{{- $internalPvc := (($storage.fs).internalPvc) | default dict -}}
+{{- $tilesFSBasePath :=  clean (printf "/%s/%s" $internalPvc.mountPath ($internalPvc.tilesSubPath | default "tiles")) -}}
 {{- if .Values.enabled -}}
 apiVersion: v1
 kind: ConfigMap
@@ -7,14 +11,21 @@ metadata:
   name: {{ printf "%s-configmap" (include "cleaner.fullname" .) }}
 data:
   LOG_LEVEL: {{ .Values.env.logLevel | quote }}
-  LOG_PRETTY_PRINT_ENABLED: {{ .Values.env.logPrettyPrintEnabled | quote }}
-  {{ if .Values.env.tracing.enabled }}
+  LOG_PRETTY_PRINT_ENABLED: {{ .Values.env.prettyPrintEnabled | quote }}
+  {{- with .Values.env.openTelemetryOptions }}
+  TELEMETRY_LOGGER_OTEL_ENABLED: {{ .enabled | default false | quote }}
+  {{- if .enabled }}
+  TELEMETRY_LOGGER_OTEL_URL: {{ .url | default "" | quote }}
+  TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES: {{ .resourceAttributes | default dict | toJson | quote }}
+  {{- end}}
+  {{- end }}
+  {{- if .Values.env.tracing.enabled }}
   TELEMETRY_TRACING_ENABLED: 'true'
   TELEMETRY_TRACING_URL: {{ $tracingUrl }}
-  {{ end }}
+  {{- end }}
   npm_config_cache: /tmp/
   {{- with .Values.configManagement }}
-  CONFIG_NAME: {{ .name| quote }}
+  CONFIG_NAME: {{ .name | quote }}
   CONFIG_VERSION: {{ .version | quote }}
   CONFIG_OFFLINE_MODE: {{ .offlineMode | quote }}
   CONFIG_SERVER_URL: {{ .serverUrl | quote }}
@@ -22,11 +33,11 @@ data:
   {{- with .Values.env.worker.capabilities }}
   WORKER_CAPABILITY_PAIRS: {{ .pairs | toJson | quote }}
   {{- end }}
+  QUEUE_JOB_MANAGER_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
+  QUEUE_HEARTBEAT_BASE_URL: {{ $serviceUrls.heartbeatManager | default "" | quote }}
   {{- with .Values.env.queue }}
-  QUEUE_JOB_MANAGER_BASE_URL: {{ .jobManagerBaseUrl | quote }}
-  QUEUE_HEARTBEAT_BASE_URL: {{ .heartbeatBaseUrl | quote }}
-  QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | quote }}
-  QUEUE_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | quote }}
+  QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | default 1000 | quote }}
+  QUEUE_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | default 3000 | quote }}
   {{- end }}
   {{- $jobDefinitions := fromYaml (include "common.jobDefinitions.merged" .) }}
   {{- if $jobDefinitions }}
@@ -36,5 +47,20 @@ data:
   HTTP_RETRY_ATTEMPTS: {{ .attempts | quote }}
   HTTP_RETRY_DELAY: {{ .delay | quote }}
   HTTP_RETRY_SHOULD_RESET_TIMEOUT: {{ .shouldResetTimeout | quote }}
-  {{- end -}}
+  {{- end }}
+  JOBNIK_SDK_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
+  {{- with .Values.env.jobnik.worker }}
+  JOBNIK_WORKER_CONCURRENCY: {{ .concurrency | default 1 | quote }}
+  {{- end }}
+  S3_ENDPOINT: {{ if $s3.endpointUrl }}{{ printf "%s://%s" ($s3.sslEnabled | ternary "https" "http") $s3.endpointUrl | quote }}{{ else }}{{ "" | quote }}{{ end }}
+  S3_FORCE_PATH_STYLE: {{ $s3.forcePathStyle | default false | quote }}
+  S3_SSL_ENABLED: {{ $s3.sslEnabled | default false | quote }}
+  S3_REGION: {{ $s3.region | default "us-east-1" | quote }}
+  TILES_DELETION_S3_BUCKET: {{ $s3.tilesBucket | default "" | quote }}
+  TILES_DELETION_FS_BASE_PATH: {{ $tilesFSBasePath | quote }}
+  {{- with .Values.env.strategies.tilesDeletion }}
+  TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
+  TILES_DELETION_CONCURRENCY: {{ .concurrency | default 10 | quote }}
+  TILES_DELETION_FAILURE_SAMPLE_SIZE: {{ .failureSampleSize | default 3 | quote }}
+  {{- end }}
 {{- end }}

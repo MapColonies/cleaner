@@ -1,5 +1,3 @@
-import type { ITaskResponse } from '@map-colonies/mc-priority-queue';
-
 /**
  * Worker capability pair - a single job/task combination this worker handles.
  */
@@ -80,8 +78,3 @@ export interface ErrorDecision {
   shouldRetry: boolean;
   reason: string;
 }
-
-/**
- * Task response helper type for strategy implementations.
- */
-export type TaskResponse = ITaskResponse<Record<string, unknown>>;

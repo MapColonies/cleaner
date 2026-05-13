@@ -107,12 +107,12 @@ Returns the tracing url from global if exists or from the chart's values
 {{- end -}}
 
 {{/*
-Returns the tracing url from global if exists or from the chart's values
+Returns the metrics url from global if exists or from the chart's values
 */}}
 {{- define "cleaner.metricsUrl" -}}
 {{- if .Values.global.metrics.url }}
     {{- .Values.global.metrics.url -}}
 {{- else -}}
-    {{- .Values.env.metrics.url -}}
+    {{- .Values.env.metrics.url | default "" -}}
 {{- end -}}
 {{- end -}}

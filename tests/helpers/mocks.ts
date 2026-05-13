@@ -3,6 +3,7 @@ import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import type { ConfigType } from '../../src/common/config';
 import type { ITaskStrategy, StrategyFactory } from '../../src/cleaner/strategies';
+import type { IStorageProvider } from '../../src/cleaner/storageProviders';
 import type { ErrorHandler } from '../../src/cleaner/errors';
 import type { ErrorDecision, PollingPairConfig } from '../../src/cleaner/types';
 import { TaskPoller } from '../../src/worker/taskPoller';
@@ -34,6 +35,7 @@ export function createMockQueueClient(): QueueClient {
     dequeue: vi.fn().mockResolvedValue(null),
     ack: vi.fn().mockResolvedValue(undefined),
     reject: vi.fn().mockResolvedValue(undefined),
+    updateProgress: vi.fn().mockResolvedValue(undefined),
   } as unknown as QueueClient;
 }
 
@@ -59,6 +61,54 @@ export function createMockErrorHandler(defaultDecision: ErrorDecision = { should
   return {
     handleError: vi.fn().mockReturnValue(defaultDecision),
   } as unknown as ErrorHandler;
+}
+
+// ─── StorageProvider ─────────────────────────────────────────────────────────
+
+export function createMockStorageProvider(): IStorageProvider {
+  return {
+    delete: vi.fn().mockResolvedValue([]),
+    targetExists: vi.fn().mockResolvedValue(true),
+  };
+}
+
+// ─── Strategy Config (TilesDeletionStrategy) ─────────────────────────────────
+
+export const TILES_DELETION_CONFIG_DEFAULTS = {
+  batchSize: 100,
+  concurrency: 2,
+  failureSampleSize: 3,
+  s3Bucket: 'test-bucket',
+  fsBasePath: '/test/tiles',
+} as const;
+
+export function createMockStrategyConfig(overrides: Record<string, unknown> = {}): ConfigType {
+  const values: Record<string, unknown> = {
+    'strategies.tilesDeletion.batchSize': TILES_DELETION_CONFIG_DEFAULTS.batchSize,
+    'strategies.tilesDeletion.concurrency': TILES_DELETION_CONFIG_DEFAULTS.concurrency,
+    'strategies.tilesDeletion.failureSampleSize': TILES_DELETION_CONFIG_DEFAULTS.failureSampleSize,
+    'strategies.tilesDeletion.s3Bucket': TILES_DELETION_CONFIG_DEFAULTS.s3Bucket,
+    'strategies.tilesDeletion.fsBasePath': TILES_DELETION_CONFIG_DEFAULTS.fsBasePath,
+    ...overrides,
+  };
+  return { get: vi.fn().mockImplementation((key: string) => values[key]) } as unknown as ConfigType;
+}
+
+// ─── S3 Storage Config (S3StorageProvider) ───────────────────────────────────
+
+export const S3_STORAGE_CONFIG_DEFAULTS = {
+  endpoint: 'http://localhost:9000',
+  accessKeyId: 'test-key',
+  secretAccessKey: 'test-secret',
+  sslEnabled: false,
+  forcePathStyle: true,
+  region: 'us-east-1',
+} as const;
+
+export function createMockS3Config(): ConfigType {
+  return {
+    get: vi.fn().mockReturnValue({ ...S3_STORAGE_CONFIG_DEFAULTS }),
+  } as unknown as ConfigType;
 }
 
 // ─── TaskPoller factory ───────────────────────────────────────────────────────

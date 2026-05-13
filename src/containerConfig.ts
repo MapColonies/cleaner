@@ -1,9 +1,10 @@
 import { getOtelMixin } from '@map-colonies/telemetry';
+import { SourceType } from '@map-colonies/raster-shared';
 import { trace } from '@opentelemetry/api';
 import { Registry } from 'prom-client';
 import { instancePerContainerCachingFactory } from 'tsyringe';
 import { DependencyContainer } from 'tsyringe/dist/typings/types';
-import jsLogger, { Logger } from '@map-colonies/js-logger';
+import { jsLogger, type Logger } from '@map-colonies/js-logger';
 import { IWorker, JobnikSDK } from '@map-colonies/jobnik-sdk';
 import { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { InjectionObject, registerDependencies } from '@common/dependencyRegistration';
@@ -14,6 +15,7 @@ import { ConfigType, getConfig } from './common/config';
 import { workerBuilder } from './worker';
 import { StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
 import { ErrorHandler } from './cleaner/errors';
+import { S3StorageProvider, FsStorageProvider, type IStorageProvider } from './cleaner/storageProviders';
 
 export interface RegisterOptions {
   override?: InjectionObject<unknown>[];
@@ -25,7 +27,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
 
   const loggerConfig = configInstance.get('telemetry.logger');
 
-  const logger = jsLogger({ ...loggerConfig, prettyPrint: loggerConfig.prettyPrint, mixin: getOtelMixin() });
+  const logger = await jsLogger({ ...loggerConfig, prettyPrint: loggerConfig.prettyPrint, mixin: getOtelMixin() });
 
   const tracer = trace.getTracer(SERVICE_NAME);
   const metricsRegistry = new Registry();
@@ -86,6 +88,19 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
       token: SERVICES.ERROR_HANDLER,
       provider: {
         useClass: ErrorHandler,
+      },
+    },
+    {
+      token: SERVICES.STORAGE_PROVIDERS,
+      provider: {
+        useFactory: instancePerContainerCachingFactory((container) => {
+          const config = container.resolve<ConfigType>(SERVICES.CONFIG);
+          const logger = container.resolve<Logger>(SERVICES.LOGGER);
+          return new Map<string, IStorageProvider>([
+            [SourceType.S3, new S3StorageProvider(config, logger)],
+            [SourceType.FS, new FsStorageProvider(logger)],
+          ]);
+        }),
       },
     },
     {

@@ -83,6 +83,9 @@ helm/local.yaml
 
 # Local documentation (can be regenerated)
 ai-docs/implementation-plan.md
+.claude-flow
+.claude
+
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -118,3 +121,6 @@ dist
 # Jest
 jest_html_reporters.html
 reports
+
+# tmp files
+tmp
