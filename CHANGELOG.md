@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/MapColonies/cleaner/compare/v1.0.1...v1.1.0) (2026-05-13)
+
+
+### Features
+
+* fs s3 integration and tilesDeletionStartegy(MAPCO-9806) ([#24](https://github.com/MapColonies/cleaner/issues/24)) ([0ad7e30](https://github.com/MapColonies/cleaner/commit/0ad7e30589fa4c66cae1d0b528294e8e06732db8))
+* polling loop (MAPCO-9805) ([#21](https://github.com/MapColonies/cleaner/issues/21)) ([318aea0](https://github.com/MapColonies/cleaner/commit/318aea0e01fbd00abd27896f9d6a75665fba1ed7))
+
 ## [1.0.1](https://github.com/MapColonies/cleaner/compare/v1.0.0...v1.0.1) (2026-02-23)
 
 
