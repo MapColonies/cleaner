@@ -42,7 +42,7 @@ describe('FsStorageProvider', () => {
       expect(result).toBe(false);
     });
 
-    it('should re-throw errors that are not ENOENT', async () => {
+    it('should throw an errors that are not ENOENT', async () => {
       vi.mocked(stat).mockRejectedValue(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
 
       await expect(provider.targetExists(BASE_PATH, RELATIVE_PATH)).rejects.toThrow('EACCES');
