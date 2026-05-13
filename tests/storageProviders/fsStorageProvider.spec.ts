@@ -1,5 +1,6 @@
 import { stat, unlink, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { Stats } from 'node:fs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FsStorageProvider } from '@src/cleaner/storageProviders/fsStorageProvider';
 import { createMockLogger } from '../helpers/mocks';
@@ -17,7 +18,7 @@ describe('FsStorageProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(stat).mockResolvedValue(undefined as never);
+    vi.mocked(stat).mockResolvedValue({} as Stats);
     vi.mocked(unlink).mockResolvedValue(undefined);
     vi.mocked(rmdir).mockResolvedValue(undefined);
     provider = new FsStorageProvider(createMockLogger());
