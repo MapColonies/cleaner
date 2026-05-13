@@ -27,11 +27,12 @@ describe('FsStorageProvider', () => {
   describe('targetExists', () => {
     const RELATIVE_PATH = 'layer/v1';
 
-    it('should call stat with join(storageTarget, relativePath)', async () => {
+    it('should call stat with full target path', async () => {
+      const targetPath = join(BASE_PATH, RELATIVE_PATH);
       const result = await provider.targetExists(BASE_PATH, RELATIVE_PATH);
 
       expect(result).toBe(true);
-      expect(stat).toHaveBeenCalledWith(join(BASE_PATH, RELATIVE_PATH));
+      expect(stat).toHaveBeenCalledWith(targetPath);
     });
 
     it('should return false when path does not exist (ENOENT)', async () => {
