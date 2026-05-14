@@ -10,6 +10,7 @@ global:
 serviceUrls:
   jobManager: ""
   heartbeatManager: ""
+  jobTracker: ""
 
 storage:
   s3:
@@ -121,6 +122,7 @@ env:
     attempts: 3
     delay: "exponential"
     shouldResetTimeout: true
+  disableHttpClientLogs: false
   strategies:
     tilesDeletion:
       batchSize: 1000

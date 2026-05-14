@@ -20,6 +20,7 @@ export const SERVICES = {
   POLLING_PAIRS: Symbol('PollingPairs'),
   STORAGE_PROVIDERS: Symbol('StorageProviders'),
   TASK_CONTEXT: Symbol('TaskContext'),
+  JOB_TRACKER_CLIENT: Symbol('JobTrackerClient'),
   // =============================================================================
   // TODO: When we move to the new job-manager, we will use @map-colonies/jobnik-sdk
   // The tokens below are kept for future migration.

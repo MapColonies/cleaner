@@ -35,6 +35,8 @@ data:
   {{- end }}
   QUEUE_JOB_MANAGER_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
   QUEUE_HEARTBEAT_BASE_URL: {{ $serviceUrls.heartbeatManager | default "" | quote }}
+  SERVICES_URL_JOB_TRACKER: {{ $serviceUrls.jobTracker | default "" | quote }}
+  DISABLE_HTTP_CLIENT_LOGS: {{ .Values.env.disableHttpClientLogs | default false | quote }}
   {{- with .Values.env.queue }}
   QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | default 1000 | quote }}
   QUEUE_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | default 3000 | quote }}

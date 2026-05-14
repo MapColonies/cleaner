@@ -38,6 +38,10 @@
     "heartbeatIntervalMs": 1000,
     "dequeueIntervalMs": 3000
   },
+  "servicesUrl": {
+    "jobTracker": "http://localhost:8082"
+  },
+  "disableHttpClientLogs": false,
   "jobDefinitions": {
     "jobs": {
       "update": {
