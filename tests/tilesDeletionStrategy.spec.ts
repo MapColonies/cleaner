@@ -187,13 +187,7 @@ describe('TilesDeletionStrategy', () => {
     });
 
     describe('progress reporting', () => {
-      it('should call updateProgress with 100 when tiles fit in a single flush', async () => {
-        await strategy.execute(s3Params);
-
-        expect(mockUpdateProgress).toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
-      });
-
-      it('should call updateProgress mid-stream and at 100 for large tile sets', async () => {
+      it('should call updateProgress mid-stream for large tile sets without ever setting 100', async () => {
         // batchSize=100, concurrency=2 → flush after 200 tiles, then final flush for remainder
         // 14 * 15 = 210 tiles
         const params: TilesDeletionParams = {
@@ -203,40 +197,34 @@ describe('TilesDeletionStrategy', () => {
 
         await strategy.execute(params);
 
-        expect(mockUpdateProgress).toHaveBeenCalledTimes(2);
-        expect(mockUpdateProgress).toHaveBeenLastCalledWith(JOB_ID, TASK_ID, 100);
+        expect(mockUpdateProgress).toHaveBeenCalledTimes(1);
+        expect(mockUpdateProgress).not.toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
       });
 
-      it('should call updateProgress with the correct jobId and taskId', async () => {
-        await strategy.execute(s3Params);
+      it('should pass the correct jobId and taskId on mid-stream updates', async () => {
+        const params: TilesDeletionParams = {
+          ...s3Params,
+          ranges: [{ zoom: 5, minX: 0, maxX: 13, minY: 0, maxY: 14 }],
+        };
+
+        await strategy.execute(params);
 
         expect(mockUpdateProgress).toHaveBeenCalledWith(JOB_ID, TASK_ID, expect.any(Number));
       });
 
-      it('should not call updateProgress with 100% when retryable failures occur', async () => {
+      it('should not call updateProgress when retryable failures occur', async () => {
         vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'AccessDenied' }]);
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(RecoverableError);
 
-        expect(mockUpdateProgress).not.toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
+        expect(mockUpdateProgress).not.toHaveBeenCalled();
       });
 
-      it('should not call updateProgress with 100% when retryable and not-found failures are mixed', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue([
-          { path: tilePath(10, 0, 0), reason: 'NoSuchKey' },
-          { path: tilePath(10, 0, 1), reason: 'AccessDenied' },
-        ]);
-
-        await expect(strategy.execute(s3Params)).rejects.toThrow(RecoverableError);
-
-        expect(mockUpdateProgress).not.toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
-      });
-
-      it('should call updateProgress with 100% when not-found failures occur', async () => {
+      it('should not call updateProgress when only not-found failures occur', async () => {
         vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'NoSuchKey' }]);
 
         await expect(strategy.execute(s3Params)).resolves.toBeUndefined();
-        expect(mockUpdateProgress).toHaveBeenLastCalledWith(JOB_ID, TASK_ID, 100);
+        expect(mockUpdateProgress).not.toHaveBeenCalled();
       });
     });
 

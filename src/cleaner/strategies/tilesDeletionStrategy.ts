@@ -57,7 +57,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     });
 
     const failures = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
-    await this.reportOutcome(failures, totalTiles);
+    this.reportOutcome(failures, totalTiles);
   }
 
   /**
@@ -65,9 +65,9 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
    * must be retried, and logs at the appropriate level. Not-found failures are
    * treated as success (deletion is idempotent — a tile that's already gone
    * matches the desired end-state) but counted separately for visibility.
-   * Owns the terminal-progress update — success branches advance the queue to 100%.
+   * Terminal progress to 100% is handled by the queue's task-ack — no explicit call needed here.
    */
-  private async reportOutcome(failures: DeleteFailure[], totalTiles: number): Promise<void> {
+  private reportOutcome(failures: DeleteFailure[], totalTiles: number): void {
     const retryable: DeleteFailure[] = [];
     const notFound: DeleteFailure[] = [];
     for (const failure of failures) {
@@ -89,8 +89,6 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       });
       throw new RecoverableError(`Failed to delete ${retryable.length} tiles. Reasons: ${summary}. Sample: ${sample.join(', ')}`);
     }
-
-    await this.queueClient.updateProgress(this.taskContext.jobId, this.taskContext.taskId, PERCENTAGE_COMPLETE);
 
     if (notFound.length > 0) {
       this.logger.warn({
