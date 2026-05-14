@@ -213,26 +213,44 @@ describe('TilesDeletionStrategy', () => {
         expect(mockUpdateProgress).toHaveBeenCalledWith(JOB_ID, TASK_ID, expect.any(Number));
       });
 
-      it('should not call updateProgress with 100 when the final flush has failures', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'NoSuchKey' }]);
+      it('should not call updateProgress with 100% when retryable failures occur', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'AccessDenied' }]);
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(RecoverableError);
 
         expect(mockUpdateProgress).not.toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
       });
+
+      it('should not call updateProgress with 100% when retryable and not-found failures are mixed', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue([
+          { path: tilePath(10, 0, 0), reason: 'NoSuchKey' },
+          { path: tilePath(10, 0, 1), reason: 'AccessDenied' },
+        ]);
+
+        await expect(strategy.execute(s3Params)).rejects.toThrow(RecoverableError);
+
+        expect(mockUpdateProgress).not.toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
+      });
+
+      it('should call updateProgress with 100% when not-found failures occur', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'NoSuchKey' }]);
+
+        await expect(strategy.execute(s3Params)).resolves.toBeUndefined();
+        expect(mockUpdateProgress).toHaveBeenLastCalledWith(JOB_ID, TASK_ID, 100);
+      });
     });
 
     describe('failure handling', () => {
-      it('should throw RecoverableError when provider returns failed paths', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'NoSuchKey' }]);
+      it('should throw RecoverableError when provider returns fatal failed paths', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'AccessDenied' }]);
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(RecoverableError);
       });
 
-      it('should include failed count in RecoverableError message', async () => {
+      it('should include fatal failed count in RecoverableError message', async () => {
         vi.mocked(MockS3Provider.delete).mockResolvedValue([
-          { path: tilePath(10, 0, 0), reason: 'NoSuchKey' },
-          { path: tilePath(10, 0, 1), reason: 'NoSuchKey' },
+          { path: tilePath(10, 0, 0), reason: 'AccessDenied' },
+          { path: tilePath(10, 0, 1), reason: 'AccessDenied' },
         ]);
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(/Failed to delete 2/);
@@ -240,18 +258,42 @@ describe('TilesDeletionStrategy', () => {
 
       it('should include grouped reason counts in RecoverableError message', async () => {
         vi.mocked(MockS3Provider.delete).mockResolvedValue([
-          { path: tilePath(10, 0, 0), reason: 'NoSuchKey' },
-          { path: tilePath(10, 0, 1), reason: 'NoSuchKey' },
+          { path: tilePath(10, 0, 0), reason: 'EACCES' },
+          { path: tilePath(10, 0, 1), reason: 'EACCES' },
           { path: tilePath(10, 1, 0), reason: 'AccessDenied' },
         ]);
 
-        await expect(strategy.execute(s3Params)).rejects.toThrow(/Reasons: NoSuchKey=2, AccessDenied=1/);
+        await expect(strategy.execute(s3Params)).rejects.toThrow(/Reasons: EACCES=2, AccessDenied=1/);
+      });
+
+      it('should exclude not-found reasons from the RecoverableError reason summary', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue([
+          { path: tilePath(10, 0, 0), reason: 'NoSuchKey' },
+          { path: tilePath(10, 0, 1), reason: 'AccessDenied' },
+        ]);
+
+        await expect(strategy.execute(s3Params)).rejects.toThrow(/Failed to delete 1.*Reasons: AccessDenied=1/);
       });
 
       it('should include path and reason in the failure sample', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'AccessDenied' }]);
+
+        await expect(strategy.execute(s3Params)).rejects.toThrow(/layer\/v1\/10\/0\/0\.png \(AccessDenied\)/);
+      });
+
+      it('should resolve successfully when all failures are not-found (ENOENT)', async () => {
+        vi.mocked(MockFsProvider.delete).mockResolvedValue([
+          { path: tilePath(10, 0, 0), reason: 'ENOENT' },
+          { path: tilePath(10, 0, 1), reason: 'ENOENT' },
+        ]);
+
+        await expect(strategy.execute(fsParams)).resolves.toBeUndefined();
+      });
+
+      it('should resolve successfully when all failures are not-found (NoSuchKey)', async () => {
         vi.mocked(MockS3Provider.delete).mockResolvedValue([{ path: tilePath(10, 0, 0), reason: 'NoSuchKey' }]);
 
-        await expect(strategy.execute(s3Params)).rejects.toThrow(/layer\/v1\/10\/0\/0\.png \(NoSuchKey\)/);
+        await expect(strategy.execute(s3Params)).resolves.toBeUndefined();
       });
 
       it('should resolve successfully when provider returns no failed paths', async () => {
