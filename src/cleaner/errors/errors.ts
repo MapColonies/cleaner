@@ -22,8 +22,6 @@ export function toError(value: unknown): Error {
 export function describeError(value: unknown): string {
   if (value instanceof Error) {
     const code = (value as NodeJS.ErrnoException).code;
-    // value.message is always a string on Error (default ''), so `??` would never reach the fallback —
-    // use `||` here to also skip the empty-string case.
     return code ?? (value.message || 'Unknown');
   }
   try {
