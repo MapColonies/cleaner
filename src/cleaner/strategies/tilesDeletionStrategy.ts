@@ -5,8 +5,8 @@ import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import type { ConfigType } from '@common/config';
 import { validateSchema } from '../utils';
-import { RecoverableError, UnrecoverableError } from '../errors';
-import type { IStorageProvider } from '../storageProviders';
+import { RecoverableError, UnrecoverableError, describeError } from '../errors';
+import { summarizeDeleteFailures, type DeleteFailure, type IStorageProvider } from '../storageProviders';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
 
@@ -53,18 +53,19 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       totalTiles,
     });
 
-    const failedPaths = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
+    const failures = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
 
-    if (failedPaths.length > 0) {
-      const sample = failedPaths.slice(0, this.failureSampleSize);
+    if (failures.length > 0) {
+      const { counts, summary, sample } = summarizeDeleteFailures(failures, this.failureSampleSize);
       this.logger.error({
         msg: 'Tiles deletion partially failed',
         totalTiles,
-        failedCount: failedPaths.length,
-        deletedCount: totalTiles - failedPaths.length,
+        failedCount: failures.length,
+        deletedCount: totalTiles - failures.length,
+        reasonCounts: counts,
         sample,
       });
-      throw new RecoverableError(`Failed to delete ${failedPaths.length} tiles. Sample: ${sample.join(', ')}`);
+      throw new RecoverableError(`Failed to delete ${failures.length} tiles. Reasons: ${summary}. Sample: ${sample.join(', ')}`);
     }
 
     this.logger.info({ msg: 'Tiles deletion completed successfully', deletedCount: totalTiles });
@@ -84,9 +85,9 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     storageTarget: string,
     params: TilesDeletionParams,
     totalTiles: number
-  ): Promise<string[]> {
+  ): Promise<DeleteFailure[]> {
     const { jobId, taskId } = this.taskContext;
-    const failedPaths: string[] = [];
+    const failures: DeleteFailure[] = [];
     const pendingBatches: string[][] = [];
     let batch: string[] = [];
     let processedTiles = 0;
@@ -97,10 +98,10 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
         pendingBatches.push(batch);
         batch = [];
         if (pendingBatches.length === this.concurrency) {
-          processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
+          processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failures);
           const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
           await this.queueClient.updateProgress(jobId, taskId, percentage);
-          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failedPaths.length });
+          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.length });
         }
       }
     }
@@ -109,33 +110,43 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       pendingBatches.push(batch);
     }
     if (pendingBatches.length > 0) {
-      await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
-      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failedPaths.length });
-      if (failedPaths.length === 0) {
+      await this.flushBatches(provider, storageTarget, pendingBatches, failures);
+      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.length });
+      if (failures.length === 0) {
         await this.queueClient.updateProgress(jobId, taskId, PERCENTAGE_COMPLETE);
       }
     }
 
-    return failedPaths;
+    return failures;
   }
 
   /**
    * Deletes all pending batches concurrently via Promise.allSettled.
-   * Soft failures (paths returned by provider.delete) and hard failures (rejected promises)
-   * are both collected into failedPaths; hard-failed batch paths are added by index so nothing
-   * is silently lost. pendingBatches is cleared in-place for reuse.
+   * Soft failures (entries returned by provider.delete with reason) and hard failures
+   * (rejected promises — expanded into per-path failures with the thrown error as
+   * the reason) are both collected so nothing is silently lost and every failed path
+   * carries a cause the caller can surface in the task rejection reason.
+   * pendingBatches is cleared in-place for reuse.
    *
    * @returns Total tile paths attempted (not necessarily deleted).
    */
-  private async flushBatches(provider: IStorageProvider, storageTarget: string, pendingBatches: string[][], failedPaths: string[]): Promise<number> {
+  private async flushBatches(
+    provider: IStorageProvider,
+    storageTarget: string,
+    pendingBatches: string[][],
+    failures: DeleteFailure[]
+  ): Promise<number> {
     const flushedCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
     const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(batch, storageTarget)));
     for (const [index, result] of results.entries()) {
       if (result.status === 'fulfilled') {
-        failedPaths.push(...result.value);
+        failures.push(...result.value);
       } else {
-        this.logger.error({ msg: 'Batch delete threw unexpectedly', error: result.reason });
-        failedPaths.push(...(pendingBatches[index] ?? []));
+        const error: unknown = result.reason;
+        const reason = describeError(error);
+        this.logger.error({ msg: 'Batch delete threw unexpectedly', reason, error });
+        const batch = pendingBatches[index] ?? [];
+        failures.push(...batch.map((path) => ({ path, reason })));
       }
     }
     pendingBatches.length = 0;

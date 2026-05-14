@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import { stat, unlink, rmdir } from 'node:fs/promises';
 import type { Logger } from '@map-colonies/js-logger';
-import type { IStorageProvider } from './iStorageProvider';
+import { describeError } from '../errors';
+import type { DeleteFailure, IStorageProvider } from './iStorageProvider';
 
 export class FsStorageProvider implements IStorageProvider {
   public constructor(private readonly logger: Logger) {}
@@ -16,7 +17,7 @@ export class FsStorageProvider implements IStorageProvider {
     }
   }
 
-  public async delete(paths: string[], storageTarget: string): Promise<string[]> {
+  public async delete(paths: string[], storageTarget: string): Promise<DeleteFailure[]> {
     if (paths.length === 0) {
       return [];
     }
@@ -25,31 +26,24 @@ export class FsStorageProvider implements IStorageProvider {
 
     const results = await Promise.allSettled(
       paths.map(async (relativePath) => {
-        try {
-          await unlink(join(storageTarget, relativePath));
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-            return relativePath; // treat missing file as a failed deletion, to be included in the failure report
-          }
-          throw error;
-        }
+        await unlink(join(storageTarget, relativePath));
       })
     );
 
-    const failedPaths: string[] = [];
+    const failures: DeleteFailure[] = [];
     for (const [idx, result] of results.entries()) {
       if (result.status === 'rejected') {
         const relativePath = paths[idx]!;
-        this.logger.warn({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), error: result.reason });
-        failedPaths.push(relativePath);
-      } else if (result.value !== undefined) {
-        failedPaths.push(result.value);
+        const error: unknown = result.reason;
+        const reason = describeError(error);
+        this.logger.debug({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), reason, error });
+        failures.push({ path: relativePath, reason });
       }
     }
 
     await this.cleanupEmptyDirs(paths, storageTarget);
 
-    return failedPaths;
+    return failures;
   }
 
   // Attempts to remove any directories that became empty after file deletion.

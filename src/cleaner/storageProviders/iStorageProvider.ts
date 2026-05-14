@@ -1,12 +1,22 @@
+/**
+ * A single failed deletion paired with a short reason string (e.g. 'ENOENT',
+ * 'AccessDenied', 'NoSuchKey').
+ */
+export interface DeleteFailure {
+  path: string;
+  reason: string;
+}
+
 export interface IStorageProvider {
   /**
    * Deletes a batch of relative file paths within the given storage target.
    * - S3:  storageTarget = bucket name; paths are object keys
    * - FS:  storageTarget = base directory; full path = join(storageTarget, path)
    *
-   * Returns the paths that failed to delete. Treats "not found" as success (idempotent).
+   * Returns one entry per failed deletion. "Not found" is reported as a failure
+   * (with reason 'ENOENT' / 'NoSuchKey').
    */
-  delete: (paths: string[], storageTarget: string) => Promise<string[]>;
+  delete: (paths: string[], storageTarget: string) => Promise<DeleteFailure[]>;
 
   /**
    * Returns true if relativePath exists within storageTarget and contains data.
