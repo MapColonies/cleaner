@@ -55,6 +55,7 @@ describe('summarizeDeleteFailures', () => {
 
     const { sample } = summarizeDeleteFailures(failures, 2);
 
+    expect(sample).toEqual(['a (ENOENT)', 'b (ENOENT)']);
     expect(sample).length(2);
   });
 
