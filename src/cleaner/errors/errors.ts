@@ -22,10 +22,12 @@ export function toError(value: unknown): Error {
 export function describeError(value: unknown): string {
   if (value instanceof Error) {
     const code = (value as NodeJS.ErrnoException).code;
-    return code ?? value.message;
+    // value.message is always a string on Error (default ''), so `??` would never reach the fallback —
+    // use `||` here to also skip the empty-string case.
+    return code ?? (value.message || 'Unknown');
   }
   try {
-    return String(value);
+    return String(value) || 'Unknown';
   } catch {
     return 'non-serializable thrown value';
   }
