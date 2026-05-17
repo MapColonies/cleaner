@@ -22,6 +22,7 @@ export class JobTrackerClient extends HttpClient {
   public async notify(taskId: string): Promise<void> {
     try {
       await this.post(`tasks/${taskId}/notify`);
+      this.logger.info({ msg: 'Successfully notified job tracker', taskId });
     } catch (error) {
       this.logger.error({ msg: 'Failed to notify job tracker', taskId, error });
     }
