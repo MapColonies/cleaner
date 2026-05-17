@@ -67,10 +67,7 @@
       "__name": "HTTP_RETRY_ATTEMPTS",
       "__format": "number"
     },
-    "delay": {
-      "__name": "HTTP_RETRY_DELAY",
-      "__format": "number"
-    },
+    "delay": "HTTP_RETRY_DELAY",
     "shouldResetTimeout": {
       "__name": "HTTP_RETRY_SHOULD_RESET_TIMEOUT",
       "__format": "boolean"
