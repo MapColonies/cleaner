@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/MapColonies/cleaner/compare/v1.1.2...v1.1.3) (2026-05-17)
+
+
+### Bug Fixes
+
+* log successful job tracker notification ([#30](https://github.com/MapColonies/cleaner/issues/30)) ([aa14ee0](https://github.com/MapColonies/cleaner/commit/aa14ee0e1f9d73c37a29f68a50f42dda793c9268))
+
 ## [1.1.2](https://github.com/MapColonies/cleaner/compare/v1.1.1...v1.1.2) (2026-05-17)
 
 
