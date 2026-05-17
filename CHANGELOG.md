@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/MapColonies/cleaner/compare/v1.1.0...v1.1.1) (2026-05-17)
+
+
+### Bug Fixes
+
+* values and deletion erros(MAPCO-10629) ([#26](https://github.com/MapColonies/cleaner/issues/26)) ([31c16e6](https://github.com/MapColonies/cleaner/commit/31c16e6716b3b4a4807ca025f1be4374c0a1f707))
+
 ## [1.1.0](https://github.com/MapColonies/cleaner/compare/v1.0.1...v1.1.0) (2026-05-13)
 
 
