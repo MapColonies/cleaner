@@ -16,6 +16,7 @@ import { workerBuilder } from './worker';
 import { StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
 import { ErrorHandler } from './cleaner/errors';
 import { S3StorageProvider, FsStorageProvider, type IStorageProvider } from './cleaner/storageProviders';
+import { JobTrackerClient } from './cleaner/httpClients';
 
 export interface RegisterOptions {
   override?: InjectionObject<unknown>[];
@@ -88,6 +89,12 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
       token: SERVICES.ERROR_HANDLER,
       provider: {
         useClass: ErrorHandler,
+      },
+    },
+    {
+      token: SERVICES.JOB_TRACKER_CLIENT,
+      provider: {
+        useClass: JobTrackerClient,
       },
     },
     {

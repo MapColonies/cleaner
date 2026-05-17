@@ -79,22 +79,38 @@ describe('FsStorageProvider', () => {
       expect(result).toEqual([]);
     });
 
-    it('should treat ENOENT as a failed deletion (included in failure report)', async () => {
+    it('should treat ENOENT as a failed deletion tagged with ENOENT reason', async () => {
       const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       vi.mocked(unlink).mockRejectedValue(enoent);
 
       const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
 
-      expect(result).toEqual(['tile/10/0/0.png']);
+      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'ENOENT' }]);
     });
 
-    it('should return failed path for non-ENOENT errors', async () => {
+    it('should return failed path with reason for non-ENOENT errors', async () => {
       const permError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
       vi.mocked(unlink).mockRejectedValue(permError);
 
       const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
 
-      expect(result).toEqual(['tile/10/0/0.png']);
+      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'EACCES' }]);
+    });
+
+    it('should fall back to error message when error has no errno code', async () => {
+      vi.mocked(unlink).mockRejectedValue(new Error('disk on fire'));
+
+      const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
+
+      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'disk on fire' }]);
+    });
+
+    it('should fall back to "Unknown" when error has neither errno code nor message', async () => {
+      vi.mocked(unlink).mockRejectedValue(new Error(''));
+
+      const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
+
+      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'Unknown' }]);
     });
 
     it('should handle mixed success, ENOENT and real errors', async () => {
@@ -109,18 +125,21 @@ describe('FsStorageProvider', () => {
       const paths = ['tile/10/0/0.png', 'tile/10/0/1.png', 'tile/10/0/2.png'];
       const result = await provider.delete(paths, BASE_PATH);
 
-      expect(result).toEqual(['tile/10/0/1.png', 'tile/10/0/2.png']);
+      expect(result).toEqual([
+        { path: 'tile/10/0/1.png', reason: 'ENOENT' },
+        { path: 'tile/10/0/2.png', reason: 'EACCES' },
+      ]);
     });
 
-    it('should use relative path as key in failed paths (not the full absolute path)', async () => {
+    it('should use relative path (not the full absolute path) in failure entries', async () => {
       const permError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
       vi.mocked(unlink).mockRejectedValue(permError);
 
       const relativePath = 'layer/v1/10/5/3.png';
       const result = await provider.delete([relativePath], BASE_PATH);
 
-      expect(result).toEqual([relativePath]);
-      expect(result[0]).not.toContain(BASE_PATH);
+      expect(result).toEqual([{ path: relativePath, reason: 'EACCES' }]);
+      expect(result[0]!.path).not.toContain(BASE_PATH);
     });
 
     describe('cleanupEmptyDirs', () => {

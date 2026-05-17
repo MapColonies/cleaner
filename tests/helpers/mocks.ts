@@ -6,6 +6,7 @@ import type { ITaskStrategy, StrategyFactory } from '../../src/cleaner/strategie
 import type { IStorageProvider } from '../../src/cleaner/storageProviders';
 import type { ErrorHandler } from '../../src/cleaner/errors';
 import type { ErrorDecision, PollingPairConfig } from '../../src/cleaner/types';
+import type { JobTrackerClient } from '../../src/cleaner/httpClients';
 import { TaskPoller } from '../../src/worker/taskPoller';
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
@@ -111,6 +112,12 @@ export function createMockS3Config(): ConfigType {
   } as unknown as ConfigType;
 }
 
+// ─── JobTrackerClient ─────────────────────────────────────────────────────────
+
+export function createMockJobTrackerClient(): JobTrackerClient {
+  return { notify: vi.fn().mockResolvedValue(undefined) } as unknown as JobTrackerClient;
+}
+
 // ─── TaskPoller factory ───────────────────────────────────────────────────────
 
 /**
@@ -124,6 +131,7 @@ export function createTaskPoller({
   strategyFactory = createMockStrategyFactory(),
   errorHandler = createMockErrorHandler(),
   pollingPairs,
+  jobTrackerClient = createMockJobTrackerClient(),
 }: {
   logger?: Logger;
   config?: ConfigType;
@@ -131,6 +139,7 @@ export function createTaskPoller({
   strategyFactory?: StrategyFactory;
   errorHandler?: ErrorHandler;
   pollingPairs: PollingPairConfig[];
+  jobTrackerClient?: JobTrackerClient;
 }): TaskPoller {
-  return new TaskPoller(logger, config, queueClient, strategyFactory, errorHandler, pollingPairs);
+  return new TaskPoller(logger, config, queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient);
 }

@@ -51,6 +51,13 @@
       "__format": "number"
     }
   },
+  "servicesUrl": {
+    "jobTracker": "SERVICES_URL_JOB_TRACKER"
+  },
+  "disableHttpClientLogs": {
+    "__name": "DISABLE_HTTP_CLIENT_LOGS",
+    "__format": "boolean"
+  },
   "jobDefinitions": {
     "__name": "JOB_DEFINITIONS",
     "__format": "json"

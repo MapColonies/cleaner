@@ -2,7 +2,8 @@
 import { S3Client, DeleteObjectsCommand, ListObjectsV2Command, NoSuchBucket } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { ConfigType } from '@common/config';
-import type { IStorageProvider } from './iStorageProvider';
+import { describeError } from '../errors';
+import type { DeleteFailure, IStorageProvider } from './iStorageProvider';
 
 const S3_MAX_DELETE_BATCH = 1000;
 
@@ -35,26 +36,29 @@ export class S3StorageProvider implements IStorageProvider {
     });
   }
 
-  public async delete(paths: string[], storageTarget: string): Promise<string[]> {
+  public async delete(paths: string[], storageTarget: string): Promise<DeleteFailure[]> {
     if (paths.length === 0) {
       return [];
     }
 
     this.logger.debug({ msg: 'Deleting objects from S3', bucket: storageTarget, count: paths.length });
 
-    const failedPaths: string[] = [];
+    const failures: DeleteFailure[] = [];
 
     for (const chunk of this.chunk(paths, S3_MAX_DELETE_BATCH)) {
       try {
         const failed = await this.deleteChunk(chunk, storageTarget);
-        failedPaths.push(...failed);
+        failures.push(...failed);
       } catch (error) {
-        this.logger.error({ msg: 'S3 batch request failed', bucket: storageTarget, error });
-        failedPaths.push(...chunk);
+        // Whole chunk failed (network/auth/etc) — mark every path in it with the same reason
+        // so the caller still gets a per-path failure list and a human-readable cause.
+        const reason = describeError(error);
+        this.logger.error({ msg: 'S3 batch request failed', bucket: storageTarget, reason, error });
+        failures.push(...chunk.map((path) => ({ path, reason })));
       }
     }
 
-    return failedPaths;
+    return failures;
   }
 
   public async targetExists(bucket: string, relativePath: string): Promise<boolean> {
@@ -69,14 +73,16 @@ export class S3StorageProvider implements IStorageProvider {
     }
   }
 
-  private async deleteChunk(paths: string[], bucket: string): Promise<string[]> {
+  private async deleteChunk(paths: string[], bucket: string): Promise<DeleteFailure[]> {
     const command = new DeleteObjectsCommand({
       Bucket: bucket,
       Delete: { Objects: paths.map((Key) => ({ Key })) },
     });
 
     const response = await this.s3Client.send(command);
-    return (response.Errors ?? []).map((e) => e.Key ?? '').filter(Boolean); // filter out any empty keys just in case, though they shouldn't occur
+    return (response.Errors ?? [])
+      .filter((e): e is typeof e & { Key: string } => Boolean(e.Key)) // Only include entries with a Key so every failure maps to a specific path.
+      .map((e) => ({ path: e.Key, reason: e.Code ?? e.Message ?? 'Unknown' }));
   }
 
   private *chunk(paths: string[], size: number): Generator<string[]> {

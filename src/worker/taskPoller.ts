@@ -8,6 +8,7 @@ import type { ConfigType } from '@common/config';
 import type { PollingPairConfig } from '../cleaner/types';
 import type { StrategyFactory } from '../cleaner/strategies';
 import { UnrecoverableError, type ErrorHandler } from '../cleaner/errors';
+import type { JobTrackerClient } from '../cleaner/httpClients';
 
 /**
  * TaskPoller - Simple bridge to implement IWorker using the old mc-priority-queue SDK
@@ -23,7 +24,8 @@ export class TaskPoller implements IWorker {
     @inject(SERVICES.QUEUE_CLIENT) private readonly queueClient: QueueClient,
     @inject(SERVICES.STRATEGY_FACTORY) private readonly strategyFactory: StrategyFactory,
     @inject(SERVICES.ERROR_HANDLER) private readonly errorHandler: ErrorHandler,
-    @inject(SERVICES.POLLING_PAIRS) private readonly pollingPairs: PollingPairConfig[]
+    @inject(SERVICES.POLLING_PAIRS) private readonly pollingPairs: PollingPairConfig[],
+    @inject(SERVICES.JOB_TRACKER_CLIENT) private readonly jobTrackerClient: JobTrackerClient
   ) {
     this.dequeueIntervalMs = config.get('queue.dequeueIntervalMs') as unknown as number; //TODO:when we create worker config schema we can remove the cast
   }
@@ -116,6 +118,7 @@ export class TaskPoller implements IWorker {
       await strategy.execute(validated);
 
       await this.queueClient.ack(task.jobId, task.id);
+      await this.jobTrackerClient.notify(task.id);
 
       const durationMs = Date.now() - startTime;
       this.logger.info({ msg: 'Task completed', taskId: task.id, durationMs });
@@ -135,8 +138,13 @@ export class TaskPoller implements IWorker {
 
     try {
       await this.queueClient.reject(task.jobId, task.id, decision.shouldRetry, decision.reason);
-    } catch (error) {
-      this.logger.error({ msg: 'Failed to reject task', taskId: task.id, error });
+    } catch (rejectError) {
+      this.logger.error({ msg: 'Failed to reject task', taskId: task.id, error: rejectError });
+      return;
+    }
+
+    if (!decision.shouldRetry) {
+      await this.jobTrackerClient.notify(task.id);
     }
   }
 }

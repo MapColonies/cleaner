@@ -2,13 +2,16 @@ import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
 import { SourceType, TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
+import { NoSuchKey } from '@aws-sdk/client-s3';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import type { ConfigType } from '@common/config';
 import { validateSchema } from '../utils';
-import { RecoverableError, UnrecoverableError } from '../errors';
-import type { IStorageProvider } from '../storageProviders';
+import { RecoverableError, UnrecoverableError, describeError } from '../errors';
+import { summarizeDeleteFailures, type DeleteFailure, type IStorageProvider } from '../storageProviders';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
+
+const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
 
 @injectable()
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
@@ -53,18 +56,49 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       totalTiles,
     });
 
-    const failedPaths = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
+    const failures = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
+    this.reportOutcome(failures, totalTiles);
+  }
 
-    if (failedPaths.length > 0) {
-      const sample = failedPaths.slice(0, this.failureSampleSize);
+  /**
+   * Decides whether the deletion run succeeded, succeeded-with-missing-tiles, or
+   * must be retried, and logs at the appropriate level. Not-found failures are
+   * treated as success (deletion is idempotent — a tile that's already gone
+   * matches the desired end-state) but counted separately for visibility.
+   * Terminal progress to 100% is handled by the queue's task-ack — no explicit call needed here.
+   */
+  private reportOutcome(failures: DeleteFailure[], totalTiles: number): void {
+    const retryable: DeleteFailure[] = [];
+    const notFound: DeleteFailure[] = [];
+    for (const failure of failures) {
+      (NOT_FOUND_REASONS.has(failure.reason) ? notFound : retryable).push(failure);
+    }
+
+    const deletedCount = totalTiles - retryable.length - notFound.length;
+
+    if (retryable.length > 0) {
+      const { counts, summary, sample } = summarizeDeleteFailures(retryable, this.failureSampleSize);
       this.logger.error({
         msg: 'Tiles deletion partially failed',
         totalTiles,
-        failedCount: failedPaths.length,
-        deletedCount: totalTiles - failedPaths.length,
+        failedCount: retryable.length,
+        notFoundCount: notFound.length,
+        deletedCount,
+        reasonCounts: counts,
         sample,
       });
-      throw new RecoverableError(`Failed to delete ${failedPaths.length} tiles. Sample: ${sample.join(', ')}`);
+      throw new RecoverableError(`Failed to delete ${retryable.length} tiles. Reasons: ${summary}. Sample: ${sample.join(', ')}`);
+    }
+
+    if (notFound.length > 0) {
+      this.logger.warn({
+        msg: 'Tiles deletion completed with missing tiles',
+        totalTiles,
+        notFoundCount: notFound.length,
+        deletedCount,
+        allTilesMissing: notFound.length === totalTiles,
+      });
+      return;
     }
 
     this.logger.info({ msg: 'Tiles deletion completed successfully', deletedCount: totalTiles });
@@ -84,9 +118,9 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     storageTarget: string,
     params: TilesDeletionParams,
     totalTiles: number
-  ): Promise<string[]> {
+  ): Promise<DeleteFailure[]> {
     const { jobId, taskId } = this.taskContext;
-    const failedPaths: string[] = [];
+    const failures: DeleteFailure[] = [];
     const pendingBatches: string[][] = [];
     let batch: string[] = [];
     let processedTiles = 0;
@@ -97,10 +131,10 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
         pendingBatches.push(batch);
         batch = [];
         if (pendingBatches.length === this.concurrency) {
-          processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
+          processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failures);
           const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
           await this.queueClient.updateProgress(jobId, taskId, percentage);
-          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failedPaths.length });
+          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.length });
         }
       }
     }
@@ -109,33 +143,40 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       pendingBatches.push(batch);
     }
     if (pendingBatches.length > 0) {
-      await this.flushBatches(provider, storageTarget, pendingBatches, failedPaths);
-      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failedPaths.length });
-      if (failedPaths.length === 0) {
-        await this.queueClient.updateProgress(jobId, taskId, PERCENTAGE_COMPLETE);
-      }
+      await this.flushBatches(provider, storageTarget, pendingBatches, failures);
+      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.length });
     }
 
-    return failedPaths;
+    return failures;
   }
 
   /**
    * Deletes all pending batches concurrently via Promise.allSettled.
-   * Soft failures (paths returned by provider.delete) and hard failures (rejected promises)
-   * are both collected into failedPaths; hard-failed batch paths are added by index so nothing
-   * is silently lost. pendingBatches is cleared in-place for reuse.
+   * Soft failures (entries returned by provider.delete with reason) and hard failures
+   * (rejected promises — expanded into per-path failures with the thrown error as
+   * the reason) are both collected so nothing is silently lost and every failed path
+   * carries a cause the caller can surface in the task rejection reason.
+   * pendingBatches is cleared in-place for reuse.
    *
    * @returns Total tile paths attempted (not necessarily deleted).
    */
-  private async flushBatches(provider: IStorageProvider, storageTarget: string, pendingBatches: string[][], failedPaths: string[]): Promise<number> {
+  private async flushBatches(
+    provider: IStorageProvider,
+    storageTarget: string,
+    pendingBatches: string[][],
+    failures: DeleteFailure[]
+  ): Promise<number> {
     const flushedCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
     const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(batch, storageTarget)));
     for (const [index, result] of results.entries()) {
       if (result.status === 'fulfilled') {
-        failedPaths.push(...result.value);
+        failures.push(...result.value);
       } else {
-        this.logger.error({ msg: 'Batch delete threw unexpectedly', error: result.reason });
-        failedPaths.push(...(pendingBatches[index] ?? []));
+        const error: unknown = result.reason;
+        const reason = describeError(error);
+        this.logger.error({ msg: 'Batch delete threw unexpectedly', reason, error });
+        const batch = pendingBatches[index] ?? [];
+        failures.push(...batch.map((path) => ({ path, reason })));
       }
     }
     pendingBatches.length = 0;

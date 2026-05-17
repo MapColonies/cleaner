@@ -59,7 +59,7 @@ describe('S3StorageProvider', () => {
       expect(result).toEqual([]);
     });
 
-    it('should return failed paths from response.Errors', async () => {
+    it('should return failed paths tagged with the S3 error Code', async () => {
       mockSend.mockResolvedValue({
         Errors: [{ Key: 'a.txt', Code: 'AccessDenied', Message: 'Forbidden' }],
       });
@@ -67,10 +67,10 @@ describe('S3StorageProvider', () => {
 
       const result = await provider.delete(paths, BUCKET);
 
-      expect(result).toEqual(['a.txt']);
+      expect(result).toEqual([{ path: 'a.txt', reason: 'AccessDenied' }]);
     });
 
-    it('should treat NoSuchKey as a failed deletion (included in failure report)', async () => {
+    it('should treat NoSuchKey as a failed deletion tagged with NoSuchKey reason', async () => {
       mockSend.mockResolvedValue({
         Errors: [{ Key: 'missing.txt', Code: 'NoSuchKey', Message: 'Not Found' }],
       });
@@ -78,10 +78,30 @@ describe('S3StorageProvider', () => {
 
       const result = await provider.delete(paths, BUCKET);
 
-      expect(result).toEqual(['missing.txt']);
+      expect(result).toEqual([{ path: 'missing.txt', reason: 'NoSuchKey' }]);
     });
 
-    it('should return all errors including NoSuchKey', async () => {
+    it('should fall back to Message when error has no Code', async () => {
+      mockSend.mockResolvedValue({
+        Errors: [{ Key: 'a.txt', Message: 'Something bad' }],
+      });
+
+      const result = await provider.delete(['a.txt'], BUCKET);
+
+      expect(result).toEqual([{ path: 'a.txt', reason: 'Something bad' }]);
+    });
+
+    it('should fall back to "Unknown" when error has neither Code nor Message', async () => {
+      mockSend.mockResolvedValue({
+        Errors: [{ Key: 'a.txt' }],
+      });
+
+      const result = await provider.delete(['a.txt'], BUCKET);
+
+      expect(result).toEqual([{ path: 'a.txt', reason: 'Unknown' }]);
+    });
+
+    it('should return all errors including NoSuchKey with their codes', async () => {
       mockSend.mockResolvedValue({
         Errors: [
           { Key: 'a.txt', Code: 'NoSuchKey' },
@@ -93,7 +113,12 @@ describe('S3StorageProvider', () => {
 
       const result = await provider.delete(['a.txt', 'b.txt', 'c.txt', 'd.txt'], BUCKET);
 
-      expect(result).toEqual(['a.txt', 'b.txt', 'c.txt', 'd.txt']);
+      expect(result).toEqual([
+        { path: 'a.txt', reason: 'NoSuchKey' },
+        { path: 'b.txt', reason: 'AccessDenied' },
+        { path: 'c.txt', reason: 'NoSuchKey' },
+        { path: 'd.txt', reason: 'InternalError' },
+      ]);
     });
 
     it('should batch paths into chunks of 1000 (S3 limit)', async () => {
@@ -120,16 +145,22 @@ describe('S3StorageProvider', () => {
 
       const result = await provider.delete(paths, BUCKET);
 
-      expect(result).toEqual(['object-0.txt', 'object-1000.txt']);
+      expect(result).toEqual([
+        { path: 'object-0.txt', reason: 'AccessDenied' },
+        { path: 'object-1000.txt', reason: 'AccessDenied' },
+      ]);
     });
 
-    it('should add entire chunk to failed paths when send throws', async () => {
+    it('should add entire chunk to failures tagged with the thrown error when send rejects', async () => {
       mockSend.mockRejectedValue(new Error('Network error'));
       const paths = ['a.txt', 'b.txt'];
 
       const result = await provider.delete(paths, BUCKET);
 
-      expect(result).toEqual(paths);
+      expect(result).toEqual([
+        { path: 'a.txt', reason: 'Network error' },
+        { path: 'b.txt', reason: 'Network error' },
+      ]);
     });
   });
 

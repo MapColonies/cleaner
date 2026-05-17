@@ -14,6 +14,24 @@ export function toError(value: unknown): Error {
 }
 
 /**
+ * Produces a short, human-readable label for a thrown value. Prefers Node `errno`
+ * codes (e.g. 'ENOENT') when present, then falls back to the error message, then
+ * to a stringified form. Intended for compact failure summaries surfaced to callers
+ * (task rejection reasons, grouped failure counts) — not for full stack traces.
+ */
+export function describeError(value: unknown): string {
+  if (value instanceof Error) {
+    const code = (value as NodeJS.ErrnoException).code;
+    return code ?? (value.message || 'Unknown');
+  }
+  try {
+    return String(value) || 'Unknown';
+  } catch {
+    return 'non-serializable thrown value';
+  }
+}
+
+/**
  * Base class for recoverable errors that can be retried.
  * Task will be retried if attempts < maxAttempts.
  */
