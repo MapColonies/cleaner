@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/MapColonies/cleaner/compare/v1.1.1...v1.1.2) (2026-05-17)
+
+
+### Bug Fixes
+
+* update httpRetry delay configuration format ([#28](https://github.com/MapColonies/cleaner/issues/28)) ([d42e0e9](https://github.com/MapColonies/cleaner/commit/d42e0e9ba72e70ee68557656de63ad0ad25d0ebe))
+
 ## [1.1.1](https://github.com/MapColonies/cleaner/compare/v1.1.0...v1.1.1) (2026-05-17)
 
 
