@@ -48,7 +48,7 @@ describe('tiles deletion E2E (polling → strategy → real provider → ack)', 
       const params: TilesDeletionParams = {
         sourceProvider: backend.sourceProvider,
         tilesPath,
-        fileExtension: 'png',
+        fileExtension: faker.helpers.arrayElement(['png', 'jpg']),
         ranges: [{ zoom: 10, minX: 5, maxX: 7, minY: 5, maxY: 7 }],
       };
       const target = tilePathsForRanges(params);
