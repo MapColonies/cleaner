@@ -22,10 +22,10 @@ export function toError(value: unknown): Error {
 export function describeError(value: unknown): string {
   if (value instanceof Error) {
     const code = (value as NodeJS.ErrnoException).code;
-    return code ?? value.message;
+    return code ?? (value.message || 'Unknown');
   }
   try {
-    return String(value);
+    return String(value) || 'Unknown';
   } catch {
     return 'non-serializable thrown value';
   }

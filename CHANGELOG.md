@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.3](https://github.com/MapColonies/cleaner/compare/v1.1.2...v1.1.3) (2026-05-17)
+
+
+### Bug Fixes
+
+* log successful job tracker notification ([#30](https://github.com/MapColonies/cleaner/issues/30)) ([aa14ee0](https://github.com/MapColonies/cleaner/commit/aa14ee0e1f9d73c37a29f68a50f42dda793c9268))
+
+## [1.1.2](https://github.com/MapColonies/cleaner/compare/v1.1.1...v1.1.2) (2026-05-17)
+
+
+### Bug Fixes
+
+* update httpRetry delay configuration format ([#28](https://github.com/MapColonies/cleaner/issues/28)) ([d42e0e9](https://github.com/MapColonies/cleaner/commit/d42e0e9ba72e70ee68557656de63ad0ad25d0ebe))
+
+## [1.1.1](https://github.com/MapColonies/cleaner/compare/v1.1.0...v1.1.1) (2026-05-17)
+
+
+### Bug Fixes
+
+* values and deletion erros(MAPCO-10629) ([#26](https://github.com/MapColonies/cleaner/issues/26)) ([31c16e6](https://github.com/MapColonies/cleaner/commit/31c16e6716b3b4a4807ca025f1be4374c0a1f707))
+
 ## [1.1.0](https://github.com/MapColonies/cleaner/compare/v1.0.1...v1.1.0) (2026-05-13)
 
 

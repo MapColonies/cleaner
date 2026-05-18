@@ -2,6 +2,7 @@ import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
 import { SourceType, TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
+import { NoSuchKey } from '@aws-sdk/client-s3';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import type { ConfigType } from '@common/config';
 import { validateSchema } from '../utils';
@@ -9,6 +10,8 @@ import { RecoverableError, UnrecoverableError, describeError } from '../errors';
 import { summarizeDeleteFailures, type DeleteFailure, type IStorageProvider } from '../storageProviders';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
+
+const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
 
 @injectable()
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
@@ -54,18 +57,48 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     });
 
     const failures = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
+    this.reportOutcome(failures, totalTiles);
+  }
 
-    if (failures.length > 0) {
-      const { counts, summary, sample } = summarizeDeleteFailures(failures, this.failureSampleSize);
+  /**
+   * Decides whether the deletion run succeeded, succeeded-with-missing-tiles, or
+   * must be retried, and logs at the appropriate level. Not-found failures are
+   * treated as success (deletion is idempotent — a tile that's already gone
+   * matches the desired end-state) but counted separately for visibility.
+   * Terminal progress to 100% is handled by the queue's task-ack — no explicit call needed here.
+   */
+  private reportOutcome(failures: DeleteFailure[], totalTiles: number): void {
+    const retryable: DeleteFailure[] = [];
+    const notFound: DeleteFailure[] = [];
+    for (const failure of failures) {
+      (NOT_FOUND_REASONS.has(failure.reason) ? notFound : retryable).push(failure);
+    }
+
+    const deletedCount = totalTiles - retryable.length - notFound.length;
+
+    if (retryable.length > 0) {
+      const { counts, summary, sample } = summarizeDeleteFailures(retryable, this.failureSampleSize);
       this.logger.error({
         msg: 'Tiles deletion partially failed',
         totalTiles,
-        failedCount: failures.length,
-        deletedCount: totalTiles - failures.length,
+        failedCount: retryable.length,
+        notFoundCount: notFound.length,
+        deletedCount,
         reasonCounts: counts,
         sample,
       });
-      throw new RecoverableError(`Failed to delete ${failures.length} tiles. Reasons: ${summary}. Sample: ${sample.join(', ')}`);
+      throw new RecoverableError(`Failed to delete ${retryable.length} tiles. Reasons: ${summary}. Sample: ${sample.join(', ')}`);
+    }
+
+    if (notFound.length > 0) {
+      this.logger.warn({
+        msg: 'Tiles deletion completed with missing tiles',
+        totalTiles,
+        notFoundCount: notFound.length,
+        deletedCount,
+        allTilesMissing: notFound.length === totalTiles,
+      });
+      return;
     }
 
     this.logger.info({ msg: 'Tiles deletion completed successfully', deletedCount: totalTiles });
@@ -112,9 +145,6 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     if (pendingBatches.length > 0) {
       await this.flushBatches(provider, storageTarget, pendingBatches, failures);
       this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.length });
-      if (failures.length === 0) {
-        await this.queueClient.updateProgress(jobId, taskId, PERCENTAGE_COMPLETE);
-      }
     }
 
     return failures;

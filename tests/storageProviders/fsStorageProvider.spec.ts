@@ -105,6 +105,14 @@ describe('FsStorageProvider', () => {
       expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'disk on fire' }]);
     });
 
+    it('should fall back to "Unknown" when error has neither errno code nor message', async () => {
+      vi.mocked(unlink).mockRejectedValue(new Error(''));
+
+      const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
+
+      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'Unknown' }]);
+    });
+
     it('should handle mixed success, ENOENT and real errors', async () => {
       const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       const permError = Object.assign(new Error('EACCES'), { code: 'EACCES' });

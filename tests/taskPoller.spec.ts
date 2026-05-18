@@ -5,13 +5,22 @@ import { StrategyFactory } from '@src/cleaner/strategies';
 import { TaskPoller } from '@src/worker/taskPoller';
 import type { PollingPairConfig } from '@src/cleaner/types';
 import { ErrorHandler, UnrecoverableError } from '@src/cleaner/errors';
-import { createMockQueueClient, createMockStrategyFactory, createMockErrorHandler, createTaskPoller, buildMockStrategy } from './helpers/mocks';
+import type { JobTrackerClient } from '@src/cleaner/httpClients';
+import {
+  createMockQueueClient,
+  createMockStrategyFactory,
+  createMockErrorHandler,
+  createMockJobTrackerClient,
+  createTaskPoller,
+  buildMockStrategy,
+} from './helpers/mocks';
 import { buildTask, buildPair } from './helpers/fakes';
 
 describe('TaskPoller', () => {
   let queueClient: QueueClient;
   let strategyFactory: StrategyFactory;
   let errorHandler: ErrorHandler;
+  let jobTrackerClient: JobTrackerClient;
   let pollingPairs: PollingPairConfig[];
   let poller: TaskPoller;
 
@@ -33,8 +42,9 @@ describe('TaskPoller', () => {
     queueClient = createMockQueueClient();
     strategyFactory = createMockStrategyFactory();
     errorHandler = createMockErrorHandler();
+    jobTrackerClient = createMockJobTrackerClient();
     pollingPairs = [buildPair({ maxAttempts: 5 })];
-    poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs });
+    poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient });
   });
 
   describe('stop()', () => {
@@ -54,6 +64,7 @@ describe('TaskPoller', () => {
       await poller.start();
 
       expect(queueClient.ack).toHaveBeenCalledWith(task.jobId, task.id);
+      expect(jobTrackerClient.notify).toHaveBeenCalledWith(task.id);
     });
   });
 
@@ -66,6 +77,7 @@ describe('TaskPoller', () => {
       expect(queueClient.ack).not.toHaveBeenCalled();
       expect(queueClient.reject).not.toHaveBeenCalled();
       expect(strategyFactory.resolveWithContext).not.toHaveBeenCalled();
+      expect(jobTrackerClient.notify).not.toHaveBeenCalled();
     });
 
     it('resolveWithContext → validate → execute → ack on the success path', async () => {
@@ -91,11 +103,12 @@ describe('TaskPoller', () => {
       expect(strategy.execute).toHaveBeenCalledWith(validated);
       expect(queueClient.ack).toHaveBeenCalledWith(task.jobId, task.id);
       expect(queueClient.reject).not.toHaveBeenCalled();
+      expect(jobTrackerClient.notify).toHaveBeenCalledWith(task.id);
     });
 
     it('skips an erroring pair and continues to the next', async () => {
       pollingPairs = [buildPair({ jobType: 'Job_A', taskType: 'task-a' }), buildPair({ jobType: 'Job_B', taskType: 'task-b' })];
-      poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs });
+      poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient });
 
       const task = buildTask({ attempts: 1 });
       vi.mocked(strategyFactory.resolveWithContext).mockReturnValue(buildMockStrategy());
@@ -105,24 +118,27 @@ describe('TaskPoller', () => {
       await poller.start();
 
       expect(queueClient.ack).toHaveBeenCalledWith(task.jobId, task.id);
+      expect(jobTrackerClient.notify).toHaveBeenCalledWith(task.id);
     });
 
     it('stops iterating pairs mid-loop when shouldStop becomes true', async () => {
       pollingPairs = [buildPair({ jobType: 'Job_A', taskType: 'task-a' }), buildPair({ jobType: 'Job_B', taskType: 'task-b' })];
-      poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs });
+      poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient });
 
       stopOnDequeue();
 
       await poller.start();
 
       expect(queueClient.dequeue).toHaveBeenCalledTimes(1);
+      expect(jobTrackerClient.notify).not.toHaveBeenCalled();
     });
   });
 
   describe('handleTaskFailure()', () => {
     it('rejects without calling strategy when task.attempts reaches maxAttempts', async () => {
       const pair = pollingPairs[0]!;
-      vi.mocked(queueClient.dequeue).mockResolvedValue(buildTask({ attempts: pair.maxAttempts }));
+      const task = buildTask({ attempts: pair.maxAttempts });
+      vi.mocked(queueClient.dequeue).mockResolvedValue(task);
       stopOnReject();
 
       await poller.start();
@@ -132,6 +148,8 @@ describe('TaskPoller', () => {
       expect(errorHandler.handleError).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(UnrecoverableError) }));
       expect(queueClient.ack).not.toHaveBeenCalled();
       expect(queueClient.reject).toHaveBeenCalled();
+      // Default mock errorHandler returns shouldRetry=false → terminal failure → notify fires.
+      expect(jobTrackerClient.notify).toHaveBeenCalledWith(task.id);
     });
 
     it('calls reject with the decision returned by errorHandler', async () => {
@@ -149,18 +167,23 @@ describe('TaskPoller', () => {
       expect(errorHandler.handleError).toHaveBeenCalledWith(expect.objectContaining({ jobId: task.jobId, taskId: task.id, error: execError }));
       expect(queueClient.reject).toHaveBeenCalledWith(task.jobId, task.id, true, 'retry it');
       expect(queueClient.ack).not.toHaveBeenCalled();
+      // Retryable failure → no terminal notification.
+      expect(jobTrackerClient.notify).not.toHaveBeenCalled();
     });
 
     it('passes the raw thrown value to errorHandler without wrapping', async () => {
+      const task = buildTask({ attempts: 1 });
       const strategy = buildMockStrategy();
       vi.mocked(strategy.execute).mockRejectedValue('raw string');
       vi.mocked(strategyFactory.resolveWithContext).mockReturnValue(strategy);
-      vi.mocked(queueClient.dequeue).mockResolvedValue(buildTask({ attempts: 1 }));
+      vi.mocked(queueClient.dequeue).mockResolvedValue(task);
       stopOnReject();
 
       await poller.start();
 
       expect(errorHandler.handleError).toHaveBeenCalledWith(expect.objectContaining({ error: 'raw string' }));
+      // Default mock errorHandler returns shouldRetry=false → notify fires after reject.
+      expect(jobTrackerClient.notify).toHaveBeenCalledWith(task.id);
     });
 
     it('continues polling when queueClient.reject itself throws', async () => {
@@ -180,6 +203,9 @@ describe('TaskPoller', () => {
       await poller.start();
 
       expect(queueClient.reject).toHaveBeenCalledTimes(2);
+      // task1: reject failed → early return, no notify. task2: reject succeeded → notify fires.
+      expect(jobTrackerClient.notify).toHaveBeenCalledTimes(1);
+      expect(jobTrackerClient.notify).toHaveBeenCalledWith(task2.id);
     });
   });
 

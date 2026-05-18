@@ -91,6 +91,16 @@ describe('S3StorageProvider', () => {
       expect(result).toEqual([{ path: 'a.txt', reason: 'Something bad' }]);
     });
 
+    it('should fall back to "Unknown" when error has neither Code nor Message', async () => {
+      mockSend.mockResolvedValue({
+        Errors: [{ Key: 'a.txt' }],
+      });
+
+      const result = await provider.delete(['a.txt'], BUCKET);
+
+      expect(result).toEqual([{ path: 'a.txt', reason: 'Unknown' }]);
+    });
+
     it('should return all errors including NoSuchKey with their codes', async () => {
       mockSend.mockResolvedValue({
         Errors: [
