@@ -5,8 +5,6 @@ import type { ConfigType } from '@common/config';
 import { describeError } from '../errors';
 import type { DeleteFailure, IStorageProvider } from './iStorageProvider';
 
-const S3_MAX_DELETE_BATCH = 1000;
-
 interface S3Config {
   endpoint: string;
   accessKeyId: string;
@@ -16,6 +14,7 @@ interface S3Config {
   region: string;
 }
 
+export const S3_MAX_DELETE_BATCH = 1000;
 export class S3StorageProvider implements IStorageProvider {
   private readonly s3Client: S3Client;
 
