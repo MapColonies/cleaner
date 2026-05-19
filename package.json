@@ -39,7 +39,7 @@
     "@map-colonies/js-logger": "^5.0.0",
     "@map-colonies/mc-priority-queue": "^9.1.0",
     "@map-colonies/mc-utils": "^5.1.0",
-    "@map-colonies/raster-shared": "^8.1.0-alpha.3",
+    "@map-colonies/raster-shared": "^8.1.0",
     "@map-colonies/read-pkg": "^1.0.0",
     "@map-colonies/schemas": "^1.20.0",
     "@map-colonies/telemetry": "^10.0.1",
