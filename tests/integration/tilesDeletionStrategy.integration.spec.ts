@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { faker } from '@faker-js/faker';
 import { type TilesDeletionParams } from '@map-colonies/raster-shared';
 import { buildTask } from '../helpers/fakes/taskFakes';
+import { buildBaseParams } from '../helpers/fakes/tilesDeletionFakes';
 import {
   fsBackend,
   s3Backend,
@@ -45,12 +46,7 @@ describe('tiles deletion E2E (polling → strategy → real provider → ack)', 
   ])('$sourceProvider provider', (backend) => {
     it('polls the task, runs the strategy against the chosen provider, and acks after deleting only the requested tiles', async () => {
       const tilesPath = `${faker.string.uuid()}/${faker.string.uuid()}`;
-      const params: TilesDeletionParams = {
-        sourceProvider: backend.sourceProvider,
-        tilesPath,
-        fileExtension: faker.helpers.arrayElement(['png', 'jpg']),
-        ranges: [{ zoom: 10, minX: 5, maxX: 7, minY: 5, maxY: 7 }],
-      };
+      const params: TilesDeletionParams = buildBaseParams({ tilesPath, sourceProvider: backend.sourceProvider });
       const target = tilePathsForRanges(params);
       const extras = [...extraTilePathsAroundRanges(params, 2), ...extraTilePathsAtAdjacentZooms(params, [-1, 1])];
       await backend.seed([...target, ...extras]);
@@ -58,8 +54,8 @@ describe('tiles deletion E2E (polling → strategy → real provider → ack)', 
 
       const { runSingleTask, queueClient, jobTrackerClient } = buildPoller({ ...storageContext, task });
       await runSingleTask();
-
       const remaining = await backend.list(`${tilesPath}/`);
+
       expect(remaining.sort()).toEqual([...extras].sort());
       expect(queueClient.ack).toHaveBeenCalledWith(task.jobId, task.id);
       expect(queueClient.reject).not.toHaveBeenCalled();
