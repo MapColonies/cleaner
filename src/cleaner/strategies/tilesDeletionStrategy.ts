@@ -1,13 +1,19 @@
-import { inject, injectable } from 'tsyringe';
-import type { Logger } from '@map-colonies/js-logger';
-import { SourceType, TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
-import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { NoSuchKey } from '@aws-sdk/client-s3';
-import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
+import type { Logger } from '@map-colonies/js-logger';
+import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
+import { SourceType, TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
+import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
-import { validateSchema } from '../utils';
+import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
+import {
+  summarizeDeleteFailures,
+  type DeleteFailure,
+  type IStorageProvider,
+  type StorageProvider,
+  type StorageProviders,
+} from '@src/cleaner/storageProviders';
 import { RecoverableError, UnrecoverableError, describeError } from '../errors';
-import { summarizeDeleteFailures, type DeleteFailure, type IStorageProvider } from '../storageProviders';
+import { validateSchema } from '../utils';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
 
@@ -24,7 +30,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   public constructor(
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
     @inject(SERVICES.CONFIG) config: ConfigType,
-    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: Map<SourceType, IStorageProvider>,
+    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: StorageProviders,
     @inject(SERVICES.QUEUE_CLIENT) private readonly queueClient: QueueClient,
     @inject(SERVICES.TASK_CONTEXT) private readonly taskContext: TaskContext
   ) {
@@ -32,15 +38,16 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     this.concurrency = config.get('strategies.tilesDeletion.concurrency') as unknown as number;
     this.failureSampleSize = config.get('strategies.tilesDeletion.failureSampleSize') as unknown as number;
     this.s3Bucket = config.get('strategies.tilesDeletion.s3Bucket') as unknown as string;
-    this.fsBasePath = config.get('strategies.tilesDeletion.fsBasePath') as unknown as string;
+    this.fsBasePath = config.get('strategies.tilesDeletion.fsBasePath') as unknown as string; // TODO: merge with fs.basePath
   }
 
   public validate(params: unknown): TilesDeletionParams {
+    this.logger.debug({ msg: `Validating input parameters` });
     return validateSchema(tilesDeletionParamsSchema, params, this.logger);
   }
 
   public async execute(params: TilesDeletionParams): Promise<void> {
-    const { provider, storageTarget } = this.resolveProvider(params);
+    const { provider, storageTarget } = this.resolveStorageProvider(params);
 
     if (!(await provider.targetExists(storageTarget, params.tilesPath))) {
       throw new UnrecoverableError(`${params.sourceProvider} storage target does not exist: ${storageTarget}/${params.tilesPath}`);
@@ -104,13 +111,16 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     this.logger.info({ msg: 'Tiles deletion completed successfully', deletedCount: totalTiles });
   }
 
-  private resolveProvider(params: TilesDeletionParams): { provider: IStorageProvider; storageTarget: string } {
-    const provider = this.storageProviders.get(params.sourceProvider);
-    if (provider === undefined) {
-      throw new UnrecoverableError(`Unknown storage provider: ${params.sourceProvider}`);
-    }
+  private resolveStorageProvider<K extends StorageProvider>(
+    params: Extract<TilesDeletionParams, { sourceProvider: K }>
+  ): { provider: IStorageProvider<K>; storageTarget: string } {
+    if (!(params.sourceProvider in this.storageProviders)) throw new UnrecoverableError(`Unsupported storage provider ${params.sourceProvider}`);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    const storageProvider = this.storageProviders[params.sourceProvider];
+    if (storageProvider === undefined) throw new UnrecoverableError(`Unsupported storage provider ${params.sourceProvider}`);
     const storageTarget = params.sourceProvider === SourceType.S3 ? this.s3Bucket : this.fsBasePath;
-    return { provider, storageTarget };
+    this.logger.debug({ msg: `Using ${params.sourceProvider} provider` });
+    return { provider: storageProvider, storageTarget };
   }
 
   private async deleteAllTiles(

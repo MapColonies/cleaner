@@ -13,6 +13,9 @@ serviceUrls:
   jobTracker: ""
 
 storage:
+  cleanupStorageProviders:
+    - FS
+    - S3
   s3:
     endpointUrl: ""
     forcePathStyle: true
@@ -127,6 +130,8 @@ env:
     tilesDeletion:
       batchSize: 1000
       concurrency: 10
+      failureSampleSize: 3
+    storedResourcesDeletion:
       failureSampleSize: 3
 
 resources:

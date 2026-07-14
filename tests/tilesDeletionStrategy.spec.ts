@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { type TilesDeletionParams, SourceType } from '@map-colonies/raster-shared';
-import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { faker } from '@faker-js/faker';
-import { TilesDeletionStrategy } from '@src/cleaner/strategies/tilesDeletionStrategy';
+import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
+import { type TilesDeletionParams, SourceType } from '@map-colonies/raster-shared';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
+import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import type { TaskContext } from '@src/cleaner/strategies/strategyFactory';
-import { ValidationError, RecoverableError, UnrecoverableError } from '@src/cleaner/errors';
-import type { IStorageProvider } from '@src/cleaner/storageProviders';
+import { TilesDeletionStrategy } from '@src/cleaner/strategies/tilesDeletionStrategy';
 import { createMockLogger, createMockStorageProvider, createMockStrategyConfig, TILES_DELETION_CONFIG_DEFAULTS } from './helpers/mocks';
 
 const { s3Bucket: S3_BUCKET, fsBasePath: FS_BASE_PATH } = TILES_DELETION_CONFIG_DEFAULTS;
@@ -28,8 +28,8 @@ const tilePath = (z: number, x: number, y: number): string => `${s3Params.tilesP
 
 describe('TilesDeletionStrategy', () => {
   let strategy: TilesDeletionStrategy;
-  let MockS3Provider: IStorageProvider;
-  let MockFsProvider: IStorageProvider;
+  let MockS3Provider: IStorageProvider<'S3'>;
+  let MockFsProvider: IStorageProvider<'FS'>;
   let mockUpdateProgress: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -37,10 +37,10 @@ describe('TilesDeletionStrategy', () => {
     MockFsProvider = createMockStorageProvider();
     mockUpdateProgress = vi.fn().mockResolvedValue(undefined);
 
-    const storageProviders = new Map<SourceType, IStorageProvider>([
-      [SourceType.S3, MockS3Provider],
-      [SourceType.FS, MockFsProvider],
-    ]);
+    const storageProviders: StorageProviders = {
+      [SourceType.FS]: MockFsProvider,
+      [SourceType.S3]: MockS3Provider,
+    };
     const queueClient = { updateProgress: mockUpdateProgress } as unknown as QueueClient;
 
     strategy = new TilesDeletionStrategy(createMockLogger(), createMockStrategyConfig(), storageProviders, queueClient, TASK_CONTEXT);
@@ -137,6 +137,24 @@ describe('TilesDeletionStrategy', () => {
         const unknownParams = { ...s3Params, sourceProvider: 'UNKNOWN' } as unknown as TilesDeletionParams;
 
         await expect(strategy.execute(unknownParams)).rejects.toThrow(UnrecoverableError);
+      });
+
+      it('should throw UnrecoverableError when the provider is registered but resolves to undefined', async () => {
+        const storageProviders = {
+          [SourceType.FS]: MockFsProvider,
+          [SourceType.S3]: undefined,
+        } satisfies StorageProviders;
+        strategy = new TilesDeletionStrategy(
+          createMockLogger(),
+          createMockStrategyConfig(),
+          storageProviders,
+          { updateProgress: mockUpdateProgress } as unknown as QueueClient,
+          TASK_CONTEXT
+        );
+
+        await expect(strategy.execute(s3Params)).rejects.toThrow(UnrecoverableError);
+        expect(MockS3Provider.targetExists).not.toHaveBeenCalled();
+        expect(MockS3Provider.delete).not.toHaveBeenCalled();
       });
     });
 

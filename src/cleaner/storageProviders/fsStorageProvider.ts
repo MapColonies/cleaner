@@ -1,11 +1,33 @@
-import { join } from 'node:path';
-import { stat, unlink, rmdir } from 'node:fs/promises';
+import { accessSync, constants, statSync } from 'node:fs';
+import { rm, rmdir, stat, unlink } from 'node:fs/promises';
+import { join, resolve, sep } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
-import { describeError } from '../errors';
-import type { DeleteFailure, IStorageProvider } from './iStorageProvider';
+import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
+import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders';
+import type { ConfigType } from '@src/common/config';
+import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
+import { getChunk } from '../utils';
 
-export class FsStorageProvider implements IStorageProvider {
-  public constructor(private readonly logger: Logger) {}
+const FS_MAX_DELETE_BATCH = 1000;
+
+type FSStorageProviderType = Extract<StorageProvider, 'FS'>;
+
+export interface FsConfig {
+  basePath: string;
+}
+
+export class FsStorageProvider implements IStorageProvider<'FS'> {
+  private readonly basePath: string;
+
+  public constructor(
+    private readonly config: ConfigType,
+    private readonly logger: Logger
+  ) {
+    const fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
+    this.basePath = this.resolveAbsolutePath(fsConfig.basePath);
+    this.canDeleteFromFolder(this.basePath);
+    this.logger.debug(`Using ${this.basePath} as base path for FS`);
+  }
 
   public async targetExists(storageTarget: string, relativePath: string): Promise<boolean> {
     try {
@@ -18,32 +40,91 @@ export class FsStorageProvider implements IStorageProvider {
   }
 
   public async delete(paths: string[], storageTarget: string): Promise<DeleteFailure[]> {
-    if (paths.length === 0) {
-      return [];
-    }
-
     this.logger.info({ msg: 'Deleting files from filesystem', basePath: storageTarget, count: paths.length });
 
-    const results = await Promise.allSettled(
-      paths.map(async (relativePath) => {
-        await unlink(join(storageTarget, relativePath));
-      })
-    );
-
     const failures: DeleteFailure[] = [];
-    for (const [idx, result] of results.entries()) {
-      if (result.status === 'rejected') {
-        const relativePath = paths[idx]!;
-        const error: unknown = result.reason;
-        const reason = describeError(error);
-        this.logger.debug({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), reason, error });
-        failures.push({ path: relativePath, reason });
+    for (const relativePaths of getChunk(paths, FS_MAX_DELETE_BATCH)) {
+      const results = await Promise.allSettled(
+        relativePaths.map(async (relativePath) => {
+          await unlink(join(storageTarget, relativePath));
+        })
+      );
+
+      for (const [idx, result] of results.entries()) {
+        if (result.status === 'rejected') {
+          const relativePath = relativePaths[idx]!;
+          const error: unknown = result.reason;
+          const reason = describeError(error);
+          this.logger.debug({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), reason, error });
+          failures.push({ path: relativePath, reason });
+        }
       }
     }
 
     await this.cleanupEmptyDirs(paths, storageTarget);
 
     return failures;
+  }
+
+  public async deleteResources({
+    paths,
+  }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
+    this.logger.info({ msg: 'Deleting multiple directories/files from filesystem', basePath: this.basePath, count: paths.length });
+
+    // prevent path traversal (i.e. accessing folders above root folder)
+    if (!this.checkPathTraversal(paths)) throw new UnrecoverableError(`Cannot delete files/folders outside base path or base path itself`);
+    if (!paths.every((path) => this.resolveAbsolutePath(join(this.basePath, path)) !== this.basePath))
+      throw new UnrecoverableError(`Cannot delete base path itself`);
+
+    const failures: DeleteFailure[] = [];
+    for (const relativePaths of getChunk(paths, FS_MAX_DELETE_BATCH)) {
+      const results = await Promise.allSettled(
+        relativePaths.map(async (relativePath) => {
+          await rm(join(this.basePath, relativePath), { recursive: true, force: true });
+        })
+      );
+
+      for (const [idx, result] of results.entries()) {
+        if (result.status === 'rejected') {
+          const fullPath = join(this.basePath, relativePaths[idx]!);
+          const reason = describeError(result.reason);
+          this.logger.error({ msg: 'Failed to delete layer directory', fullPath, reason, err: result.reason });
+          failures.push({ path: fullPath, reason });
+        }
+      }
+    }
+
+    return { failures };
+  }
+
+  private canDeleteFromFolder(path: string): void {
+    try {
+      accessSync(path, constants.F_OK | constants.R_OK | constants.W_OK);
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+        throw new ConfigurationError(`FS path does not exist: ${path}`);
+      } else if (err instanceof Error && 'code' in err && (err.code === 'EACCES' || err.code === 'EPERM')) {
+        throw new ConfigurationError(`FS path permission denied for path: ${path}`);
+      } else {
+        throw new ConfigurationError(`An unexpected error occurred on FS path accessibility check: ${describeError(err)}`);
+      }
+    }
+
+    try {
+      const pathStat = statSync(path);
+      if (!pathStat.isDirectory()) {
+        throw new ConfigurationError(`FS path exists but it is a file, not a directory: ${path}`);
+      }
+    } catch (err) {
+      throw new ConfigurationError(`An unexpected error occurred on FS info check: ${describeError(err)}`);
+    }
+  }
+
+  private checkPathTraversal(paths: string[]): boolean {
+    return paths.every((path) => {
+      const absolutePath = this.resolveAbsolutePath(join(this.basePath, path));
+      return absolutePath.startsWith(this.basePath);
+    });
   }
 
   // Attempts to remove any directories that became empty after file deletion.
@@ -87,5 +168,16 @@ export class FsStorageProvider implements IStorageProvider {
       // allSettled — rmdir rejects on non-empty dirs; we intentionally ignore those errors.
       await Promise.allSettled([...dirs].map(async (dir) => rmdir(dir)));
     }
+  }
+
+  /**
+   * Resolves a file system path to an absolute path.
+   * Ensures the path is resolved as an absolute path and properly formatted
+   * with a leading separator if not already present.
+   * @param path - The input path string to normalize
+   * @returns An absolute path with proper path separators
+   */
+  private resolveAbsolutePath(path: string): string {
+    return resolve(`${path.startsWith(sep) ? '' : sep}${path}`);
   }
 }

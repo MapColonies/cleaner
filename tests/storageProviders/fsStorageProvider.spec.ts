@@ -1,30 +1,49 @@
-import { stat, unlink, rmdir } from 'node:fs/promises';
+import { accessSync, Stats, statSync } from 'node:fs';
+import { rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Stats } from 'node:fs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { FsStorageProvider } from '@src/cleaner/storageProviders/fsStorageProvider';
-import { createMockLogger } from '../helpers/mocks';
+import type { Logger } from '@map-colonies/js-logger';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfigurationError, UnrecoverableError } from '@src/cleaner/errors';
+import { FsStorageProvider, type FsConfig } from '@src/cleaner/storageProviders/fsStorageProvider';
+import type { ConfigType } from '@src/common/config';
+import { createMockFsConfig, createMockLogger, FS_STORAGE_CONFIG_DEFAULTS } from '../helpers/mocks';
 
 vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
   unlink: vi.fn(),
   rmdir: vi.fn(),
+  rm: vi.fn(),
 }));
 
-const BASE_PATH = '/tiles/test';
+vi.mock(import('node:fs'), async (importOriginal) => {
+  const originModule = await importOriginal();
+  return {
+    ...originModule,
+    accessSync: vi.fn(),
+    statSync: vi.fn(),
+  };
+});
+const BASE_PATH = FS_STORAGE_CONFIG_DEFAULTS.basePath;
 
 describe('FsStorageProvider', () => {
   let provider: FsStorageProvider;
+  let mockLogger: Logger;
+  let mockConfig: ConfigType;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(stat).mockResolvedValue({} as Stats);
     vi.mocked(unlink).mockResolvedValue(undefined);
     vi.mocked(rmdir).mockResolvedValue(undefined);
-    provider = new FsStorageProvider(createMockLogger());
+    vi.mocked(rm).mockResolvedValue(undefined);
+    vi.mocked(accessSync).mockReturnValue(undefined);
+    vi.mocked(statSync).mockReturnValue({ isDirectory: () => true } as Stats);
+    mockLogger = createMockLogger();
+    mockConfig = createMockFsConfig();
+    provider = new FsStorageProvider(mockConfig, mockLogger);
   });
 
-  describe('targetExists', () => {
+  describe('#targetExists', () => {
     const RELATIVE_PATH = 'layer/v1';
 
     it('should call stat with full target path', async () => {
@@ -50,7 +69,7 @@ describe('FsStorageProvider', () => {
     });
   });
 
-  describe('delete', () => {
+  describe('#delete', () => {
     it('should return empty array for empty input', async () => {
       const result = await provider.delete([], BASE_PATH);
       expect(result).toEqual([]);
@@ -180,6 +199,110 @@ describe('FsStorageProvider', () => {
         await provider.delete([], BASE_PATH);
         expect(rmdir).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('#deleteResources', () => {
+    const RELATIVE_PATH = 'layer/v1';
+
+    it('should successfully call delete all files and return without failures', async () => {
+      const result = await provider.deleteResources({ paths: [RELATIVE_PATH], storageProvider: 'FS' });
+
+      expect(rm).toHaveBeenCalledWith(join(BASE_PATH, RELATIVE_PATH), { recursive: true, force: true });
+      expect(result).toEqual({ failures: [] });
+    });
+
+    it('should throw UnrecoverableError when a path escapes the base path via traversal', async () => {
+      await expect(provider.deleteResources({ paths: ['../../../etc/passwd'], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
+    });
+
+    it('should throw UnrecoverableError when only one of several paths escapes the base path', async () => {
+      await expect(provider.deleteResources({ paths: [RELATIVE_PATH, '../../escape'], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
+    });
+
+    it('should throw UnrecoverableError when a path resolves to the base path itself', async () => {
+      await expect(provider.deleteResources({ paths: [''], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
+    });
+
+    it('should throw UnrecoverableError when a path resolves to the base path itself via "."', async () => {
+      await expect(provider.deleteResources({ paths: ['.'], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
+    });
+
+    it('should return failures entry when rm rejects', async () => {
+      vi.mocked(rm).mockRejectedValue(new Error('EACCES'));
+
+      const result = await provider.deleteResources({ paths: [RELATIVE_PATH], storageProvider: 'FS' });
+
+      expect(result).toEqual({
+        failures: [{ path: join(BASE_PATH, RELATIVE_PATH), reason: 'EACCES' }],
+      });
+    });
+
+    it('should not throw when rm rejects', async () => {
+      vi.mocked(rm).mockRejectedValue(new Error('Permission denied'));
+
+      const result = provider.deleteResources({ paths: [RELATIVE_PATH], storageProvider: 'FS' });
+
+      await expect(result).resolves.not.toThrow();
+    });
+  });
+
+  describe('#constructor', () => {
+    it('should construct successfully when the base path is accessible and is a directory', () => {
+      expect(() => new FsStorageProvider(mockConfig, mockLogger)).not.toThrow();
+      expect(accessSync).toHaveBeenCalledWith(FS_STORAGE_CONFIG_DEFAULTS.basePath, expect.any(Number));
+      expect(statSync).toHaveBeenCalledWith(FS_STORAGE_CONFIG_DEFAULTS.basePath);
+    });
+
+    it('should throw ConfigurationError when the base path does not exist', () => {
+      vi.mocked(accessSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      });
+
+      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
+    });
+
+    it('should throw ConfigurationError when access to the base path is denied (EACCES)', () => {
+      vi.mocked(accessSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
+      });
+
+      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
+    });
+
+    it('should throw ConfigurationError when access to the base path is denied (EPERM)', () => {
+      vi.mocked(accessSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+      });
+
+      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
+    });
+
+    it('should throw ConfigurationError when the base path exists but is not a directory', () => {
+      vi.mocked(statSync).mockReturnValueOnce({ isDirectory: () => false } as Stats);
+
+      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
+    });
+
+    it('should resolve a relative base path (without a leading separator) to an absolute path', () => {
+      const relativeConfig = {
+        get: vi.fn().mockReturnValue({ basePath: 'relative/tiles' } satisfies FsConfig),
+      } as unknown as ConfigType;
+
+      expect(() => new FsStorageProvider(relativeConfig, createMockLogger())).not.toThrow();
+      expect(accessSync).toHaveBeenCalledWith('/relative/tiles', expect.any(Number));
+    });
+
+    it('should throw ConfigurationError for an unexpected accessibility error', () => {
+      vi.mocked(accessSync).mockImplementationOnce(() => {
+        throw new Error('disk exploded');
+      });
+
+      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
     });
   });
 });

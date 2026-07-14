@@ -1,12 +1,14 @@
-import { vi } from 'vitest';
 import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import type { ConfigType } from '../../src/common/config';
-import type { ITaskStrategy, StrategyFactory } from '../../src/cleaner/strategies';
-import type { IStorageProvider } from '../../src/cleaner/storageProviders';
+import { vi } from 'vitest';
+import type { FsConfig } from '@src/cleaner/storageProviders/fsStorageProvider';
+import type { IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders/iStorageProvider';
+import type { S3Config } from '@src/cleaner/storageProviders/s3StorageProvider';
 import type { ErrorHandler } from '../../src/cleaner/errors';
-import type { ErrorDecision, PollingPairConfig } from '../../src/cleaner/types';
 import type { JobTrackerClient } from '../../src/cleaner/httpClients';
+import type { ITaskStrategy, StrategyFactory } from '../../src/cleaner/strategies';
+import type { ErrorDecision, PollingPairConfig } from '../../src/cleaner/types';
+import type { ConfigType } from '../../src/common/config';
 import { TaskPoller } from '../../src/worker/taskPoller';
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
@@ -66,9 +68,10 @@ export function createMockErrorHandler(defaultDecision: ErrorDecision = { should
 
 // ─── StorageProvider ─────────────────────────────────────────────────────────
 
-export function createMockStorageProvider(): IStorageProvider {
+export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(): IStorageProvider<T> {
   return {
     delete: vi.fn().mockResolvedValue([]),
+    deleteResources: vi.fn().mockResolvedValue({ failures: [] }),
     targetExists: vi.fn().mockResolvedValue(true),
   };
 }
@@ -95,6 +98,20 @@ export function createMockStrategyConfig(overrides: Record<string, unknown> = {}
   return { get: vi.fn().mockImplementation((key: string) => values[key]) } as unknown as ConfigType;
 }
 
+// ─── Strategy Config (DeleteStoredResourcesStrategy) ────────────────────────────
+
+export const STORED_RESOURCES_DELETION_CONFIG_DEFAULTS = {
+  failureSampleSize: 3,
+} as const;
+
+export function createMockStoredResourcesDeletionStrategyConfig(overrides: Record<string, unknown> = {}): ConfigType {
+  const values: Record<string, unknown> = {
+    'strategies.storedResourcesDeletion.failureSampleSize': STORED_RESOURCES_DELETION_CONFIG_DEFAULTS.failureSampleSize,
+    ...overrides,
+  };
+  return { get: vi.fn().mockImplementation((key: string) => values[key]) } as unknown as ConfigType;
+}
+
 // ─── S3 Storage Config (S3StorageProvider) ───────────────────────────────────
 
 export const S3_STORAGE_CONFIG_DEFAULTS = {
@@ -104,11 +121,23 @@ export const S3_STORAGE_CONFIG_DEFAULTS = {
   sslEnabled: false,
   forcePathStyle: true,
   region: 'us-east-1',
-} as const;
+} as const satisfies S3Config;
 
 export function createMockS3Config(): ConfigType {
   return {
     get: vi.fn().mockReturnValue({ ...S3_STORAGE_CONFIG_DEFAULTS }),
+  } as unknown as ConfigType;
+}
+
+// ─── FS Storage Config (FsStorageProvider) ───────────────────────────────────
+
+export const FS_STORAGE_CONFIG_DEFAULTS = {
+  basePath: '/test/tiles',
+} as const satisfies FsConfig;
+
+export function createMockFsConfig(): ConfigType {
+  return {
+    get: vi.fn().mockReturnValue({ ...FS_STORAGE_CONFIG_DEFAULTS }),
   } as unknown as ConfigType;
 }
 

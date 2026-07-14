@@ -73,19 +73,28 @@
       "__format": "boolean"
     }
   },
-  "s3": {
-    "endpoint": "S3_ENDPOINT",
-    "accessKeyId": "S3_ACCESS_KEY_ID",
-    "secretAccessKey": "S3_SECRET_ACCESS_KEY",
-    "sslEnabled": {
-      "__name": "S3_SSL_ENABLED",
-      "__format": "boolean"
+  "storage": {
+    "cleanupStorageProviders": {
+      "__name": "CLEANUP_STORAGE_PROVIDERS",
+      "__format": "json"
     },
-    "forcePathStyle": {
-      "__name": "S3_FORCE_PATH_STYLE",
-      "__format": "boolean"
+    "s3": {
+      "endpoint": "S3_ENDPOINT",
+      "accessKeyId": "S3_ACCESS_KEY_ID",
+      "secretAccessKey": "S3_SECRET_ACCESS_KEY",
+      "sslEnabled": {
+        "__name": "S3_SSL_ENABLED",
+        "__format": "boolean"
+      },
+      "forcePathStyle": {
+        "__name": "S3_FORCE_PATH_STYLE",
+        "__format": "boolean"
+      },
+      "region": "S3_REGION"
     },
-    "region": "S3_REGION"
+    "fs": {
+      "basePath": "FS_BASE_PATH"
+    }
   },
   "strategies": {
     "tilesDeletion": {
@@ -101,6 +110,12 @@
       },
       "failureSampleSize": {
         "__name": "TILES_DELETION_FAILURE_SAMPLE_SIZE",
+        "__format": "number"
+      }
+    },
+    "storedResourcesDeletion": {
+      "failureSampleSize": {
+        "__name": "STORED_RESOURCES_DELETION_FAILURE_SAMPLE_SIZE",
         "__format": "number"
       }
     }

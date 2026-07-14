@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { container } from 'tsyringe';
 import { faker } from '@faker-js/faker';
 import type { Logger } from '@map-colonies/js-logger';
-import { SERVICES } from '../src/common/constants';
-import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
+import { SourceType } from '@map-colonies/raster-shared';
+import { container } from 'tsyringe';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import { StrategyNotFoundError } from '../src/cleaner/errors';
-import { createMockLogger, createMockConfig, createMockQueueClient } from './helpers/mocks';
+import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
+import { SERVICES } from '../src/common/constants';
+import { createMockConfig, createMockLogger, createMockQueueClient, createMockStorageProvider } from './helpers/mocks';
 
 class MockStrategy implements ITaskStrategy {
   public validate(params: unknown): Record<string, unknown> {
@@ -20,13 +22,25 @@ class MockStrategy implements ITaskStrategy {
 describe('StrategyFactory', () => {
   let strategyFactory: StrategyFactory;
   let mockLogger: Logger;
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  let mockS3Provider: IStorageProvider<'S3'>;
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  let mockFsProvider: IStorageProvider<'FS'>;
 
   beforeEach(() => {
     mockLogger = createMockLogger();
 
+    mockS3Provider = createMockStorageProvider();
+    mockFsProvider = createMockStorageProvider();
+
+    const storageProviders: StorageProviders = {
+      [SourceType.FS]: mockFsProvider,
+      [SourceType.S3]: mockS3Provider,
+    };
+
     container.register(SERVICES.LOGGER, { useValue: mockLogger });
     container.register(SERVICES.CONFIG, { useValue: createMockConfig() });
-    container.register(SERVICES.STORAGE_PROVIDERS, { useValue: new Map() });
+    container.register(SERVICES.STORAGE_PROVIDERS, { useValue: storageProviders });
     container.register(SERVICES.QUEUE_CLIENT, { useValue: createMockQueueClient() });
 
     strategyFactory = new StrategyFactory(mockLogger);
@@ -37,15 +51,16 @@ describe('StrategyFactory', () => {
     container.clearInstances();
   });
 
-  describe('resolveWithContext', () => {
+  describe('#resolveWithContext', () => {
     it('should resolve registered strategy with enriched logger context', () => {
+      const jobType = 'Ingestion_Update';
       const taskType = 'tiles-deletion';
-      container.register(taskType, { useClass: TilesDeletionStrategy });
+      container.register(`${jobType}-${taskType}`, { useClass: TilesDeletionStrategy });
 
       const taskContext: TaskContext = {
         jobId: faker.string.uuid(),
         taskId: faker.string.uuid(),
-        jobType: 'Ingestion_Update',
+        jobType,
         taskType,
       };
 
@@ -63,13 +78,14 @@ describe('StrategyFactory', () => {
     });
 
     it('should create child logger with task context', () => {
+      const jobType = 'Ingestion_Swap_Update';
       const taskType = 'tiles-deletion';
-      container.register(taskType, { useClass: TilesDeletionStrategy });
+      container.register(`${jobType}-${taskType}`, { useClass: TilesDeletionStrategy });
 
       const taskContext: TaskContext = {
         jobId: faker.string.uuid(),
         taskId: faker.string.uuid(),
-        jobType: 'Ingestion_Swap_Update',
+        jobType,
         taskType,
       };
 
@@ -96,11 +112,12 @@ describe('StrategyFactory', () => {
     });
 
     it('should create separate instances for different tasks (child container isolation)', () => {
+      const jobType = 'Ingestion_Update';
       const taskType = 'tiles-deletion';
-      container.register(taskType, { useClass: TilesDeletionStrategy });
+      container.register(`${jobType}-${taskType}`, { useClass: TilesDeletionStrategy });
 
-      const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
-      const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType };
+      const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType, taskType };
+      const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType, taskType };
 
       const strategy1 = strategyFactory.resolveWithContext(context1);
       const strategy2 = strategyFactory.resolveWithContext(context2);
@@ -109,14 +126,15 @@ describe('StrategyFactory', () => {
     });
 
     it('should resolve different strategies for different task types', () => {
+      const jobType = 'Ingestion_Update';
       const taskType1 = 'tiles-deletion';
       const taskType2 = 'files-deletion';
 
-      container.register(taskType1, { useClass: TilesDeletionStrategy });
-      container.register(taskType2, { useClass: MockStrategy });
+      container.register(`${jobType}-${taskType1}`, { useClass: TilesDeletionStrategy });
+      container.register(`${jobType}-${taskType2}`, { useClass: MockStrategy });
 
-      const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType1 };
-      const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType: 'Ingestion_Update', taskType: taskType2 };
+      const context1: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType, taskType: taskType1 };
+      const context2: TaskContext = { jobId: faker.string.uuid(), taskId: faker.string.uuid(), jobType, taskType: taskType2 };
 
       const strategy1 = strategyFactory.resolveWithContext(context1);
       const strategy2 = strategyFactory.resolveWithContext(context2);
@@ -127,13 +145,14 @@ describe('StrategyFactory', () => {
     });
 
     it('should handle special characters in task type', () => {
+      const jobType = 'CustomJob';
       const taskType = 'task-with-special_chars.v2';
-      container.register(taskType, { useClass: MockStrategy });
+      container.register(`${jobType}-${taskType}`, { useClass: MockStrategy });
 
       const taskContext: TaskContext = {
         jobId: faker.string.uuid(),
         taskId: faker.string.uuid(),
-        jobType: 'CustomJob',
+        jobType,
         taskType,
       };
 

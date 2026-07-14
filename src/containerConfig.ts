@@ -1,22 +1,23 @@
-import { getOtelMixin } from '@map-colonies/telemetry';
+import { IWorker, JobnikSDK } from '@map-colonies/jobnik-sdk';
+import { jsLogger, type Logger } from '@map-colonies/js-logger';
+import { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { SourceType } from '@map-colonies/raster-shared';
+import { getOtelMixin } from '@map-colonies/telemetry';
 import { trace } from '@opentelemetry/api';
 import { Registry } from 'prom-client';
 import { instancePerContainerCachingFactory } from 'tsyringe';
 import { DependencyContainer } from 'tsyringe/dist/typings/types';
-import { jsLogger, type Logger } from '@map-colonies/js-logger';
-import { IWorker, JobnikSDK } from '@map-colonies/jobnik-sdk';
-import { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { InjectionObject, registerDependencies } from '@common/dependencyRegistration';
-import { SERVICES, SERVICE_NAME } from '@common/constants';
+import { SERVICE_NAME, SERVICES } from '@common/constants';
+import { getJobAndTaskToken, InjectionObject, registerDependencies } from '@common/dependencyRegistration';
 import { getTracing } from '@common/tracing';
+import type { StorageProviders } from '@src/cleaner/storageProviders';
+import { ErrorHandler } from './cleaner/errors';
+import { JobTrackerClient } from './cleaner/httpClients';
+import { FsStorageProvider, S3StorageProvider } from './cleaner/storageProviders';
+import { DeleteStoredResourcesStrategy, StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
 import type { QueueConfig } from './cleaner/types';
 import { ConfigType, getConfig } from './common/config';
 import { workerBuilder } from './worker';
-import { StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
-import { ErrorHandler } from './cleaner/errors';
-import { S3StorageProvider, FsStorageProvider, type IStorageProvider } from './cleaner/storageProviders';
-import { JobTrackerClient } from './cleaner/httpClients';
 
 export interface RegisterOptions {
   override?: InjectionObject<unknown>[];
@@ -100,20 +101,56 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
     {
       token: SERVICES.STORAGE_PROVIDERS,
       provider: {
-        useFactory: instancePerContainerCachingFactory((container) => {
+        useFactory: instancePerContainerCachingFactory<StorageProviders>((container) => {
           const config = container.resolve<ConfigType>(SERVICES.CONFIG);
           const logger = container.resolve<Logger>(SERVICES.LOGGER);
-          return new Map<string, IStorageProvider>([
-            [SourceType.S3, new S3StorageProvider(config, logger)],
-            [SourceType.FS, new FsStorageProvider(logger)],
-          ]);
+          const cleanupStorageProviders = config.get('storage.cleanupStorageProviders') as unknown as string[];
+          const providers = {
+            ...(cleanupStorageProviders.includes(SourceType.S3) && { [SourceType.S3]: new S3StorageProvider(config, logger) }),
+            ...(cleanupStorageProviders.includes(SourceType.FS) && { [SourceType.FS]: new FsStorageProvider(config, logger) }),
+          };
+          return providers;
         }),
       },
     },
     {
-      token: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string, //TODO: when we create worker config schema we can move this to a constant and remove the cast
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.update.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
+      }),
       provider: {
         useClass: TilesDeletionStrategy,
+      },
+    },
+    {
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.swapUpdate.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
+      }),
+      provider: {
+        useClass: TilesDeletionStrategy,
+      },
+    },
+    {
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.deleteLayer.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.layerDeletion.type') as unknown as string,
+      }),
+      provider: {
+        useClass: DeleteStoredResourcesStrategy,
+      },
+    },
+    {
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.deleteLayer.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.artifactsDeletion.type') as unknown as string,
+      }),
+      provider: {
+        useClass: DeleteStoredResourcesStrategy,
       },
     },
     {

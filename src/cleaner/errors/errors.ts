@@ -89,8 +89,8 @@ export class ValidationError extends UnrecoverableError {
  * This is always unrecoverable since the strategy won't appear on retry.
  */
 export class StrategyNotFoundError extends UnrecoverableError {
-  public constructor(taskType: string) {
-    super(`No strategy registered for task type: ${taskType}`);
+  public constructor({ jobType, taskType }: { jobType: string; taskType: string }) {
+    super(`No strategy registered for job type: ${jobType} and task type: ${taskType}`);
     this.name = StrategyNotFoundError.name;
     Error.captureStackTrace(this, this.constructor);
   }
