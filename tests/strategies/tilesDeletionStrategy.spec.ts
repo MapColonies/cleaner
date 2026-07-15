@@ -6,7 +6,7 @@ import { RecoverableError, UnrecoverableError, ValidationError } from '@src/clea
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import type { TaskContext } from '@src/cleaner/strategies/strategyFactory';
 import { TilesDeletionStrategy } from '@src/cleaner/strategies/tilesDeletionStrategy';
-import { createMockLogger, createMockStorageProvider, createMockStrategyConfig, TILES_DELETION_CONFIG_DEFAULTS } from './helpers/mocks';
+import { createMockLogger, createMockStorageProvider, createMockStrategyConfig, TILES_DELETION_CONFIG_DEFAULTS } from '../helpers/mocks';
 
 const { s3Bucket: S3_BUCKET, fsBasePath: FS_BASE_PATH } = TILES_DELETION_CONFIG_DEFAULTS;
 
