@@ -127,8 +127,6 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     let totalDeletedObjectsCount = 0,
       totalFailedObjectsCount = 0;
 
-    this.logger.debug({ msg: 'Deleting all objects from S3 under given path', bucket, prefix: normalizedPrefix });
-
     const s3Objects = this.getS3Objects({
       bucket,
       prefix: normalizedPrefix,

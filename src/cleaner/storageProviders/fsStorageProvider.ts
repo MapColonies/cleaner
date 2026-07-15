@@ -71,8 +71,6 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   public async deleteResources({
     paths,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
-    this.logger.info({ msg: 'Deleting multiple directories/files from filesystem', basePath: this.basePath, count: paths.length });
-
     // prevent path traversal (i.e. accessing folders above root folder)
     if (!this.checkPathTraversal(paths)) throw new UnrecoverableError(`Cannot delete files/folders outside base path or base path itself`);
     if (!paths.every((path) => this.resolveAbsolutePath(join(this.basePath, path)) !== this.basePath))
