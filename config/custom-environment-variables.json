@@ -79,6 +79,9 @@
       "__format": "json"
     },
     "s3": {
+      "delete": {
+        "batchSize": "S3_DELETE_BATCH_SIZE"
+      },
       "endpoint": "S3_ENDPOINT",
       "accessKeyId": "S3_ACCESS_KEY_ID",
       "secretAccessKey": "S3_SECRET_ACCESS_KEY",
@@ -93,6 +96,9 @@
       "region": "S3_REGION"
     },
     "fs": {
+      "delete": {
+        "batchSize": "FS_DELETE_BATCH_SIZE"
+      },
       "basePath": "FS_BASE_PATH"
     }
   },

@@ -17,11 +17,12 @@ import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StoragePro
 import { describeError, UnrecoverableError } from '../errors';
 import { getChunk } from '../utils';
 
-const S3_MAX_DELETE_BATCH = 1000;
-
 type S3StorageProviderType = Extract<StorageProvider, 'S3'>;
 
 export interface S3Config {
+  delete: {
+    batchSize: number;
+  };
   endpoint: string;
   accessKeyId: string;
   secretAccessKey: string;
@@ -32,21 +33,22 @@ export interface S3Config {
 
 export class S3StorageProvider implements IStorageProvider<S3StorageProviderType> {
   private readonly s3Client: S3Client;
+  private readonly s3Config: S3Config;
 
   public constructor(
     config: ConfigType,
     private readonly logger: Logger
   ) {
-    const s3Config = config.get('storage.s3') as unknown as S3Config;
+    this.s3Config = config.get('storage.s3') as unknown as S3Config;
     this.s3Client = new S3Client({
-      endpoint: s3Config.endpoint,
+      endpoint: this.s3Config.endpoint,
       credentials: {
-        accessKeyId: s3Config.accessKeyId,
-        secretAccessKey: s3Config.secretAccessKey,
+        accessKeyId: this.s3Config.accessKeyId,
+        secretAccessKey: this.s3Config.secretAccessKey,
       },
-      forcePathStyle: s3Config.forcePathStyle,
-      region: s3Config.region,
-      tls: s3Config.sslEnabled,
+      forcePathStyle: this.s3Config.forcePathStyle,
+      region: this.s3Config.region,
+      tls: this.s3Config.sslEnabled,
     });
   }
 
@@ -55,7 +57,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
 
     const failures: DeleteFailure[] = [];
 
-    for (const chunk of getChunk(paths, S3_MAX_DELETE_BATCH)) {
+    for (const chunk of getChunk(paths, this.s3Config.delete.batchSize)) {
       const failed = await this.deleteChunk(chunk, bucket);
       failures.push(...failed);
     }
@@ -130,6 +132,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     const s3Objects = this.getS3Objects({
       bucket,
       prefix: normalizedPrefix,
+      pageSize: this.s3Config.delete.batchSize,
     });
 
     try {
@@ -171,7 +174,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   private async *getS3Objects({
     bucket,
     prefix,
-    pageSize = S3_MAX_DELETE_BATCH,
+    pageSize,
   }: {
     bucket: string;
     prefix?: string;

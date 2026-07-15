@@ -115,6 +115,9 @@ export function createMockStoredResourcesDeletionStrategyConfig(overrides: Recor
 // ─── S3 Storage Config (S3StorageProvider) ───────────────────────────────────
 
 export const S3_STORAGE_CONFIG_DEFAULTS = {
+  delete: {
+    batchSize: 100,
+  },
   endpoint: 'http://localhost:9000',
   accessKeyId: 'test-key',
   secretAccessKey: 'test-secret',
@@ -123,21 +126,24 @@ export const S3_STORAGE_CONFIG_DEFAULTS = {
   region: 'us-east-1',
 } as const satisfies S3Config;
 
-export function createMockS3Config(): ConfigType {
+export function createMockS3Config(overrides: Record<string, unknown> = {}): ConfigType {
   return {
-    get: vi.fn().mockReturnValue({ ...S3_STORAGE_CONFIG_DEFAULTS }),
+    get: vi.fn().mockReturnValue({ ...S3_STORAGE_CONFIG_DEFAULTS, ...overrides }),
   } as unknown as ConfigType;
 }
 
 // ─── FS Storage Config (FsStorageProvider) ───────────────────────────────────
 
 export const FS_STORAGE_CONFIG_DEFAULTS = {
+  delete: {
+    batchSize: 3,
+  },
   basePath: '/test/tiles',
 } as const satisfies FsConfig;
 
-export function createMockFsConfig(): ConfigType {
+export function createMockFsConfig(overrides: Record<string, unknown> = {}): ConfigType {
   return {
-    get: vi.fn().mockReturnValue({ ...FS_STORAGE_CONFIG_DEFAULTS }),
+    get: vi.fn().mockReturnValue({ ...FS_STORAGE_CONFIG_DEFAULTS, ...overrides }),
   } as unknown as ConfigType;
 }
 

@@ -17,6 +17,8 @@ storage:
     - FS
     - S3
   s3:
+    delete:
+      batchSize: 1000
     endpointUrl: ""
     forcePathStyle: true
     secretName: ""
@@ -24,6 +26,8 @@ storage:
     region: ""
     tilesBucket: ""
   fs:
+    delete:
+      batchSize: 1000
     internalPvc:
       enabled: false
       name: ""

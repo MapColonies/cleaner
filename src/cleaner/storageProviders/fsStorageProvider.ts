@@ -8,23 +8,25 @@ import type { ConfigType } from '@src/common/config';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
 import { getChunk } from '../utils';
 
-const FS_MAX_DELETE_BATCH = 1000;
-
 type FSStorageProviderType = Extract<StorageProvider, 'FS'>;
 
 export interface FsConfig {
+  delete: {
+    batchSize: number;
+  };
   basePath: string;
 }
 
 export class FsStorageProvider implements IStorageProvider<'FS'> {
+  private readonly fsConfig: FsConfig;
   private readonly basePath: string;
 
   public constructor(
     private readonly config: ConfigType,
     private readonly logger: Logger
   ) {
-    const fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
-    this.basePath = this.resolveAbsolutePath(fsConfig.basePath);
+    this.fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
+    this.basePath = this.resolveAbsolutePath(this.fsConfig.basePath);
     this.canDeleteFromFolder(this.basePath);
     this.logger.debug(`Using ${this.basePath} as base path for FS`);
   }
@@ -43,7 +45,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     this.logger.info({ msg: 'Deleting files from filesystem', basePath: storageTarget, count: paths.length });
 
     const failures: DeleteFailure[] = [];
-    for (const relativePaths of getChunk(paths, FS_MAX_DELETE_BATCH)) {
+    for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
       const results = await Promise.allSettled(
         relativePaths.map(async (relativePath) => {
           await unlink(join(storageTarget, relativePath));
@@ -77,7 +79,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
       throw new UnrecoverableError(`Cannot delete base path itself`);
 
     const failures: DeleteFailure[] = [];
-    for (const relativePaths of getChunk(paths, FS_MAX_DELETE_BATCH)) {
+    for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
       const results = await Promise.allSettled(
         relativePaths.map(async (relativePath) => {
           await rm(join(this.basePath, relativePath), { recursive: true, force: true });

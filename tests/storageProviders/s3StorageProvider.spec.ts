@@ -9,9 +9,11 @@ import {
   S3ServiceException,
 } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
+import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UnrecoverableError } from '@src/cleaner/errors';
 import { S3StorageProvider } from '@src/cleaner/storageProviders/s3StorageProvider';
+import type { ConfigType } from '@src/common/config';
 import { createMockLogger, createMockS3Config, S3_STORAGE_CONFIG_DEFAULTS } from '../helpers/mocks';
 
 const mockSend = vi.fn();
@@ -42,10 +44,14 @@ const BUCKET = 'test-bucket';
 
 describe('S3StorageProvider', () => {
   let provider: S3StorageProvider;
+  let mockConfig: ConfigType;
+  let mockLogger: Logger;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    provider = new S3StorageProvider(createMockS3Config(), createMockLogger());
+    mockConfig = createMockS3Config();
+    mockLogger = createMockLogger();
+    provider = new S3StorageProvider(mockConfig, mockLogger);
   });
 
   describe('#delete', () => {
@@ -143,7 +149,12 @@ describe('S3StorageProvider', () => {
 
     it('should batch paths into chunks of 1000 (S3 limit)', async () => {
       const paths = Array.from({ length: 1500 }, (_, i) => `object-${i}.txt`);
-
+      const mockConfig = createMockS3Config({
+        delete: {
+          batchSize: 1000,
+        },
+      });
+      provider = new S3StorageProvider(mockConfig, mockLogger);
       await provider.delete(paths, BUCKET);
 
       expect(mockSend).toHaveBeenCalledTimes(2);

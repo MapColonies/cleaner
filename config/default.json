@@ -83,6 +83,9 @@
   "storage": {
     "cleanupStorageProviders": ["FS", "S3"],
     "s3": {
+      "delete": {
+        "batchSize": 1000
+      },
       "endpoint": "http://localhost:9000",
       "accessKeyId": "minioadmin",
       "secretAccessKey": "minioadmin",
@@ -91,6 +94,9 @@
       "region": "us-east-1"
     },
     "fs": {
+      "delete": {
+        "batchSize": 1000
+      },
       "basePath": "/tiles"
     }
   },
