@@ -290,7 +290,7 @@ describe('FsStorageProvider', () => {
 
     it('should resolve a relative base path (without a leading separator) to an absolute path', () => {
       const relativeConfig = {
-        get: vi.fn().mockReturnValue({ basePath: 'relative/tiles' } satisfies FsConfig),
+        get: vi.fn().mockReturnValue({ basePath: 'relative/tiles', delete: { batchSize: 100 } } satisfies FsConfig),
       } as unknown as ConfigType;
 
       expect(() => new FsStorageProvider(relativeConfig, createMockLogger())).not.toThrow();
