@@ -7,6 +7,7 @@ import {
   paginateListObjectsV2,
   S3Client,
   S3ServiceException,
+  type DeleteObjectsCommandOutput,
 } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
 import type { Logger } from '@map-colonies/js-logger';
@@ -254,42 +255,10 @@ describe('S3StorageProvider', () => {
     const PATH = 'layer/v1';
     const NORMALIZED_PATH = `${PATH}/`;
 
-    it('should throw UnrecoverableError when bucket does not exist', async () => {
-      mockSend.mockRejectedValueOnce(new NotFound({ $metadata: {}, message: '' }));
-
-      const result = provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
-
-      await expect(result).rejects.toThrow(UnrecoverableError);
-    });
-
-    it('should throw UnrecoverableError when storage check failing', async () => {
-      const expectedError = new Error('error');
-      mockSend.mockRejectedValueOnce(expectedError);
-
-      const result = provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
-
-      await expect(result).rejects.toThrow(expectedError);
-    });
-
-    it('should throw UnrecoverableError when a path is empty (root deletion guard)', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
-
-      const result = provider.deleteResources({ paths: [''], bucket: BUCKET, storageProvider: 'S3' });
-
-      await expect(result).rejects.toThrow(UnrecoverableError);
-      expect(paginateListObjectsV2).not.toHaveBeenCalled();
-    });
-
-    it('should throw UnrecoverableError when any path is empty even if others are valid', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
-
-      const result = provider.deleteResources({ paths: [PATH, ''], bucket: BUCKET, storageProvider: 'S3' });
-
-      await expect(result).rejects.toThrow(UnrecoverableError);
-    });
-
     it('should return empty result when listing returns no keys', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found
       mockPaginateListObjectsV2Next.mockResolvedValueOnce({ done: true, value: undefined });
 
       const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
@@ -298,22 +267,13 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(1);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
-    });
-
-    it('should normalize prefix by appending trailing slash', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
-      mockPaginateListObjectsV2Next.mockResolvedValueOnce({ done: true, value: undefined });
-
-      await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
-
-      expect(paginateListObjectsV2).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ Prefix: NORMALIZED_PATH }));
-      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(1);
-      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
-      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
     it('should not double-add trailing slash when prefix already ends with one', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found
       mockPaginateListObjectsV2Next.mockResolvedValueOnce({ done: true, value: undefined });
 
       await provider.deleteResources({ paths: [`${PATH}/`], bucket: BUCKET, storageProvider: 'S3' });
@@ -322,16 +282,34 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(1);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(2);
+    });
+
+    it('should list and delete a single object', async () => {
+      const path = 'layer/v1/0/0.png';
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object
+      mockPaginateListObjectsV2Next.mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [path], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: [] });
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(1);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
     it('should list and delete a single page of objects', async () => {
       const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 1
       mockPaginateListObjectsV2Next
         .mockResolvedValueOnce({ done: false, value: { Contents: keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: true, value: undefined });
-      mockSend
-        .mockResolvedValueOnce(undefined) // bucket exists
-        .mockResolvedValueOnce({ Errors: [] }); // delete page 1
 
       const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
 
@@ -339,22 +317,85 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(2);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
-      expect(mockSend).toHaveBeenCalledTimes(2);
+      expect(mockSend).toHaveBeenCalledTimes(3);
+    });
+
+    it('should list and delete a single page of objects - no matching single object (bucket does not exists)', async () => {
+      const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NoSuchBucket({ $metadata: {}, message: 'no bucket' })) // no bucket found for single object
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 1
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: keys.map((Key) => ({ Key })) } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: [] });
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(2);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(3);
     });
 
     it('should list and delete multiple pages of objects', async () => {
       const page1Keys = ['layer/v1/0/0.png'];
       const page2Keys = ['layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ Errors: [] }) // delete page 1
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
       mockPaginateListObjectsV2Next
         .mockResolvedValueOnce({ done: false, value: { Contents: page1Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: false, value: { Contents: page2Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: true, value: undefined });
-      mockSend
-        .mockResolvedValueOnce(undefined) // bucket exists
-        .mockResolvedValueOnce({ Errors: [] }) // delete page 1
-        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
 
       const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: [] });
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(3);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(4);
+    });
+
+    it('should list and delete multiple pages of objects skipping deletion of empty keys', async () => {
+      const page1Keys = ['layer/v1/0/0.png'];
+      const page2Keys = ['layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: page1Keys.map(() => ({ Key: undefined })) } })
+        .mockResolvedValueOnce({ done: false, value: { Contents: page2Keys.map((Key) => ({ Key })) } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: [] });
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(3);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(3);
+    });
+
+    it('should list and a single object skipping deletion of similar keys of objects', async () => {
+      const objectKey = 'layer/v1/0/0.png';
+      const page1Keys = [`${objectKey}8`];
+      const page2Keys = [objectKey];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: page1Keys.map((Key) => ({ Key })) } })
+        .mockResolvedValueOnce({ done: false, value: { Contents: page2Keys.map((Key) => ({ Key })) } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [objectKey], bucket: BUCKET, storageProvider: 'S3' });
 
       expect(result).toEqual({ failures: [] });
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(3);
@@ -370,6 +411,14 @@ describe('S3StorageProvider', () => {
       const path1Page2Keys = ['layer/v1/0/1.png'];
       const path2Page1Keys = ['layer/v2/0/0.png'];
       const path2Page2Keys = ['layer/v2/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object for path 1
+        .mockResolvedValueOnce({ Errors: [] }) // delete path 1 page 1
+        .mockResolvedValueOnce({ Errors: [] }) // delete path 1 page 2
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object for path 2
+        .mockResolvedValueOnce({ Errors: [] }) // delete path 2 page 1
+        .mockResolvedValueOnce({ Errors: [] }); // delete path 2 page 2
       mockPaginateListObjectsV2Next
         .mockResolvedValueOnce({ done: false, value: { Contents: path1Page1Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: false, value: { Contents: path1Page2Keys.map((Key) => ({ Key })) } })
@@ -377,12 +426,6 @@ describe('S3StorageProvider', () => {
         .mockResolvedValueOnce({ done: false, value: { Contents: path2Page1Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: false, value: { Contents: path2Page2Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: true, value: undefined });
-      mockSend
-        .mockResolvedValueOnce(undefined) // bucket exists
-        .mockResolvedValueOnce({ Errors: [] }) // delete path 1 page 1
-        .mockResolvedValueOnce({ Errors: [] }) // delete path 1 page 2
-        .mockResolvedValueOnce({ Errors: [] }) // delete path 2 page 1
-        .mockResolvedValueOnce({ Errors: [] }); // delete path 2 page 2
 
       const result = await provider.deleteResources({ paths: [PATH1, PATH2], bucket: BUCKET, storageProvider: 'S3' });
 
@@ -390,14 +433,34 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(6);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
-      expect(mockSend).toHaveBeenCalledTimes(5);
+      expect(mockSend).toHaveBeenCalledTimes(7);
+    });
+
+    it('should list and delete a single object and matching paths and their objects', async () => {
+      const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockResolvedValueOnce(undefined) // single object exists
+        .mockResolvedValueOnce({ Errors: [] }) // delete single object
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 1
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: keys.map((Key) => ({ Key })) } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: [] });
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(2);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(4);
     });
 
     it('should handle empty page Contents response', async () => {
-      mockPaginateListObjectsV2Next.mockResolvedValueOnce({ done: false, value: {} }).mockResolvedValueOnce({ done: true, value: undefined });
       mockSend
         .mockResolvedValueOnce(undefined) // bucket exists
-        .mockResolvedValueOnce({ Errors: [] }); // delete page 1
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found
+      mockPaginateListObjectsV2Next.mockResolvedValueOnce({ done: false, value: {} }).mockResolvedValueOnce({ done: true, value: undefined });
 
       const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
 
@@ -410,17 +473,86 @@ describe('S3StorageProvider', () => {
 
     it('should handle empty delete page Errors response', async () => {
       const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ $metadata: {} } satisfies DeleteObjectsCommandOutput); // delete page 1
       mockPaginateListObjectsV2Next
         .mockResolvedValueOnce({ done: false, value: { Contents: keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: true, value: undefined });
-      mockSend
-        .mockResolvedValueOnce(undefined) // bucket exists
-        .mockResolvedValueOnce({}); // delete page 1
 
       const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
 
       expect(result).toEqual({ failures: [] });
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(2);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle delete page Errors response without elements', async () => {
+      const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ $metadata: {}, Errors: [] } satisfies DeleteObjectsCommandOutput); // delete page 1
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: keys.map((Key) => ({ Key })) } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: [] });
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(2);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(3);
+    });
+
+    it('should throw UnrecoverableError when bucket does not exist', async () => {
+      mockSend.mockRejectedValueOnce(new NotFound({ $metadata: {}, message: '' }));
+
+      const result = provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      await expect(result).rejects.toThrow(UnrecoverableError);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw an error when storage existence check failing', async () => {
+      const expectedError = new Error('error');
+      mockSend.mockRejectedValueOnce(expectedError);
+
+      const result = provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      await expect(result).rejects.toThrow(expectedError);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw UnrecoverableError when a path is empty (root deletion guard)', async () => {
+      const result = provider.deleteResources({ paths: [''], bucket: BUCKET, storageProvider: 'S3' });
+
+      await expect(result).rejects.toThrow(UnrecoverableError);
+      expect(paginateListObjectsV2).not.toHaveBeenCalled();
+      expect(mockSend).toHaveBeenCalledTimes(0);
+    });
+
+    it('should throw UnrecoverableError when any path is empty even if others are valid', async () => {
+      const result = provider.deleteResources({ paths: [PATH, ''], bucket: BUCKET, storageProvider: 'S3' });
+
+      await expect(result).rejects.toThrow(UnrecoverableError);
+      expect(mockSend).toHaveBeenCalledTimes(0);
+    });
+
+    it('should throw an error when checking for matching single object is failing (generic error)', async () => {
+      const expectedError = new Error('NetworkError');
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(expectedError); // error thrown for single object lookup
+
+      const result = provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      await expect(result).rejects.toThrow(expectedError);
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
       expect(mockSend).toHaveBeenCalledTimes(2);
@@ -429,14 +561,15 @@ describe('S3StorageProvider', () => {
     it('should paginate and return all delete errors returned by S3 per object', async () => {
       const page1Keys = ['layer/v1/0/0.png'];
       const page2Keys = ['layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ Errors: [{ Key: 'layer/v1/0/0.png', Code: 'AccessDenied' }] }) // delete page 1
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
       mockPaginateListObjectsV2Next
         .mockResolvedValueOnce({ done: false, value: { Contents: page1Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: false, value: { Contents: page2Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: true, value: undefined });
-      mockSend
-        .mockResolvedValueOnce(undefined) // bucket exists
-        .mockResolvedValueOnce({ Errors: [{ Key: 'layer/v1/0/0.png', Code: 'AccessDenied' }] }) // delete page 1
-        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
 
       const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
 
@@ -444,20 +577,21 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(3);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
-      expect(mockSend).toHaveBeenCalledTimes(3);
+      expect(mockSend).toHaveBeenCalledTimes(4);
     });
 
     it('should paginate and return all delete errors thrown and unhandled by S3', async () => {
       const page1Keys = ['layer/v1/0/0.png'];
       const page2Keys = ['layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockRejectedValueOnce(new Error('NetworkError')) // delete page 1
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
       mockPaginateListObjectsV2Next
         .mockResolvedValueOnce({ done: false, value: { Contents: page1Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: false, value: { Contents: page2Keys.map((Key) => ({ Key })) } })
         .mockResolvedValueOnce({ done: true, value: undefined });
-      mockSend
-        .mockResolvedValueOnce(undefined) // bucket exists
-        .mockRejectedValueOnce(new Error('NetworkError')) // delete page 1
-        .mockResolvedValueOnce({ Errors: [] }); // delete page 2
 
       const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
 
@@ -465,12 +599,14 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(3);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
-      expect(mockSend).toHaveBeenCalledTimes(3);
+      expect(mockSend).toHaveBeenCalledTimes(4);
     });
 
     it('should stop pagination and throw an error when bucket does not exist', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
       const expectedError = new NoSuchBucket({ $metadata: { requestId: faker.string.uuid() }, message: 'msg' });
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object
       mockPaginateListObjectsV2Next.mockRejectedValueOnce(expectedError);
 
       const result = provider.deleteResources({ paths: [PATH], bucket: '', storageProvider: 'S3' });
@@ -479,11 +615,14 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(1);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
     it('should stop pagination and throw an error when S3 throws a service error', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
       const expectedError = new S3ServiceException({ $fault: 'server', $metadata: { requestId: faker.string.uuid() }, name: 'msg' });
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object
       mockPaginateListObjectsV2Next.mockRejectedValueOnce(expectedError);
 
       const result = provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
@@ -492,11 +631,14 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(1);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
     it('should stop pagination and throw an error when S3 throws a bucket does not exists error', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
       const expectedError = new NoSuchBucket({ $metadata: {}, message: '' });
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object
       mockPaginateListObjectsV2Next.mockRejectedValueOnce(expectedError);
 
       const result = provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
@@ -505,12 +647,15 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(1);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
     it('should stop pagination and return failure when list call throws', async () => {
-      mockSend.mockResolvedValueOnce(undefined); // bucket exists
       const expectedError = new Error('NetworkError');
       const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object
       mockPaginateListObjectsV2Next
         .mockResolvedValueOnce({ done: false, value: { Contents: keys.map((Key) => ({ Key })) } })
         .mockRejectedValueOnce(expectedError);
@@ -521,6 +666,7 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(2);
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(3);
     });
   });
 
