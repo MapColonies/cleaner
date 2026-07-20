@@ -16,7 +16,7 @@ import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import type { ConfigType } from '@common/config';
 import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
-import { describeError, UnrecoverableError } from '../errors';
+import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
 
 type S3StorageProviderType = Extract<StorageProvider, 'S3'>;
 
@@ -44,6 +44,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     private readonly logger: Logger
   ) {
     this.s3Config = config.get('storage.s3') as unknown as S3Config;
+    if (this.s3Config.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
     this.s3Client = new S3Client({
       endpoint: this.s3Config.endpoint,
       credentials: {

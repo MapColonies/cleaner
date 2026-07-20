@@ -26,6 +26,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     private readonly logger: Logger
   ) {
     this.fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
+    if (this.fsConfig.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
     this.basePath = resolveAbsolutePath(this.fsConfig.basePath);
     this.canDeleteFromFolder(this.basePath);
     this.logger.debug(`Using ${this.basePath} as base path for FS`);
