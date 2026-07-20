@@ -20,6 +20,9 @@ import { describeError, UnrecoverableError } from '../errors';
 
 type S3StorageProviderType = Extract<StorageProvider, 'S3'>;
 
+// S3/MinIO reject DeleteObjects requests with more than 1000 keys, regardless of configured batch size.
+const S3_DELETE_OBJECTS_MAX_KEYS = 1000;
+
 export interface S3Config {
   delete: {
     batchSize: number;
@@ -101,6 +104,18 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   }
 
   private async deleteChunk(paths: string[], bucket: string): Promise<DeleteFailure[]> {
+    const failures: DeleteFailure[] = [];
+
+    // The configured batch size may exceed the DeleteObjects API limit, so re-chunk defensively here.
+    for (const keys of getChunk(paths, S3_DELETE_OBJECTS_MAX_KEYS)) {
+      const chunkFailures = await this.deleteObjects(keys, bucket);
+      failures.push(...chunkFailures);
+    }
+
+    return failures;
+  }
+
+  private async deleteObjects(paths: string[], bucket: string): Promise<DeleteFailure[]> {
     try {
       const command = new DeleteObjectsCommand({
         Bucket: bucket,
