@@ -203,22 +203,22 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     prefix?: string;
     pageSize?: number;
   }): AsyncGenerator<_Object[], void, unknown> {
-    const paginatorConfig = {
-      client: this.s3Client,
-      pageSize,
-    };
-
-    const commandInput = {
-      Bucket: bucket,
-      Prefix: prefix,
-    };
-
     try {
       // First, if object exists it is removed. This is to mitigate an issue in MinIO that shadows paths sharing common path with an object.
       // Second, objects having this path are iterated and removed
       if (prefix !== undefined && (await this.resourceExists({ bucket, path: prefix }))) {
         yield [{ Key: prefix }];
       }
+
+      const paginatorConfig = {
+        client: this.s3Client,
+        pageSize,
+      };
+
+      const commandInput = {
+        Bucket: bucket,
+        Prefix: prefix !== undefined ? normalizeFolderPath(prefix) : prefix,
+      };
 
       const paginator = paginateListObjectsV2(paginatorConfig, commandInput);
       for await (const page of paginator) {
