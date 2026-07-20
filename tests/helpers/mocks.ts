@@ -92,7 +92,7 @@ export function createMockStrategyConfig(overrides: Record<string, unknown> = {}
     'strategies.tilesDeletion.concurrency': TILES_DELETION_CONFIG_DEFAULTS.concurrency,
     'strategies.tilesDeletion.failureSampleSize': TILES_DELETION_CONFIG_DEFAULTS.failureSampleSize,
     'strategies.tilesDeletion.s3Bucket': TILES_DELETION_CONFIG_DEFAULTS.s3Bucket,
-    'strategies.tilesDeletion.fsBasePath': TILES_DELETION_CONFIG_DEFAULTS.fsBasePath,
+    'storage.fs.basePath': TILES_DELETION_CONFIG_DEFAULTS.fsBasePath,
     ...overrides,
   };
   return { get: vi.fn().mockImplementation((key: string) => values[key]) } as unknown as ConfigType;

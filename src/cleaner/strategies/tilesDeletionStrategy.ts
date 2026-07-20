@@ -8,6 +8,7 @@ import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import {
   summarizeDeleteFailures,
   type DeleteFailure,
+  type FsConfig,
   type IStorageProvider,
   type StorageProvider,
   type StorageProviders,
@@ -38,7 +39,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     this.concurrency = config.get('strategies.tilesDeletion.concurrency') as unknown as number;
     this.failureSampleSize = config.get('strategies.tilesDeletion.failureSampleSize') as unknown as number;
     this.s3Bucket = config.get('strategies.tilesDeletion.s3Bucket') as unknown as string;
-    this.fsBasePath = config.get('strategies.tilesDeletion.fsBasePath') as unknown as string; // TODO: merge with fs.basePath
+    this.fsBasePath = config.get('storage.fs.basePath') as unknown as FsConfig['basePath'];
   }
 
   public validate(params: unknown): TilesDeletionParams {

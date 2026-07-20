@@ -103,7 +103,6 @@
   "strategies": {
     "tilesDeletion": {
       "s3Bucket": "",
-      "fsBasePath": "/tiles",
       "batchSize": 1000,
       "concurrency": 10,
       "failureSampleSize": 3

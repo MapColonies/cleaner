@@ -111,7 +111,6 @@
   "strategies": {
     "tilesDeletion": {
       "s3Bucket": "TILES_DELETION_S3_BUCKET",
-      "fsBasePath": "TILES_DELETION_FS_BASE_PATH",
       "batchSize": {
         "__name": "TILES_DELETION_BATCH_SIZE",
         "__format": "number"

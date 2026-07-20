@@ -68,7 +68,6 @@ data:
   FS_BASE_PATH: {{ $tilesFSBasePath | quote }}
   {{- end }}
   TILES_DELETION_S3_BUCKET: {{ $s3.tilesBucket | default "" | quote }}
-  TILES_DELETION_FS_BASE_PATH: {{ $tilesFSBasePath | quote }}
   {{- with .Values.env.strategies.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
   TILES_DELETION_CONCURRENCY: {{ .concurrency | default 10 | quote }}
