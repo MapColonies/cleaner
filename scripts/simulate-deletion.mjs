@@ -1,5 +1,5 @@
 /**
- * Simulation script for tiles-deletion tasks.
+ * Simulation script for tiles-deletion and artifacts-deletion tasks.
  *
  * Usage:
  *   node scripts/simulate-deletion.mjs --provider S3
@@ -9,6 +9,15 @@
  *   node scripts/simulate-deletion.mjs --provider S3 --partial      # multi-zoom partial deletion
  *   node scripts/simulate-deletion.mjs --provider FS --real-tiles --source-tile scripts/tile_deletion_test.jpeg
  *   node scripts/simulate-deletion.mjs --provider S3 --real-tiles --source-tile scripts/tile_deletion_test.jpeg --zooms 17,18,19,20 --tile-count 400
+ *   node scripts/simulate-deletion.mjs --provider S3 --artifacts-deletion
+ *   node scripts/simulate-deletion.mjs --provider FS --artifacts-deletion --paths config,gpkg,reports
+ *
+ * --artifacts-deletion: simulate the Delete_Layer / artifacts-deletion task
+ *   (DeleteStoredResourcesStrategy), which recursively deletes whole resource
+ *   trees (e.g. gpkg, config, validation reports) rather than a tile range.
+ *   --paths <p1,p2,...>   : comma-separated relative paths to seed & delete (default: config,gpkg,reports)
+ *   Each path is seeded with a couple of nested fake files to prove the whole
+ *   subtree — not just its top-level file — gets removed.
  *
  * --real-tiles: seed a real local tile file replicated across a multi-zoom grid.
  *   --source-tile <path>  : local file to use as tile content for every seeded tile (required)
@@ -42,7 +51,7 @@
  *
  * Override defaults with env vars:
  *   QUEUE_JOB_MANAGER_BASE_URL, S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY,
- *   TILES_DELETION_S3_BUCKET, TILES_DELETION_FS_BASE_PATH, TILES_PATH, ZOOM, MIN_X, MAX_X, MIN_Y, MAX_Y,
+ *   TILES_DELETION_S3_BUCKET, FS_BASE_PATH, TILES_PATH, ARTIFACTS_PATH, ZOOM, MIN_X, MAX_X, MIN_Y, MAX_Y,
  *   SEED_CONCURRENCY (default: 50)
  */
 
@@ -69,6 +78,7 @@ Modes (mutually exclusive):
   --partial                   Seed tiles across 3 zoom levels; task only deletes a subset
   --real-tiles                Use a real tile file instead of fake content
   --skip-seed                 Skip seeding; go straight to job creation (idempotent delete)
+  --artifacts-deletion        Simulate the Delete_Layer / artifacts-deletion task (whole-resource deletion)
 
 Real-tiles options (require --real-tiles):
   --source-tile <path>        Local tile file to replicate across the grid (required)
@@ -76,14 +86,18 @@ Real-tiles options (require --real-tiles):
   --zooms <z1,z2,...>         Zoom levels, comma-separated (default: 17,18,19,20)
   --tile-count <N>            Total tiles to seed across all zoom levels (default: 400)
 
+Artifacts-deletion options (require --artifacts-deletion):
+  --paths <p1,p2,...>         Relative resource paths to seed & delete, comma-separated (default: config,gpkg,reports)
+
 Env vars (all optional — pod ConfigMap values are used automatically):
   QUEUE_JOB_MANAGER_BASE_URL  Job manager endpoint
   S3_ENDPOINT                 S3 endpoint URL
   S3_ACCESS_KEY_ID            S3 access key
   S3_SECRET_ACCESS_KEY        S3 secret key
-  TILES_DELETION_S3_BUCKET    S3 bucket name
-  TILES_DELETION_FS_BASE_PATH FS base path for tile files
+  TILES_DELETION_S3_BUCKET    S3 bucket name (tiles-deletion) / S3 bucket for artifacts-deletion
+  FS_BASE_PATH                FS base path for stored files (tiles and artifacts)
   TILES_PATH                  Relative path prefix for tiles (default: simulate/layer/v1)
+  ARTIFACTS_PATH              Relative base path for artifacts-deletion resources (default: simulate/artifacts)
   ZOOM                        Zoom level (default: 10)
   MIN_X, MAX_X                X tile range (default: 0..3)
   MIN_Y, MAX_Y                Y tile range (default: 0..3)
@@ -94,6 +108,7 @@ Examples:
   node scripts/simulate-deletion.mjs --provider FS --partial
   node scripts/simulate-deletion.mjs --provider S3 --real-tiles --source-tile scripts/tile_deletion_test.jpeg
   node scripts/simulate-deletion.mjs --provider FS --real-tiles --source-tile scripts/tile_deletion_test.jpeg
+  node scripts/simulate-deletion.mjs --provider S3 --artifacts-deletion
   MAX_X=999 MAX_Y=999 ZOOM=18 node scripts/simulate-deletion.mjs --provider S3 --skip-seed
 `);
   process.exit(0);
@@ -105,6 +120,7 @@ if (!providerFlag || !['S3', 'FS'].includes(providerFlag)) {
   console.error(
     '       node scripts/simulate-deletion.mjs --provider <S3|FS> --real-tiles --source-tile <path> [--zooms <z1,z2,...>] [--tile-count <N>]'
   );
+  console.error('       node scripts/simulate-deletion.mjs --provider <S3|FS> --artifacts-deletion [--paths <p1,p2,...>]');
   console.error('\nRun with --help for full usage information.');
   process.exit(1);
 }
@@ -112,11 +128,15 @@ const PROVIDER = providerFlag;
 const SKIP_SEED = args.includes('--skip-seed');
 const PARTIAL = args.includes('--partial');
 const REAL_TILES = args.includes('--real-tiles');
+const ARTIFACTS_DELETION = args.includes('--artifacts-deletion');
 
 // real-tiles specific args
 const SOURCE_TILE = args.includes('--source-tile') ? args[args.indexOf('--source-tile') + 1] : null;
 const ZOOMS_INPUT = args.includes('--zooms') ? args[args.indexOf('--zooms') + 1] : '17,18,19,20';
 const TILE_COUNT = args.includes('--tile-count') ? Number(args[args.indexOf('--tile-count') + 1]) : 400;
+
+// artifacts-deletion specific args
+const ARTIFACT_PATHS_INPUT = args.includes('--paths') ? args[args.indexOf('--paths') + 1] : 'config,gpkg,reports';
 
 if (REAL_TILES) {
   if (!SOURCE_TILE) {
@@ -127,6 +147,11 @@ if (REAL_TILES) {
     console.error(`--source-tile: file not found: ${resolve(SOURCE_TILE)}`);
     process.exit(1);
   }
+}
+
+if (ARTIFACTS_DELETION && (PARTIAL || REAL_TILES)) {
+  console.error('--artifacts-deletion cannot be combined with --partial or --real-tiles');
+  process.exit(1);
 }
 
 // ─── Read local.json as config base (env vars override) ──────────────────────
@@ -141,7 +166,8 @@ try {
 }
 
 const cfg = {
-  s3: localConfig.s3 ?? {},
+  s3: localConfig.storage?.s3 ?? {},
+  fs: localConfig.storage?.fs ?? {},
   strategies: localConfig.strategies?.tilesDeletion ?? {},
   queue: localConfig.queue ?? {},
 };
@@ -154,7 +180,7 @@ const S3_ENDPOINT = process.env.S3_ENDPOINT ?? cfg.s3.endpoint ?? 'http://localh
 const S3_ACCESS_KEY_ID = process.env.S3_ACCESS_KEY_ID ?? cfg.s3.accessKeyId ?? 'minioadmin';
 const S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY ?? cfg.s3.secretAccessKey ?? 'minioadmin';
 const S3_BUCKET = process.env.TILES_DELETION_S3_BUCKET ?? cfg.strategies.s3Bucket ?? '';
-const FS_BASE_PATH = process.env.TILES_DELETION_FS_BASE_PATH ?? cfg.strategies.fsBasePath ?? '/tiles';
+const FS_BASE_PATH = process.env.FS_BASE_PATH ?? cfg.fs.basePath ?? '/tiles';
 const SEED_CONCURRENCY = Number(process.env.SEED_CONCURRENCY ?? 200);
 
 // Tile range to seed + delete
@@ -165,6 +191,11 @@ const MAX_X = Number(process.env.MAX_X ?? 3);
 const MIN_Y = Number(process.env.MIN_Y ?? 0);
 const MAX_Y = Number(process.env.MAX_Y ?? 3);
 const FILE_EXTENSION = 'jpeg';
+
+// Artifacts-deletion resource paths to seed + delete
+const ARTIFACTS_PATH = process.env.ARTIFACTS_PATH ?? 'simulate/artifacts';
+const ARTIFACT_SUBPATHS = ARTIFACT_PATHS_INPUT.split(',').map((s) => s.trim());
+const ARTIFACT_PATHS = ARTIFACT_SUBPATHS.map((subPath) => `${ARTIFACTS_PATH}/${subPath}`);
 
 // ─── Partial-deletion scenario definition ────────────────────────────────────
 //
@@ -527,9 +558,125 @@ async function runRealTilesMode() {
   await createRealTilesJob(zooms, grid, TILES_PATH, ext);
 }
 
+// ─── Artifacts-deletion mode (Delete_Layer / artifacts-deletion task) ─────────
+//
+// Unlike tiles-deletion (which deletes a tile-range grid), artifacts-deletion
+// recursively removes whole resource trees given their root paths (e.g. a
+// layer's gpkg, config and validation-report directories). Each seeded path
+// gets a couple of nested files to prove the whole subtree is removed, not
+// just its top-level entry.
+
+function* artifactFilesForPath(rootPath) {
+  yield `${rootPath}/file.dat`;
+  yield `${rootPath}/nested/file.dat`;
+}
+
+async function seedS3Artifacts() {
+  if (!S3_BUCKET) {
+    throw new Error('S3_BUCKET env var is required for S3 provider (or set it in config/local.json)');
+  }
+
+  const client = new S3Client({
+    endpoint: S3_ENDPOINT,
+    credentials: { accessKeyId: S3_ACCESS_KEY_ID, secretAccessKey: S3_SECRET_ACCESS_KEY },
+    forcePathStyle: true,
+    region: 'us-east-1',
+    tls: false,
+  });
+
+  console.log(`[S3] Seeding artifacts under s3://${S3_BUCKET}/{${ARTIFACT_PATHS.join(', ')}}/...`);
+  for (const rootPath of ARTIFACT_PATHS) {
+    for (const key of artifactFilesForPath(rootPath)) {
+      await client.send(
+        new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, Body: Buffer.from('fake-artifact'), ContentType: 'application/octet-stream' })
+      );
+    }
+  }
+  const firstKey = [...artifactFilesForPath(ARTIFACT_PATHS[0])][0];
+  await client.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: firstKey }));
+  console.log(`[S3] Verified: s3://${S3_BUCKET}/${firstKey} exists`);
+  console.log(`[S3] Done — seeded ${ARTIFACT_PATHS.length} artifact path(s).\n`);
+}
+
+function seedFsArtifacts() {
+  console.log(`[FS] Seeding artifacts under ${FS_BASE_PATH}/{${ARTIFACT_PATHS.join(', ')}}/...`);
+  for (const rootPath of ARTIFACT_PATHS) {
+    for (const relativePath of artifactFilesForPath(rootPath)) {
+      const fullPath = join(FS_BASE_PATH, relativePath);
+      mkdirSync(join(fullPath, '..'), { recursive: true });
+      writeFileSync(fullPath, 'fake-artifact');
+    }
+  }
+  const firstPath = join(FS_BASE_PATH, [...artifactFilesForPath(ARTIFACT_PATHS[0])][0]);
+  if (!existsSync(firstPath)) throw new Error(`Seeding failed — ${firstPath} not found`);
+  console.log(`[FS] Verified: ${firstPath} exists`);
+  console.log(`[FS] Done — seeded ${ARTIFACT_PATHS.length} artifact path(s).\n`);
+}
+
+async function createArtifactsDeletionJob() {
+  const taskParameters = {
+    storageProvider: PROVIDER,
+    paths: ARTIFACT_PATHS,
+    ...(PROVIDER === 'S3' && { bucket: S3_BUCKET }),
+  };
+
+  const body = {
+    resourceId: `simulate-artifacts-${PROVIDER.toLowerCase()}-${Date.now()}`,
+    version: '1.0.0',
+    type: 'Delete_Layer',
+    parameters: {},
+    domain: 'RASTER',
+    tasks: [{ type: 'artifacts-deletion', parameters: taskParameters }],
+  };
+
+  console.log('[Job] Creating job with task parameters:');
+  console.log(JSON.stringify(taskParameters, null, 2));
+
+  const res = await fetch(`${JOB_MANAGER_URL}/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Job creation failed [${res.status}]: ${text}`);
+  }
+
+  const { id: jobId, taskIds } = await res.json();
+
+  console.log(`\n[Job] Created successfully:`);
+  console.log(`  Job ID  : ${jobId}`);
+  console.log(`  Task ID : ${taskIds[0]}`);
+  console.log(`\nStart the cleaner — it will pick up task "${taskIds[0]}" and delete ${ARTIFACT_PATHS.length} artifact path(s).`);
+  console.log(`Track progress: GET ${JOB_MANAGER_URL}/jobs/${jobId}?shouldReturnTasks=true`);
+}
+
+async function runArtifactsDeletionMode() {
+  if (!SKIP_SEED) {
+    if (PROVIDER === 'S3') {
+      await seedS3Artifacts();
+    } else {
+      seedFsArtifacts();
+    }
+  } else {
+    console.log(`[seed] Skipped — missing paths are treated as success (idempotent delete).\n`);
+  }
+
+  await createArtifactsDeletionJob();
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+  if (ARTIFACTS_DELETION) {
+    console.log(
+      `\n=== Simulating artifacts-deletion | storageProvider: ${PROVIDER} | paths: ${ARTIFACT_PATHS.length} | seed: ${SKIP_SEED ? 'skipped' : 'yes'} ===\n`
+    );
+    await runArtifactsDeletionMode();
+    return;
+  }
+
   if (REAL_TILES) {
     const zooms = parseZoomList(ZOOMS_INPUT);
     const ext = extname(SOURCE_TILE).slice(1).toLowerCase() || FILE_EXTENSION;
