@@ -115,6 +115,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
         throw new ConfigurationError(`FS path exists but it is a file, not a directory: ${path}`);
       }
     } catch (err) {
+      if (err instanceof ConfigurationError) throw err;
       throw new ConfigurationError(`An unexpected error occurred on FS info check: ${describeError(err)}`);
     }
   }
