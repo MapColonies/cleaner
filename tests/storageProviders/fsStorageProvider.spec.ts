@@ -7,6 +7,7 @@ import { ConfigurationError, UnrecoverableError } from '@src/cleaner/errors';
 import { FsStorageProvider, type FsConfig } from '@src/cleaner/storageProviders/fsStorageProvider';
 import type { ConfigType } from '@src/common/config';
 import { createMockFsConfig, createMockLogger, FS_STORAGE_CONFIG_DEFAULTS } from '../helpers/mocks';
+import { faker } from '@faker-js/faker';
 
 vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
@@ -303,6 +304,12 @@ describe('FsStorageProvider', () => {
       });
 
       expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
+    });
+
+    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
+      const zeroBatchConfig = createMockFsConfig({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
+
+      expect(() => new FsStorageProvider(zeroBatchConfig, mockLogger)).toThrow(ConfigurationError);
     });
   });
 });

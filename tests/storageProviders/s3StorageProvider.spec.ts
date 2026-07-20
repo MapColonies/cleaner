@@ -12,7 +12,7 @@ import {
 import { faker } from '@faker-js/faker';
 import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { UnrecoverableError } from '@src/cleaner/errors';
+import { ConfigurationError, UnrecoverableError } from '@src/cleaner/errors';
 import { S3StorageProvider } from '@src/cleaner/storageProviders/s3StorageProvider';
 import type { ConfigType } from '@src/common/config';
 import { createMockLogger, createMockS3Config, S3_STORAGE_CONFIG_DEFAULTS } from '../helpers/mocks';
@@ -697,6 +697,12 @@ describe('S3StorageProvider', () => {
           tls: S3_STORAGE_CONFIG_DEFAULTS.sslEnabled,
         })
       );
+    });
+
+    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
+      const zeroBatchConfig = createMockS3Config({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
+
+      expect(() => new S3StorageProvider(zeroBatchConfig, mockLogger)).toThrow(ConfigurationError);
     });
   });
 });
