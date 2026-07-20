@@ -4,9 +4,9 @@ import { join, resolve, sep } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders';
+import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
 import type { ConfigType } from '@src/common/config';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
-import { getChunk } from '../utils';
 
 type FSStorageProviderType = Extract<StorageProvider, 'FS'>;
 
@@ -123,7 +123,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   private checkPathTraversal(paths: string[]): boolean {
     return paths.every((path) => {
       const absolutePath = this.resolveAbsolutePath(join(this.basePath, path));
-      return absolutePath.startsWith(this.basePath);
+      return absolutePath.startsWith(normalizeFolderPath(this.basePath));
     });
   }
 

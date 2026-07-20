@@ -15,8 +15,8 @@ import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import type { ConfigType } from '@common/config';
 import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders';
+import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
 import { describeError, UnrecoverableError } from '../errors';
-import { getChunk } from '../utils';
 
 type S3StorageProviderType = Extract<StorageProvider, 'S3'>;
 
@@ -89,7 +89,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   }
 
   public async targetExists(bucket: string, relativePath: string): Promise<boolean> {
-    const prefix = this.normalizePrefix(relativePath);
+    const prefix = normalizeFolderPath(relativePath);
     try {
       const result = await this.s3Client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1 }));
       return (result.KeyCount ?? 0) > 0;
@@ -220,10 +220,6 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     }
   }
 
-  private normalizePrefix(path: string): string {
-    return path.endsWith('/') ? path : `${path}/`;
-  }
-
   private async resourceExists({ bucket, path }: { bucket: string; path: string }): Promise<boolean> {
     try {
       await this.s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: path }));
@@ -246,7 +242,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   // (e.g. target 'photos' must not match 'photos_old/img.jpg', target 'metadata.txt'
   // must not match 'metadata.txt.bak').
   private matchesTarget(key: string, target: string): boolean {
-    return key === target || key.startsWith(this.normalizePrefix(target));
+    return key === target || key.startsWith(normalizeFolderPath(target));
   }
 
   private async bucketExists(bucket: string): Promise<boolean> {
