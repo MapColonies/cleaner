@@ -2,6 +2,7 @@
 import {
   DeleteObjectsCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   NoSuchBucket,
   NotFound,
@@ -72,12 +73,12 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     const failures: DeleteFailure[] = [];
     this.logger.debug({ msg: `Starting S3 deletion`, bucket, paths });
 
-    const exists = await this.storageExists(bucket);
+    if (paths.some((path) => path.length === 0)) throw new UnrecoverableError('Cannot delete resources directly under root path of the bucket'); // Prevent root deletion
+
+    const exists = await this.bucketExists(bucket);
     if (!exists) {
       throw new UnrecoverableError(`Bucket does not exist: ${bucket}`);
     }
-
-    if (paths.some((path) => path.length === 0)) throw new UnrecoverableError('Cannot delete resources directly under root path of the bucket'); // Prevent root deletion
 
     for (const path of paths) {
       const pathFailures = await this.deleteResource({ bucket, path });
@@ -114,29 +115,37 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       return errors;
     } catch (err) {
       const reason = describeError(err);
-      this.logger.error({ msg: 'S3 batch request failed', bucket, reason, error: err });
+      this.logger.error({ msg: 'S3 batch request failed', bucket, reason, err });
       return paths.map((path) => {
         return { path, reason };
       });
     }
   }
 
-  private async deleteResource({ bucket, path }: { path: string; bucket: string }): Promise<DeleteFailure[]> {
+  private async deleteResource({ bucket, path }: { bucket: string; path: string }): Promise<DeleteFailure[]> {
     const failures: DeleteFailure[] = [];
-    const normalizedPrefix = this.normalizePrefix(path);
     let totalDeletedObjectsCount = 0,
       totalFailedObjectsCount = 0;
 
     const s3Objects = this.getS3Objects({
       bucket,
-      prefix: normalizedPrefix,
+      prefix: path,
       pageSize: this.s3Config.delete.batchSize,
     });
 
     try {
       for await (const pageOfObjects of s3Objects) {
-        this.logger.debug(`Received a batch of ${pageOfObjects.length} objects to delete`);
-        const keys = pageOfObjects.map((obj) => obj.Key!).filter(Boolean);
+        this.logger.debug({
+          msg: `Received a batch of ${pageOfObjects.length} objects to delete`,
+          pageOfObjects,
+          path,
+          pageSize: this.s3Config.delete.batchSize,
+        });
+        const keys = pageOfObjects.map((obj) => obj.Key).filter((key): key is string => key !== undefined && this.matchesTarget(key, path));
+
+        if (keys.length === 0) {
+          continue;
+        }
 
         const chunkFailures = await this.deleteChunk(keys, bucket);
         failures.push(...chunkFailures);
@@ -147,20 +156,20 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
         totalFailedObjectsCount += failedObjectsCount;
 
         this.logger.debug({
-          msg: `Successfully deleted ${deletedObjectsCount} out of total of ${totalDeletedObjectsCount} successfully deleted objects`,
+          msg: `Successfully deleted ${deletedObjectsCount} objects. Totally ${totalDeletedObjectsCount} successfully deleted objects`,
         });
 
         if (failedObjectsCount > 0)
           this.logger.debug({
-            msg: `Could not delete ${failedObjectsCount} objects out of total of ${totalFailedObjectsCount} objects that could not be deleted`,
+            msg: `Could not delete ${failedObjectsCount} objects. Totally ${totalFailedObjectsCount} objects could not be deleted`,
           });
       }
-      this.logger.debug({ msg: 'Deletion completed', prefix: normalizedPrefix, totalDeletedObjectsCount, totalFailedObjectsCount });
+      this.logger.debug({ msg: 'Deletion completed', path, totalDeletedObjectsCount, totalFailedObjectsCount });
       return failures;
     } catch (err) {
       this.logger.error({
         msg: 'Stream of objects was interrupted by an error',
-        prefix: normalizedPrefix,
+        path,
         totalDeletedObjectsCount,
         totalFailedObjectsCount,
         err,
@@ -189,8 +198,13 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     };
 
     try {
-      const paginator = paginateListObjectsV2(paginatorConfig, commandInput);
+      // First, if object exists it is removed. This is to mitigate an issue in MinIO that shadows paths sharing common path with an object.
+      // Second, objects having this path are iterated and removed
+      if (prefix !== undefined && (await this.resourceExists({ bucket, path: prefix }))) {
+        yield [{ Key: prefix }];
+      }
 
+      const paginator = paginateListObjectsV2(paginatorConfig, commandInput);
       for await (const page of paginator) {
         yield page.Contents ?? [];
       }
@@ -200,17 +214,42 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       } else if (err instanceof S3ServiceException) {
         this.logger.error({ msg: `S3 Error [${err.name}] occured during pagination: ${err.message} (Req ID: ${err.$metadata.requestId})` });
       } else {
-        this.logger.error({ msg: 'Unexpected error occurred during pagination', err });
+        this.logger.error({ msg: 'Unexpected error occurred during pagination', err, bucket, prefix });
       }
       throw err;
     }
   }
 
   private normalizePrefix(path: string): string {
-    return path.endsWith('/') ? path : `${path}/`; // Ensure prefix ends with '/' so the target is a "folder" contents (e.g. 'photos/' matches 'photos/img.jpg' not 'photos_old/...')
+    return path.endsWith('/') ? path : `${path}/`;
   }
 
-  private async storageExists(bucket: string): Promise<boolean> {
+  private async resourceExists({ bucket, path }: { bucket: string; path: string }): Promise<boolean> {
+    try {
+      await this.s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: path }));
+      return true;
+    } catch (err) {
+      if (err instanceof NotFound) {
+        return false;
+      } else if (err instanceof NoSuchBucket) {
+        this.logger.warn({ msg: `S3 Error [${err.name}] no such bucket: ${err.message} (Req ID: ${err.$metadata.requestId})` });
+        return false;
+      } else {
+        this.logger.error({ msg: 'resourceExists object check failed', err, bucket, path });
+        throw err;
+      }
+    }
+  }
+
+  // A key belongs to the target if it IS the target object or lives under 'target/'.
+  // The 'target/' guard prevents matching sibling keys that merely share the prefix
+  // (e.g. target 'photos' must not match 'photos_old/img.jpg', target 'metadata.txt'
+  // must not match 'metadata.txt.bak').
+  private matchesTarget(key: string, target: string): boolean {
+    return key === target || key.startsWith(this.normalizePrefix(target));
+  }
+
+  private async bucketExists(bucket: string): Promise<boolean> {
     try {
       this.logger.debug({ msg: `Checking bucket exists`, bucket });
       const command = new HeadBucketCommand({ Bucket: bucket });
@@ -223,7 +262,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
         return false;
       }
       const reason = describeError(err);
-      this.logger.error({ msg: 'Failed to check if bucket exists', bucket, reason, error: err });
+      this.logger.error({ msg: 'Failed to check if bucket exists', bucket, reason, err });
       throw err;
     }
   }
