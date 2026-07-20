@@ -3,11 +3,11 @@ import { rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { faker } from '@faker-js/faker';
 import { ConfigurationError, UnrecoverableError } from '@src/cleaner/errors';
 import { FsStorageProvider, type FsConfig } from '@src/cleaner/storageProviders/fsStorageProvider';
 import type { ConfigType } from '@src/common/config';
 import { createMockFsConfig, createMockLogger, FS_STORAGE_CONFIG_DEFAULTS } from '../helpers/mocks';
-import { faker } from '@faker-js/faker';
 
 vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
