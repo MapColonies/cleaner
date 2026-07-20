@@ -169,6 +169,23 @@ describe('S3StorageProvider', () => {
       expect(secondCallInput.Delete.Objects).toHaveLength(500);
     });
 
+    it('should cap DeleteObjects requests at S3 max keys limit (1000 keys) even when configured batchSize is larger', async () => {
+      const paths = Array.from({ length: 2500 }, (_, i) => `object-${i}.txt`);
+      const mockConfig = createMockS3Config({
+        delete: {
+          batchSize: 2000,
+        },
+      });
+      provider = new S3StorageProvider(mockConfig, mockLogger);
+
+      await provider.delete(paths, BUCKET);
+
+      expect(mockSend).toHaveBeenCalledTimes(3);
+      const callInputs = vi.mocked(DeleteObjectsCommand).mock.calls.map((call) => call[0] as { Delete: { Objects: { Key: string }[] } });
+      expect(callInputs.every((input) => input.Delete.Objects.length <= 1000)).toBe(true);
+      expect(callInputs.map((input) => input.Delete.Objects.length)).toEqual([1000, 1000, 500]);
+    });
+
     it('should accumulate failures across multiple chunks', async () => {
       const paths = Array.from({ length: 1500 }, (_, i) => `object-${i}.txt`);
       mockSend
