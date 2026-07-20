@@ -55,6 +55,7 @@ data:
   {{- with .Values.env.jobnik.worker }}
   JOBNIK_WORKER_CONCURRENCY: {{ .concurrency | default 1 | quote }}
   {{- end }}
+  CLEANUP_STORAGE_PROVIDERS: {{ $storage.cleanupStorageProviders | toJson | quote }}
   {{- if has "S3" $storage.cleanupStorageProviders }}
   S3_DELETE_BATCH_SIZE: {{ $s3.delete.batchSize | default 1000 | quote }}
   S3_ENDPOINT: {{ if $s3.endpointUrl }}{{ printf "%s://%s" ($s3.sslEnabled | ternary "https" "http") $s3.endpointUrl | quote }}{{ else }}{{ "" | quote }}{{ end }}
