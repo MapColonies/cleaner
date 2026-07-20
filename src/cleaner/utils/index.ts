@@ -1,4 +1,4 @@
 export { getChunk } from './chunk';
 export { buildPollingPairs } from './pairBuilder';
 export { validateSchema } from './validationHelper';
-export { normalizeFolderPath } from './path';
+export { normalizeFolderPath, resolveAbsolutePath } from './path';

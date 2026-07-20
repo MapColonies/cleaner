@@ -1,10 +1,10 @@
 import { accessSync, constants, statSync } from 'node:fs';
 import { rm, rmdir, stat, unlink } from 'node:fs/promises';
-import { join, resolve, sep } from 'node:path';
+import { join } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders';
-import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
+import { getChunk, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils';
 import type { ConfigType } from '@src/common/config';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
 
@@ -26,7 +26,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     private readonly logger: Logger
   ) {
     this.fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
-    this.basePath = this.resolveAbsolutePath(this.fsConfig.basePath);
+    this.basePath = resolveAbsolutePath(this.fsConfig.basePath);
     this.canDeleteFromFolder(this.basePath);
     this.logger.debug(`Using ${this.basePath} as base path for FS`);
   }
@@ -71,10 +71,8 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   public async deleteResources({
     paths,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
-    // prevent path traversal (i.e. accessing folders above root folder)
+    // Prevent path traversal (i.e. accessing folders above root folder)
     if (!this.checkPathTraversal(paths)) throw new UnrecoverableError(`Cannot delete files/folders outside base path or base path itself`);
-    if (!paths.every((path) => this.resolveAbsolutePath(join(this.basePath, path)) !== this.basePath))
-      throw new UnrecoverableError(`Cannot delete base path itself`);
 
     const failures: DeleteFailure[] = [];
     for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
@@ -122,7 +120,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
 
   private checkPathTraversal(paths: string[]): boolean {
     return paths.every((path) => {
-      const absolutePath = this.resolveAbsolutePath(join(this.basePath, path));
+      const absolutePath = resolveAbsolutePath(join(this.basePath, path));
       return absolutePath.startsWith(normalizeFolderPath(this.basePath));
     });
   }
@@ -168,16 +166,5 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
       // allSettled — rmdir rejects on non-empty dirs; we intentionally ignore those errors.
       await Promise.allSettled([...dirs].map(async (dir) => rmdir(dir)));
     }
-  }
-
-  /**
-   * Resolves a file system path to an absolute path.
-   * Ensures the path is resolved as an absolute path and properly formatted
-   * with a leading separator if not already present.
-   * @param path - The input path string to normalize
-   * @returns An absolute path with proper path separators
-   */
-  private resolveAbsolutePath(path: string): string {
-    return resolve(`${path.startsWith(sep) ? '' : sep}${path}`);
   }
 }
