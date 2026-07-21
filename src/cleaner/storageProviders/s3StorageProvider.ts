@@ -104,6 +104,24 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     }
   }
 
+  private async bucketExists(bucket: string): Promise<boolean> {
+    try {
+      this.logger.debug({ msg: `Checking bucket exists`, bucket });
+      const command = new HeadBucketCommand({ Bucket: bucket });
+      await this.s3Client.send(command); // If it resolves, the bucket exists and you have permission to access it
+      this.logger.debug({ msg: `Bucket exists`, bucket });
+      return true;
+    } catch (err) {
+      if (err instanceof NotFound) {
+        this.logger.error({ msg: `Bucket does not exist`, bucket, err });
+        return false;
+      }
+      const reason = describeError(err);
+      this.logger.error({ msg: 'Failed to check if bucket exists', bucket, reason, err });
+      throw err;
+    }
+  }
+
   private async deleteChunk(paths: string[], bucket: string): Promise<DeleteFailure[]> {
     const failures: DeleteFailure[] = [];
 
@@ -236,6 +254,14 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     }
   }
 
+  // A key belongs to the target if it IS the target object or lives under 'target/'.
+  // The 'target/' guard prevents matching sibling keys that merely share the prefix
+  // (e.g. target 'photos' must not match 'photos_old/img.jpg', target 'metadata.txt'
+  // must not match 'metadata.txt.bak').
+  private matchesTarget(key: string, target: string): boolean {
+    return key === target || key.startsWith(normalizeFolderPath(target));
+  }
+
   private async resourceExists({ bucket, path }: { bucket: string; path: string }): Promise<boolean> {
     try {
       await this.s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: path }));
@@ -250,32 +276,6 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
         this.logger.error({ msg: 'resourceExists object check failed', err, bucket, path });
         throw err;
       }
-    }
-  }
-
-  // A key belongs to the target if it IS the target object or lives under 'target/'.
-  // The 'target/' guard prevents matching sibling keys that merely share the prefix
-  // (e.g. target 'photos' must not match 'photos_old/img.jpg', target 'metadata.txt'
-  // must not match 'metadata.txt.bak').
-  private matchesTarget(key: string, target: string): boolean {
-    return key === target || key.startsWith(normalizeFolderPath(target));
-  }
-
-  private async bucketExists(bucket: string): Promise<boolean> {
-    try {
-      this.logger.debug({ msg: `Checking bucket exists`, bucket });
-      const command = new HeadBucketCommand({ Bucket: bucket });
-      await this.s3Client.send(command); // If it resolves, the bucket exists and you have permission to access it
-      this.logger.debug({ msg: `Bucket exists`, bucket });
-      return true;
-    } catch (err) {
-      if (err instanceof NotFound) {
-        this.logger.error({ msg: `Bucket does not exist`, bucket, err });
-        return false;
-      }
-      const reason = describeError(err);
-      this.logger.error({ msg: 'Failed to check if bucket exists', bucket, reason, err });
-      throw err;
     }
   }
 }
