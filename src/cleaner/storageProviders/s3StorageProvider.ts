@@ -9,12 +9,19 @@ import {
   paginateListObjectsV2,
   S3Client,
   S3ServiceException,
+  type _Error,
   type _Object,
 } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import type { ConfigType } from '@common/config';
-import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders';
+import {
+  mergeFailures,
+  type DeleteFailure,
+  type DeleteResourcesResult,
+  type IStorageProvider,
+  type StorageProvider,
+} from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
 
@@ -57,25 +64,24 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     });
   }
 
-  public async delete(paths: string[], bucket: string): Promise<DeleteFailure[]> {
+  public async delete(paths: string[], bucket: string): Promise<DeleteResourcesResult> {
     this.logger.debug({ msg: 'Deleting objects from S3', bucket, count: paths.length });
+    let failures: DeleteFailure = new Map();
 
-    const failures: DeleteFailure[] = [];
-
-    for (const chunk of getChunk(paths, this.s3Config.delete.batchSize)) {
-      const failed = await this.deleteChunk(chunk, bucket);
-      failures.push(...failed);
+    for (const chunk of getChunk(paths, Math.min(this.s3Config.delete.batchSize, S3_DELETE_OBJECTS_MAX_KEYS))) {
+      const chunkFailures = await this.deleteObjects(chunk, bucket);
+      failures = mergeFailures({ source: chunkFailures, target: failures });
     }
 
-    return failures;
+    return { failures };
   }
 
   public async deleteResources({
     bucket,
     paths,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: S3StorageProviderType }>): Promise<DeleteResourcesResult> {
-    const failures: DeleteFailure[] = [];
     this.logger.debug({ msg: `Starting S3 deletion`, bucket, paths });
+    let failures: DeleteFailure = new Map();
 
     if (paths.some((path) => path.length === 0)) throw new UnrecoverableError('Cannot delete resources directly under root path of the bucket'); // Prevent root deletion
 
@@ -86,7 +92,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
 
     for (const path of paths) {
       const pathFailures = await this.deleteResource({ bucket, path });
-      failures.push(...pathFailures);
+      failures = mergeFailures({ source: pathFailures, target: failures });
     }
 
     return { failures };
@@ -122,19 +128,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     }
   }
 
-  private async deleteChunk(paths: string[], bucket: string): Promise<DeleteFailure[]> {
-    const failures: DeleteFailure[] = [];
-
-    // The configured batch size may exceed the DeleteObjects API limit, so re-chunk defensively here.
-    for (const keys of getChunk(paths, S3_DELETE_OBJECTS_MAX_KEYS)) {
-      const chunkFailures = await this.deleteObjects(keys, bucket);
-      failures.push(...chunkFailures);
-    }
-
-    return failures;
-  }
-
-  private async deleteObjects(paths: string[], bucket: string): Promise<DeleteFailure[]> {
+  private async deleteObjects(paths: string[], bucket: string): Promise<DeleteFailure> {
     try {
       const command = new DeleteObjectsCommand({
         Bucket: bucket,
@@ -142,29 +136,33 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       });
 
       const response = await this.s3Client.send(command);
-      const errors = (response.Errors ?? [])
-        .filter((error): error is typeof error & { Key: string } => Boolean(error.Key)) // Only include entries with a Key so every failure maps to a specific path.
-        .map((error) => ({ path: error.Key, reason: error.Code ?? error.Message ?? 'Unknown' }));
-      if (errors.length > 0) this.logger.warn({ msg: `Failed to delete ${errors.length} out of ${paths.length} objects` });
-      return errors;
+      const failures: DeleteFailure = new Map();
+      (response.Errors ?? [])
+        .filter((error): error is _Error & Required<Pick<_Error, 'Key'>> => error.Key !== undefined) // Only include entries with a Key
+        .forEach((error) => {
+          const reason = error.Code ?? error.Message ?? 'Unknown';
+          const failure = failures.get(reason);
+          failures.set(reason, { count: (failure?.count ?? 0) + 1, sample: error.Key });
+        });
+
+      if (failures.size > 0) this.logger.warn({ msg: `Failed to delete ${failures.size} out of ${paths.length} objects` });
+      return failures;
     } catch (err) {
       const reason = describeError(err);
-      this.logger.error({ msg: 'S3 batch request failed', bucket, reason, err });
-      return paths.map((path) => {
-        return { path, reason };
-      });
+      this.logger.error({ msg: 'S3 delete objects request failed', bucket, reason, err });
+      return new Map([[reason, { count: paths.length, sample: paths[0]! }]]);
     }
   }
 
-  private async deleteResource({ bucket, path }: { bucket: string; path: string }): Promise<DeleteFailure[]> {
-    const failures: DeleteFailure[] = [];
+  private async deleteResource({ bucket, path }: { bucket: string; path: string }): Promise<DeleteFailure> {
+    let failures: DeleteFailure = new Map();
     let totalDeletedObjectsCount = 0,
       totalFailedObjectsCount = 0;
 
     const s3Objects = this.getS3Objects({
       bucket,
       prefix: path,
-      pageSize: this.s3Config.delete.batchSize,
+      pageSize: Math.min(this.s3Config.delete.batchSize, S3_DELETE_OBJECTS_MAX_KEYS),
     });
 
     try {
@@ -181,10 +179,10 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
           continue;
         }
 
-        const chunkFailures = await this.deleteChunk(keys, bucket);
-        failures.push(...chunkFailures);
+        const chunkFailures = await this.deleteObjects(keys, bucket);
+        failures = mergeFailures({ source: chunkFailures, target: failures });
 
-        const failedObjectsCount = chunkFailures.length;
+        const failedObjectsCount = chunkFailures.size;
         const deletedObjectsCount = keys.length - failedObjectsCount;
         totalDeletedObjectsCount += deletedObjectsCount;
         totalFailedObjectsCount += failedObjectsCount;
