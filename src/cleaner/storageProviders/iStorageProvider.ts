@@ -1,16 +1,12 @@
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 
 /**
- * A single failed deletion paired with a short reason string (e.g. 'ENOENT',
- * 'AccessDenied', 'NoSuchKey').
+ * A storage for failures with additional metadata.
  */
-export interface DeleteFailure {
-  path: string;
-  reason: string;
-}
+export type DeleteFailure = Map<string, { count: number; sample: string }>;
 
 export interface DeleteResourcesResult {
-  failures: DeleteFailure[];
+  failures: DeleteFailure;
 }
 
 export type StorageProvider = DeleteStoredResourcesParams['storageProvider'];
@@ -21,10 +17,10 @@ export interface IStorageProvider<T extends StorageProvider = StorageProvider> {
    * - S3:  storageTarget = bucket name; paths are object keys
    * - FS:  storageTarget = base directory; full path = join(storageTarget, path)
    *
-   * Returns one entry per failed deletion. "Not found" is reported as a failure
-   * (with reason 'ENOENT' / 'NoSuchKey').
+   * Returns an object including delete failures aggregation with one entry per failed reason.
+   * "Not found" is reported as a failure with additional metadata on failure - count and sample
    */
-  delete: (paths: string[], storageTarget: string) => Promise<DeleteFailure[]>;
+  delete: (paths: string[], storageTarget: string) => Promise<DeleteResourcesResult>;
 
   /**
    * Deletes ALL objects/files under the given paths.
