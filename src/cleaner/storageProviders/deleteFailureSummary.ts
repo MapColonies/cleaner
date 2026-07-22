@@ -1,4 +1,4 @@
-import type { DeleteResourcesResult } from './iStorageProvider';
+import type { DeleteFailure, DeleteResourcesResult } from './iStorageProvider';
 
 /**
  * Aggregated view of a batch of delete failures — designed to be embedded in a
@@ -10,6 +10,17 @@ export interface DeleteFailureSummary {
   /** Reasons formatted descending by count, e.g. `'ENOENT=150, EACCES=3'`. */
   summary: string;
 }
+
+export const mergeFailures = ({ source, target }: { source: DeleteFailure; target: DeleteFailure }): DeleteFailure => {
+  const failures: DeleteFailure = structuredClone(target);
+
+  source.forEach((failed, reason) => {
+    const failure = failures.get(reason);
+    failures.set(reason, { count: (failure?.count ?? 0) + failed.count, sample: failure?.sample ?? failed.sample });
+  });
+
+  return failures;
+};
 
 /**
  * Reduces a list of provider delete failures into a compact, log-friendly
