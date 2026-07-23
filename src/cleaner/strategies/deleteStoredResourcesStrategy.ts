@@ -10,15 +10,11 @@ import type { ITaskStrategy } from './taskStrategy';
 
 @injectable()
 export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStoredResourcesParams> {
-  private readonly failureSampleSize: number;
-
   public constructor(
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
     @inject(SERVICES.CONFIG) private readonly config: ConfigType,
     @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: StorageProviders
-  ) {
-    this.failureSampleSize = this.config.get('strategies.storedResourcesDeletion.failureSampleSize') as unknown as number;
-  }
+  ) {}
 
   public validate(params: unknown): DeleteStoredResourcesParams {
     this.logger.debug({ msg: `Validating input parameters` });
@@ -39,17 +35,16 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
 
     const { failures } = await provider.deleteResources(params);
 
-    if (failures.length > 0) {
-      const { counts, summary, sample } = summarizeDeleteFailures(failures, this.failureSampleSize);
+    if (Object.keys(failures).length > 0) {
+      const { failuresCount, summary } = summarizeDeleteFailures({ failures });
       this.logger.error({
         msg: 'Deletion failed',
         provider: params.storageProvider,
         paths,
-        failureCount: failures.length,
-        reasonCounts: counts,
-        sample,
+        failuresCount,
+        failures,
       });
-      throw new RecoverableError(`Failed to delete resource(s). Reasons: ${summary}. Sample: ${sample.join(', ')}`);
+      throw new RecoverableError(`Failed to delete ${failuresCount} objects. Reasons: ${summary}.`);
     }
 
     this.logger.info({
