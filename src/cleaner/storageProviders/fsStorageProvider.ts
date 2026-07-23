@@ -3,11 +3,16 @@ import { rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
-import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders';
+import {
+  mergeFailures,
+  type DeleteFailure,
+  type DeleteResourcesResult,
+  type IStorageProvider,
+  type StorageProvider,
+} from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils';
 import type { ConfigType } from '@src/common/config';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
-import { mergeFailures } from './deleteFailureSummary';
 
 type FSStorageProviderType = Extract<StorageProvider, 'FS'>;
 
