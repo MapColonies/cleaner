@@ -38,10 +38,10 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     this.logger.debug({ msg: 'Using FS storage provider', basePath: this.basePath });
   }
 
-  public async targetExists(storageTarget: string, relativePath: string): Promise<boolean> {
-    this.logger.debug({ msg: `Checking if target resource exists`, basePath: storageTarget, path: relativePath });
+  public async targetExists(basePath: string, relativePath: string): Promise<boolean> {
+    this.logger.debug({ msg: `Checking if target resource exists`, basePath, path: relativePath });
     try {
-      await stat(join(storageTarget, relativePath));
+      await stat(join(basePath, relativePath));
       return true;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
@@ -49,14 +49,14 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     }
   }
 
-  public async delete(paths: string[], storageTarget: string): Promise<DeleteResourcesResult> {
-    this.logger.debug({ msg: 'Deleting files from filesystem', basePath: storageTarget, pathsCount: paths.length });
+  public async delete(paths: string[], basePath: string): Promise<DeleteResourcesResult> {
+    this.logger.debug({ msg: 'Deleting files from filesystem', basePath, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
     for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
       const results = await Promise.allSettled(
         relativePaths.map(async (relativePath) => {
-          await unlink(join(storageTarget, relativePath));
+          await unlink(join(basePath, relativePath));
         })
       );
 
@@ -66,7 +66,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
           const relativePath = relativePaths[idx]!;
           const error: unknown = result.reason;
           const reason = describeError(error);
-          this.logger.debug({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), reason, error });
+          this.logger.debug({ msg: 'Failed to delete file', path: join(basePath, relativePath), reason, error });
           const chunkFailure = chunkFailures.get(reason);
           chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePaths[idx]! });
         }
@@ -74,7 +74,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
       failures = mergeFailures({ source: chunkFailures, target: failures });
     }
 
-    await this.cleanupEmptyDirs(paths, storageTarget);
+    await this.cleanupEmptyDirs(paths, basePath);
 
     return { failures };
   }

@@ -101,9 +101,9 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     return { failures };
   }
 
-  public async targetExists(bucket: string, relativePath: string): Promise<boolean> {
-    this.logger.debug({ msg: `Checking if target resource exists`, bucket, path: relativePath });
-    const prefix = normalizeFolderPath(relativePath);
+  public async targetExists(bucket: string, path: string): Promise<boolean> {
+    this.logger.debug({ msg: `Checking if target resource exists`, bucket, path });
+    const prefix = normalizeFolderPath(path);
     try {
       const result = await this.s3Client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1 }));
       return (result.KeyCount ?? 0) > 0;
