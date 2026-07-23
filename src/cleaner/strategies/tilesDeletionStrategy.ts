@@ -6,6 +6,7 @@ import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import {
+  mergeFailures,
   summarizeDeleteFailures,
   type DeleteFailure,
   type FsConfig,
@@ -75,36 +76,36 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
    * matches the desired end-state) but counted separately for visibility.
    * Terminal progress to 100% is handled by the queue's task-ack — no explicit call needed here.
    */
-  private reportOutcome(failures: DeleteFailure[], totalTiles: number): void {
-    const retryable: DeleteFailure[] = [];
-    const notFound: DeleteFailure[] = [];
+  private reportOutcome(failures: DeleteFailure, totalTiles: number): void {
+    const retryable: DeleteFailure = new Map();
+    const notFound: DeleteFailure = new Map();
     for (const failure of failures) {
-      (NOT_FOUND_REASONS.has(failure.reason) ? notFound : retryable).push(failure);
+      (NOT_FOUND_REASONS.has(failure[0]) ? notFound : retryable).set(failure[0], failure[1]);
     }
 
-    const deletedCount = totalTiles - retryable.length - notFound.length;
+    const deletedCount = totalTiles - retryable.size - notFound.size;
 
-    if (retryable.length > 0) {
-      const { counts, summary, sample } = summarizeDeleteFailures(retryable, this.failureSampleSize);
+    if (retryable.size > 0) {
+      const { failuresCount, summary } = summarizeDeleteFailures({ failures: retryable });
       this.logger.error({
         msg: 'Tiles deletion partially failed',
         totalTiles,
-        failedCount: retryable.length,
-        notFoundCount: notFound.length,
+        failedCount: retryable.size,
+        notFoundCount: notFound.size,
         deletedCount,
-        reasonCounts: counts,
-        sample,
+        failuresCount,
+        summary,
       });
-      throw new RecoverableError(`Failed to delete ${retryable.length} tiles. Reasons: ${summary}. Sample: ${sample.join(', ')}`);
+      throw new RecoverableError(`Failed to delete ${retryable.size} tiles. Reasons: ${summary}.`);
     }
 
-    if (notFound.length > 0) {
+    if (notFound.size > 0) {
       this.logger.warn({
         msg: 'Tiles deletion completed with missing tiles',
         totalTiles,
-        notFoundCount: notFound.length,
+        notFoundCount: notFound.size,
         deletedCount,
-        allTilesMissing: notFound.length === totalTiles,
+        allTilesMissing: notFound.size === totalTiles,
       });
       return;
     }
@@ -129,9 +130,9 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     storageTarget: string,
     params: TilesDeletionParams,
     totalTiles: number
-  ): Promise<DeleteFailure[]> {
+  ): Promise<DeleteFailure> {
     const { jobId, taskId } = this.taskContext;
-    const failures: DeleteFailure[] = [];
+    let failures: DeleteFailure = new Map();
     const pendingBatches: string[][] = [];
     let batch: string[] = [];
     let processedTiles = 0;
@@ -142,10 +143,12 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
         pendingBatches.push(batch);
         batch = [];
         if (pendingBatches.length === this.concurrency) {
-          processedTiles += await this.flushBatches(provider, storageTarget, pendingBatches, failures);
+          const { batchFailures, processedTilesCount } = await this.flushBatches(provider, storageTarget, pendingBatches);
+          processedTiles += processedTilesCount;
+          failures = mergeFailures({ source: batchFailures, target: failures });
           const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
           await this.queueClient.updateProgress(jobId, taskId, percentage);
-          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.length });
+          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.size });
         }
       }
     }
@@ -154,8 +157,9 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       pendingBatches.push(batch);
     }
     if (pendingBatches.length > 0) {
-      await this.flushBatches(provider, storageTarget, pendingBatches, failures);
-      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.length });
+      const { batchFailures } = await this.flushBatches(provider, storageTarget, pendingBatches);
+      failures = mergeFailures({ source: batchFailures, target: failures });
+      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.size });
     }
 
     return failures;
@@ -174,24 +178,26 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   private async flushBatches(
     provider: IStorageProvider,
     storageTarget: string,
-    pendingBatches: string[][],
-    failures: DeleteFailure[]
-  ): Promise<number> {
-    const flushedCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
+    pendingBatches: string[][]
+  ): Promise<{ batchFailures: DeleteFailure; processedTilesCount: number }> {
+    let failures: DeleteFailure = new Map();
+
+    const processedTilesCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
     const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(batch, storageTarget)));
     for (const [index, result] of results.entries()) {
       if (result.status === 'fulfilled') {
-        failures.push(...result.value);
+        failures = mergeFailures({ source: result.value.failures, target: failures });
       } else {
         const error: unknown = result.reason;
         const reason = describeError(error);
         this.logger.error({ msg: 'Batch delete threw unexpectedly', reason, error });
         const batch = pendingBatches[index] ?? [];
-        failures.push(...batch.map((path) => ({ path, reason })));
+        const failure = failures.get(reason);
+        failures.set(reason, { count: (failure?.count ?? 0) + 1, sample: failure?.sample ?? batch[0]! });
       }
     }
     pendingBatches.length = 0;
-    return flushedCount;
+    return { batchFailures: failures, processedTilesCount };
   }
 
   /**
