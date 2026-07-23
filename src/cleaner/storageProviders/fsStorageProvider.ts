@@ -7,6 +7,7 @@ import type { DeleteFailure, DeleteResourcesResult, IStorageProvider, StoragePro
 import { getChunk, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils';
 import type { ConfigType } from '@src/common/config';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
+import { mergeFailures } from './deleteFailureSummary';
 
 type FSStorageProviderType = Extract<StorageProvider, 'FS'>;
 
@@ -42,10 +43,10 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     }
   }
 
-  public async delete(paths: string[], storageTarget: string): Promise<DeleteFailure[]> {
+  public async delete(paths: string[], storageTarget: string): Promise<DeleteResourcesResult> {
     this.logger.info({ msg: 'Deleting files from filesystem', basePath: storageTarget, count: paths.length });
+    let failures: DeleteFailure = new Map();
 
-    const failures: DeleteFailure[] = [];
     for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
       const results = await Promise.allSettled(
         relativePaths.map(async (relativePath) => {
@@ -53,20 +54,23 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
         })
       );
 
+      const chunkFailures: DeleteFailure = new Map();
       for (const [idx, result] of results.entries()) {
         if (result.status === 'rejected') {
           const relativePath = relativePaths[idx]!;
           const error: unknown = result.reason;
           const reason = describeError(error);
           this.logger.debug({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), reason, error });
-          failures.push({ path: relativePath, reason });
+          const chunkFailure = chunkFailures.get(reason);
+          chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePaths[idx]! });
         }
       }
+      failures = mergeFailures({ source: chunkFailures, target: failures });
     }
 
     await this.cleanupEmptyDirs(paths, storageTarget);
 
-    return failures;
+    return { failures };
   }
 
   public async deleteResources({
@@ -75,7 +79,8 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     // Prevent path traversal (i.e. accessing folders above root folder)
     if (!this.checkPathTraversal(paths)) throw new UnrecoverableError(`Cannot delete files/folders outside base path or base path itself`);
 
-    const failures: DeleteFailure[] = [];
+    let failures: DeleteFailure = new Map();
+
     for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
       const results = await Promise.allSettled(
         relativePaths.map(async (relativePath) => {
@@ -83,14 +88,17 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
         })
       );
 
+      const chunkFailures: DeleteFailure = new Map();
       for (const [idx, result] of results.entries()) {
         if (result.status === 'rejected') {
           const fullPath = join(this.basePath, relativePaths[idx]!);
           const reason = describeError(result.reason);
           this.logger.error({ msg: 'Failed to delete layer directory', fullPath, reason, err: result.reason });
-          failures.push({ path: fullPath, reason });
+          const chunkFailure = chunkFailures.get(reason);
+          chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePaths[idx]! });
         }
       }
+      failures = mergeFailures({ source: chunkFailures, target: failures });
     }
 
     return { failures };
