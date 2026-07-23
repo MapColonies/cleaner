@@ -35,10 +35,11 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     if (this.fsConfig.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
     this.basePath = resolveAbsolutePath(this.fsConfig.basePath);
     this.canDeleteFromFolder(this.basePath);
-    this.logger.debug(`Using ${this.basePath} as base path for FS`);
+    this.logger.debug({ msg: 'Using FS storage provider', basePath: this.basePath });
   }
 
   public async targetExists(storageTarget: string, relativePath: string): Promise<boolean> {
+    this.logger.debug({ msg: `Checking if target resource exists`, basePath: storageTarget, path: relativePath });
     try {
       await stat(join(storageTarget, relativePath));
       return true;
@@ -49,7 +50,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   }
 
   public async delete(paths: string[], storageTarget: string): Promise<DeleteResourcesResult> {
-    this.logger.info({ msg: 'Deleting files from filesystem', basePath: storageTarget, count: paths.length });
+    this.logger.debug({ msg: 'Deleting files from filesystem', basePath: storageTarget, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
     for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
@@ -81,6 +82,8 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   public async deleteResources({
     paths,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
+    this.logger.debug({ msg: `Starting FS files/dirs deletion`, pathsCount: paths.length });
+
     // Prevent path traversal (i.e. accessing folders above root folder)
     if (!this.checkPathTraversal(paths)) throw new UnrecoverableError(`Cannot delete files/folders outside base path or base path itself`);
 
@@ -112,6 +115,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   private canDeleteFromFolder(path: string): void {
     try {
       accessSync(path, constants.F_OK | constants.R_OK | constants.W_OK);
+      this.logger.debug({ msg: `Able to delete from directory`, path });
     } catch (err) {
       if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
         throw new ConfigurationError(`FS path does not exist: ${path}`);
@@ -134,10 +138,13 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   }
 
   private checkPathTraversal(paths: string[]): boolean {
-    return paths.every((path) => {
+    this.logger.debug({ msg: 'Checking path traversal', paths });
+    const result = paths.every((path) => {
       const absolutePath = resolveAbsolutePath(join(this.basePath, path));
       return absolutePath.startsWith(normalizeFolderPath(this.basePath));
     });
+    this.logger.debug({ msg: `Path traversal check ${result ? 'succeeded' : 'failed'}` });
+    return result;
   }
 
   // Attempts to remove any directories that became empty after file deletion.
@@ -153,6 +160,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   //   levelIdx 2 → { storageTarget/layer/v1 }
   //   levelIdx 3 → { storageTarget/layer }            (root ancestor, tried last)
   private async cleanupEmptyDirs(relativePaths: string[], storageTarget: string): Promise<void> {
+    this.logger.debug({ msg: `Deleting empty directories`, pathsCount: relativePaths.length });
     // Map from levelIdx → unique absolute dir paths at that depth.
     // Using a Set per level deduplicates dirs shared by multiple deleted files
     // (e.g. a shared parent directory when multiple files within it are deleted at once).

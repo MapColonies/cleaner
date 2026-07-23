@@ -45,6 +45,7 @@ export interface S3Config {
 export class S3StorageProvider implements IStorageProvider<S3StorageProviderType> {
   private readonly s3Client: S3Client;
   private readonly s3Config: S3Config;
+  private readonly batchSize: number;
 
   public constructor(
     config: ConfigType,
@@ -52,6 +53,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   ) {
     this.s3Config = config.get('storage.s3') as unknown as S3Config;
     if (this.s3Config.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
+    this.batchSize = Math.min(this.s3Config.delete.batchSize, S3_DELETE_OBJECTS_MAX_KEYS);
     this.s3Client = new S3Client({
       endpoint: this.s3Config.endpoint,
       credentials: {
@@ -62,10 +64,11 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       region: this.s3Config.region,
       tls: this.s3Config.sslEnabled,
     });
+    this.logger.debug({ msg: 'Using S3 storage provider', endpoint: this.s3Config.endpoint, batchSize: this.batchSize });
   }
 
   public async delete(paths: string[], bucket: string): Promise<DeleteResourcesResult> {
-    this.logger.debug({ msg: 'Deleting objects from S3', bucket, count: paths.length });
+    this.logger.debug({ msg: 'Deleting objects from S3', bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
     for (const chunk of getChunk(paths, Math.min(this.s3Config.delete.batchSize, S3_DELETE_OBJECTS_MAX_KEYS))) {
@@ -80,7 +83,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     bucket,
     paths,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: S3StorageProviderType }>): Promise<DeleteResourcesResult> {
-    this.logger.debug({ msg: `Starting S3 deletion`, bucket, paths });
+    this.logger.debug({ msg: `Starting S3 resources deletion`, bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
     if (paths.some((path) => path.length === 0)) throw new UnrecoverableError('Cannot delete resources directly under root path of the bucket'); // Prevent root deletion
@@ -99,6 +102,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   }
 
   public async targetExists(bucket: string, relativePath: string): Promise<boolean> {
+    this.logger.debug({ msg: `Checking if target resource exists`, bucket, path: relativePath });
     const prefix = normalizeFolderPath(relativePath);
     try {
       const result = await this.s3Client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1 }));
@@ -137,15 +141,17 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
 
       const response = await this.s3Client.send(command);
       const failures: DeleteFailure = new Map();
+      let totalFailuresCount = 0;
       (response.Errors ?? [])
         .filter((error): error is _Error & Required<Pick<_Error, 'Key'>> => error.Key !== undefined) // Only include entries with a Key
         .forEach((error) => {
           const reason = error.Code ?? error.Message ?? 'Unknown';
           const failure = failures.get(reason);
+          totalFailuresCount = (failure?.count ?? 0) + 1;
           failures.set(reason, { count: (failure?.count ?? 0) + 1, sample: error.Key });
         });
 
-      if (failures.size > 0) this.logger.warn({ msg: `Failed to delete ${failures.size} out of ${paths.length} objects` });
+      if (failures.size > 0) this.logger.warn({ msg: `Failed to delete some objects`, uniqueFailureTypesCount: failures.size, totalFailuresCount });
       return failures;
     } catch (err) {
       const reason = describeError(err);
@@ -155,6 +161,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   }
 
   private async deleteResource({ bucket, path }: { bucket: string; path: string }): Promise<DeleteFailure> {
+    this.logger.debug({ msg: 'Deleting a resource', bucket, path });
     let failures: DeleteFailure = new Map();
     let totalDeletedObjectsCount = 0,
       totalFailedObjectsCount = 0;
@@ -162,16 +169,16 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     const s3Objects = this.getS3Objects({
       bucket,
       prefix: path,
-      pageSize: Math.min(this.s3Config.delete.batchSize, S3_DELETE_OBJECTS_MAX_KEYS),
+      pageSize: this.batchSize,
     });
 
     try {
       for await (const pageOfObjects of s3Objects) {
         this.logger.debug({
-          msg: `Received a batch of ${pageOfObjects.length} objects to delete`,
-          pageOfObjects,
+          msg: 'Received a page of objects to delete',
+          bucket,
           path,
-          pageSize: this.s3Config.delete.batchSize,
+          pageSize: this.batchSize,
         });
         const keys = pageOfObjects.map((obj) => obj.Key).filter((key): key is string => key !== undefined && this.matchesTarget(key, path));
 
@@ -220,9 +227,11 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     pageSize?: number;
   }): AsyncGenerator<_Object[], void, unknown> {
     try {
+      this.logger.debug({ msg: 'Starting iterating over matching objects', bucket, prefix, pageSize });
       // First, if object exists it is removed. This is to mitigate an issue in MinIO that shadows paths sharing common path with an object.
       // Second, objects having this path are iterated and removed
       if (prefix !== undefined && (await this.resourceExists({ bucket, path: prefix }))) {
+        this.logger.debug({ msg: 'Matched an exact object', bucket, prefix });
         yield [{ Key: prefix }];
       }
 
@@ -236,8 +245,17 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
         Prefix: prefix !== undefined ? normalizeFolderPath(prefix) : prefix,
       };
 
+      let pageNumber = 0;
       const paginator = paginateListObjectsV2(paginatorConfig, commandInput);
       for await (const page of paginator) {
+        pageNumber++;
+        this.logger.debug({
+          msg: 'Got a page of objects',
+          bucket,
+          prefix,
+          pageNumber,
+          ...(page.KeyCount !== undefined && { pathsCount: page.KeyCount }),
+        });
         yield page.Contents ?? [];
       }
     } catch (err) {
