@@ -35,14 +35,14 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
 
     const { failures } = await provider.deleteResources(params);
 
-    if (Object.keys(failures).length > 0) {
+    if (failures.size > 0) {
       const { failuresCount, summary } = summarizeDeleteFailures({ failures });
       this.logger.error({
         msg: 'Deletion failed',
         provider: params.storageProvider,
         paths,
         failuresCount,
-        failures,
+        summary,
       });
       throw new RecoverableError(`Failed to delete ${failuresCount} objects. Reasons: ${summary}.`);
     }

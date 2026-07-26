@@ -34,7 +34,7 @@ export function summarizeDeleteFailures({ failures }: DeleteResourcesResult): De
     failuresCount += count;
   }
 
-  const summary = Object.entries(failures)
+  const summary = Array.from(failures.entries())
     .sort(([, { count: a }], [, { count: b }]) => b - a)
     .map(([reason, { count }]) => `${reason}=${count}`)
     .join(', ');
