@@ -118,16 +118,6 @@
       "concurrency": {
         "__name": "TILES_DELETION_CONCURRENCY",
         "__format": "number"
-      },
-      "failureSampleSize": {
-        "__name": "TILES_DELETION_FAILURE_SAMPLE_SIZE",
-        "__format": "number"
-      }
-    },
-    "storedResourcesDeletion": {
-      "failureSampleSize": {
-        "__name": "STORED_RESOURCES_DELETION_FAILURE_SAMPLE_SIZE",
-        "__format": "number"
       }
     }
   }

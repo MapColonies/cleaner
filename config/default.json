@@ -104,11 +104,7 @@
     "tilesDeletion": {
       "s3Bucket": "",
       "batchSize": 1000,
-      "concurrency": 10,
-      "failureSampleSize": 3
-    },
-    "storedResourcesDeletion": {
-      "failureSampleSize": 3
+      "concurrency": 10
     }
   }
 }

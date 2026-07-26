@@ -71,9 +71,5 @@ data:
   {{- with .Values.env.strategies.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
   TILES_DELETION_CONCURRENCY: {{ .concurrency | default 10 | quote }}
-  TILES_DELETION_FAILURE_SAMPLE_SIZE: {{ .failureSampleSize | default 3 | quote }}
-  {{- end }}
-  {{- with .Values.env.strategies.storedResourcesDeletion }}
-  STORED_RESOURCES_DELETION_FAILURE_SAMPLE_SIZE: {{ .failureSampleSize | default 3 | quote }}
   {{- end }}
 {{- end }}

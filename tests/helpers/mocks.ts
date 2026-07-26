@@ -81,7 +81,6 @@ export function createMockStorageProvider<T extends StorageProvider = StoragePro
 export const TILES_DELETION_CONFIG_DEFAULTS = {
   batchSize: 100,
   concurrency: 2,
-  failureSampleSize: 3,
   s3Bucket: 'test-bucket',
   fsBasePath: '/test/tiles',
 } as const;
@@ -90,7 +89,6 @@ export function createMockStrategyConfig(overrides: Record<string, unknown> = {}
   const values: Record<string, unknown> = {
     'strategies.tilesDeletion.batchSize': TILES_DELETION_CONFIG_DEFAULTS.batchSize,
     'strategies.tilesDeletion.concurrency': TILES_DELETION_CONFIG_DEFAULTS.concurrency,
-    'strategies.tilesDeletion.failureSampleSize': TILES_DELETION_CONFIG_DEFAULTS.failureSampleSize,
     'strategies.tilesDeletion.s3Bucket': TILES_DELETION_CONFIG_DEFAULTS.s3Bucket,
     'storage.fs.basePath': TILES_DELETION_CONFIG_DEFAULTS.fsBasePath,
     ...overrides,
@@ -100,13 +98,10 @@ export function createMockStrategyConfig(overrides: Record<string, unknown> = {}
 
 // ─── Strategy Config (DeleteStoredResourcesStrategy) ────────────────────────────
 
-export const STORED_RESOURCES_DELETION_CONFIG_DEFAULTS = {
-  failureSampleSize: 3,
-} as const;
+export const STORED_RESOURCES_DELETION_CONFIG_DEFAULTS = {} as const;
 
 export function createMockStoredResourcesDeletionStrategyConfig(overrides: Record<string, unknown> = {}): ConfigType {
   const values: Record<string, unknown> = {
-    'strategies.storedResourcesDeletion.failureSampleSize': STORED_RESOURCES_DELETION_CONFIG_DEFAULTS.failureSampleSize,
     ...overrides,
   };
   return { get: vi.fn().mockImplementation((key: string) => values[key]) } as unknown as ConfigType;

@@ -25,7 +25,6 @@ const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
   private readonly batchSize: number;
   private readonly concurrency: number;
-  private readonly failureSampleSize: number;
   private readonly s3Bucket: string;
   private readonly fsBasePath: string;
 
@@ -38,7 +37,6 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   ) {
     this.batchSize = config.get('strategies.tilesDeletion.batchSize') as unknown as number;
     this.concurrency = config.get('strategies.tilesDeletion.concurrency') as unknown as number;
-    this.failureSampleSize = config.get('strategies.tilesDeletion.failureSampleSize') as unknown as number;
     this.s3Bucket = config.get('strategies.tilesDeletion.s3Bucket') as unknown as string;
     this.fsBasePath = config.get('storage.fs.basePath') as unknown as FsConfig['basePath'];
   }
