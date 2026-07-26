@@ -151,7 +151,13 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
           failures.set(reason, { count: (failure?.count ?? 0) + 1, sample: error.Key });
         });
 
-      if (failures.size > 0) this.logger.warn({ msg: `Failed to delete some objects`, uniqueFailureTypesCount: failures.size, totalFailuresCount });
+      if (failures.size > 0)
+        this.logger.warn({
+          msg: `Failed to delete some objects`,
+          totalFailuresCount,
+          uniqueFailureTypesCount: failures.size,
+          failureTypes: Array.from(failures.keys()),
+        });
       return failures;
     } catch (err) {
       const reason = describeError(err);
@@ -178,6 +184,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
           msg: 'Received a page of objects to delete',
           bucket,
           path,
+          keysSize: pageOfObjects.length,
           pageSize: this.batchSize,
         });
         const keys = pageOfObjects.map((obj) => obj.Key).filter((key): key is string => key !== undefined && this.matchesTarget(key, path));
@@ -189,25 +196,25 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
         const chunkFailures = await this.deleteObjects(keys, bucket);
         failures = mergeFailures({ source: chunkFailures, target: failures });
 
-        const failedObjectsCount = chunkFailures.size;
+        let failedObjectsCount = 0;
+        chunkFailures.forEach((chunkFailure) => (failedObjectsCount += chunkFailure.count));
         const deletedObjectsCount = keys.length - failedObjectsCount;
         totalDeletedObjectsCount += deletedObjectsCount;
         totalFailedObjectsCount += failedObjectsCount;
 
         this.logger.debug({
-          msg: `Successfully deleted ${deletedObjectsCount} objects. Totally ${totalDeletedObjectsCount} successfully deleted objects`,
+          msg: 'Completed processing current page of objects',
+          deletedObjectsCount,
+          totalDeletedObjectsCount,
+          failedObjectsCount,
+          totalFailedObjectsCount,
         });
-
-        if (failedObjectsCount > 0)
-          this.logger.debug({
-            msg: `Could not delete ${failedObjectsCount} objects. Totally ${totalFailedObjectsCount} objects could not be deleted`,
-          });
       }
-      this.logger.debug({ msg: 'Deletion completed', path, totalDeletedObjectsCount, totalFailedObjectsCount });
+      this.logger.debug({ msg: 'Resource deletion completed', path, totalDeletedObjectsCount, totalFailedObjectsCount });
       return failures;
     } catch (err) {
       this.logger.error({
-        msg: 'Stream of objects was interrupted by an error',
+        msg: 'Stream of objects for deletion was interrupted by an error',
         path,
         totalDeletedObjectsCount,
         totalFailedObjectsCount,
@@ -227,7 +234,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     pageSize?: number;
   }): AsyncGenerator<_Object[], void, unknown> {
     try {
-      this.logger.debug({ msg: 'Starting iterating over matching objects', bucket, prefix, pageSize });
+      this.logger.debug({ msg: 'Starting iteration over matching objects', bucket, prefix, pageSize });
       // First, if object exists it is removed. This is to mitigate an issue in MinIO that shadows paths sharing common path with an object.
       // Second, objects having this path are iterated and removed
       if (prefix !== undefined && (await this.resourceExists({ bucket, path: prefix }))) {
