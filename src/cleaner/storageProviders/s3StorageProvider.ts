@@ -102,7 +102,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   }
 
   public async targetExists(bucket: string, path: string): Promise<boolean> {
-    this.logger.debug({ msg: `Checking if target resource exists`, bucket, path });
+    this.logger.debug({ msg: 'Checking if target resource exists', bucket, path });
     const prefix = normalizeFolderPath(path);
     try {
       const result = await this.s3Client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1 }));
@@ -116,14 +116,14 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
 
   private async bucketExists(bucket: string): Promise<boolean> {
     try {
-      this.logger.debug({ msg: `Checking bucket exists`, bucket });
+      this.logger.debug({ msg: 'Checking bucket exists', bucket });
       const command = new HeadBucketCommand({ Bucket: bucket });
       await this.s3Client.send(command); // If it resolves, the bucket exists and you have permission to access it
-      this.logger.debug({ msg: `Bucket exists`, bucket });
+      this.logger.debug({ msg: 'Bucket exists', bucket });
       return true;
     } catch (err) {
       if (err instanceof NotFound) {
-        this.logger.error({ msg: `Bucket does not exist`, bucket, err });
+        this.logger.error({ msg: 'Bucket does not exist', bucket, err });
         return false;
       }
       const reason = describeError(err);
@@ -153,7 +153,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
 
       if (failures.size > 0)
         this.logger.warn({
-          msg: `Failed to delete some objects`,
+          msg: 'Failed to delete some objects',
           totalFailuresCount,
           uniqueFailureTypesCount: failures.size,
           failureTypes: Array.from(failures.keys()),
@@ -267,9 +267,9 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       }
     } catch (err) {
       if (err instanceof NoSuchBucket) {
-        this.logger.error({ msg: `S3 Error [${err.name}] no such bucket: ${err.message} (Req ID: ${err.$metadata.requestId})` });
+        this.logger.error({ msg: `S3 Error [${err.name}] no such bucket: ${err.message}`, err });
       } else if (err instanceof S3ServiceException) {
-        this.logger.error({ msg: `S3 Error [${err.name}] occured during pagination: ${err.message} (Req ID: ${err.$metadata.requestId})` });
+        this.logger.error({ msg: `S3 Error [${err.name}] occured during pagination: ${err.message}`, err });
       } else {
         this.logger.error({ msg: 'Unexpected error occurred during pagination', err, bucket, prefix });
       }
@@ -293,7 +293,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       if (err instanceof NotFound) {
         return false;
       } else if (err instanceof NoSuchBucket) {
-        this.logger.warn({ msg: `S3 Error [${err.name}] no such bucket: ${err.message} (Req ID: ${err.$metadata.requestId})` });
+        this.logger.warn({ msg: `S3 Error [${err.name}] no such bucket: ${err.message}`, err });
         return false;
       } else {
         this.logger.error({ msg: 'resourceExists object check failed', err, bucket, path });
