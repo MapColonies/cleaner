@@ -39,7 +39,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   }
 
   public async targetExists(basePath: string, relativePath: string): Promise<boolean> {
-    this.logger.debug({ msg: `Checking if target resource exists`, basePath, path: relativePath });
+    this.logger.debug({ msg: 'Checking if target resource exists', basePath, path: relativePath });
     try {
       await stat(join(basePath, relativePath));
       return true;
@@ -82,10 +82,10 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   public async deleteResources({
     paths,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
-    this.logger.debug({ msg: `Starting FS files/dirs deletion`, pathsCount: paths.length });
+    this.logger.debug({ msg: 'Starting FS files/dirs deletion', pathsCount: paths.length });
 
     // Prevent path traversal (i.e. accessing folders above root folder)
-    if (!this.checkPathTraversal(paths)) throw new UnrecoverableError(`Cannot delete files/folders outside base path or base path itself`);
+    if (!this.checkPathTraversal(paths)) throw new UnrecoverableError('Cannot delete files/folders outside base path or base path itself');
 
     let failures: DeleteFailure = new Map();
 
@@ -115,7 +115,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   private canDeleteFromFolder(path: string): void {
     try {
       accessSync(path, constants.F_OK | constants.R_OK | constants.W_OK);
-      this.logger.debug({ msg: `Able to delete from directory`, path });
+      this.logger.debug({ msg: 'Able to delete from directory', path });
     } catch (err) {
       if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
         throw new ConfigurationError(`FS path does not exist: ${path}`);
@@ -160,7 +160,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   //   levelIdx 2 → { storageTarget/layer/v1 }
   //   levelIdx 3 → { storageTarget/layer }            (root ancestor, tried last)
   private async cleanupEmptyDirs(relativePaths: string[], storageTarget: string): Promise<void> {
-    this.logger.debug({ msg: `Deleting empty directories`, pathsCount: relativePaths.length });
+    this.logger.debug({ msg: 'Deleting empty directories', pathsCount: relativePaths.length });
     // Map from levelIdx → unique absolute dir paths at that depth.
     // Using a Set per level deduplicates dirs shared by multiple deleted files
     // (e.g. a shared parent directory when multiple files within it are deleted at once).
