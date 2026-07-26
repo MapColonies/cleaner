@@ -1,4 +1,4 @@
-import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
+import type { DeleteStoredResourcesParams, Storage } from '@map-colonies/raster-shared';
 
 /**
  * A storage for failures with additional metadata.
@@ -9,7 +9,7 @@ export interface DeleteResourcesResult {
   failures: DeleteFailure;
 }
 
-export type StorageProvider = DeleteStoredResourcesParams['storageProvider'];
+export type StorageProvider = Storage['storageProvider'];
 
 export interface IStorageProvider<T extends StorageProvider = StorageProvider> {
   /**
