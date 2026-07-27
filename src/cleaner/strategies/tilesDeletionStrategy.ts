@@ -192,7 +192,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
         this.logger.error({ msg: 'Batch delete threw unexpectedly', reason, error });
         const batch = pendingBatches[index] ?? [];
         const failure = failures.get(reason);
-        failures.set(reason, { count: (failure?.count ?? 0) + 1, sample: failure?.sample ?? batch[0]! });
+        failures.set(reason, { count: (failure?.count ?? 0) + batch.length, sample: failure?.sample ?? batch[0]! });
       }
     }
     pendingBatches.length = 0;
