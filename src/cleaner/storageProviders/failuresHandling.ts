@@ -9,6 +9,8 @@ export interface DeleteFailureSummary {
   failuresCount: number;
   /** Reasons formatted descending by count, e.g. `'ENOENT=150, EACCES=3'`. */
   summary: string;
+  /** Samples of failing resources preserving input order. */
+  samples: string[];
 }
 
 export const mergeFailures = ({ source, target }: { source: DeleteFailure; target: DeleteFailure }): DeleteFailure => {
@@ -34,9 +36,8 @@ export function summarizeDeleteFailures({ failures }: DeleteResourcesResult): De
     failuresCount += count;
   }
 
-  const summary = Array.from(failures.entries())
-    .sort(([, { count: a }], [, { count: b }]) => b - a)
-    .map(([reason, { count }]) => `${reason}=${count}`)
-    .join(', ');
-  return { failuresCount, summary };
+  const sortedFailures = Array.from(failures.entries()).sort(([, { count: a }], [, { count: b }]) => b - a);
+  const summary = sortedFailures.map(([reason, { count }]) => `${reason}=${count}`).join(', ');
+  const samples = sortedFailures.map(([reason, { sample }]) => `${sample} (${reason})`);
+  return { failuresCount, summary, samples };
 }

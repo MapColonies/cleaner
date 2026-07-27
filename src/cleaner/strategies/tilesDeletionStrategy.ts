@@ -84,17 +84,18 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     const deletedCount = totalTiles - retryable.size - notFound.size;
 
     if (retryable.size > 0) {
-      const { failuresCount, summary } = summarizeDeleteFailures({ failures: retryable });
+      const { failuresCount, samples, summary } = summarizeDeleteFailures({ failures: retryable });
       this.logger.error({
         msg: 'Tiles deletion partially failed',
         totalTiles,
-        failedCount: retryable.size,
+        uniqueFailureTypesCount: retryable.size,
         notFoundCount: notFound.size,
         deletedCount,
-        failuresCount,
+        totalFailuresCount: failuresCount,
         summary,
+        samples,
       });
-      throw new RecoverableError(`Failed to delete ${retryable.size} tiles. Reasons: ${summary}.`);
+      throw new RecoverableError(`Failed to delete ${failuresCount} tiles. Reasons: ${summary}. Samples: ${samples.join(', ')}`);
     }
 
     if (notFound.size > 0) {
