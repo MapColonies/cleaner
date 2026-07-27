@@ -148,7 +148,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
           const reason = error.Code ?? error.Message ?? 'Unknown';
           const failure = failures.get(reason);
           totalFailuresCount = (failure?.count ?? 0) + 1;
-          failures.set(reason, { count: (failure?.count ?? 0) + 1, sample: error.Key });
+          failures.set(reason, { count: (failure?.count ?? 0) + 1, sample: failure?.sample ?? error.Key });
         });
 
       if (failures.size > 0)
