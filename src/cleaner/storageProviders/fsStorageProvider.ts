@@ -103,7 +103,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
           const reason = describeError(result.reason);
           this.logger.error({ msg: 'Failed to delete layer directory', fullPath, reason, err: result.reason });
           const chunkFailure = chunkFailures.get(reason);
-          chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePaths[idx]! });
+          chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? fullPath });
         }
       }
       failures = mergeFailures({ source: chunkFailures, target: failures });
