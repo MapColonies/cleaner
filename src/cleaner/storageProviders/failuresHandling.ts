@@ -7,9 +7,9 @@ import type { DeleteFailure, DeleteResourcesResult } from './iStorageProvider';
 export interface DeleteFailureSummary {
   /** Count of all failures */
   failuresCount: number;
-  /** Reasons formatted descending by count, e.g. `'ENOENT=150, EACCES=3'`. */
+  /** Reasons formatted ordered by descending by count, e.g. `'ENOENT=150, EACCES=3'`. */
   summary: string;
-  /** Samples of failing resources preserving input order. */
+  /** Samples of failing resources ordered by descending by count. */
   samples: string[];
 }
 
