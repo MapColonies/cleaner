@@ -81,17 +81,20 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
 
   public async deleteResources({
     paths,
+    subPath,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
-    this.logger.debug({ msg: 'Starting FS files/dirs deletion', pathsCount: paths.length });
+    this.logger.debug({ msg: 'Starting FS files/dirs deletion', subPath, pathsCount: paths.length });
+
+    const relativePaths = paths.map((path) => join(subPath, path));
 
     // Prevent path traversal (i.e. accessing folders above root folder)
-    if (!this.checkPathTraversal(paths)) throw new UnrecoverableError('Cannot delete files/folders outside base path or base path itself');
+    if (!this.checkPathTraversal(relativePaths)) throw new UnrecoverableError('Cannot delete files/folders outside base path or base path itself');
 
     let failures: DeleteFailure = new Map();
 
-    for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
+    for (const relativePathsChunk of getChunk(relativePaths, this.fsConfig.delete.batchSize)) {
       const results = await Promise.allSettled(
-        relativePaths.map(async (relativePath) => {
+        relativePathsChunk.map(async (relativePath) => {
           await rm(join(this.basePath, relativePath), { recursive: true, force: true });
         })
       );
@@ -99,7 +102,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
       const chunkFailures: DeleteFailure = new Map();
       for (const [idx, result] of results.entries()) {
         if (result.status === 'rejected') {
-          const fullPath = join(this.basePath, relativePaths[idx]!);
+          const fullPath = join(this.basePath, relativePathsChunk[idx]!);
           const reason = describeError(result.reason);
           this.logger.error({ msg: 'Failed to delete layer directory', fullPath, reason, err: result.reason });
           const chunkFailure = chunkFailures.get(reason);
