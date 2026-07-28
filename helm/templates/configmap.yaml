@@ -4,7 +4,7 @@
 {{- $s3 := ($storage.s3) | default dict -}}
 {{- $fs := ($storage.fs) | default dict -}}
 {{- $internalPvc := (($fs).internalPvc) | default dict -}}
-{{- $tilesFSBasePath :=  clean (printf "/%s/%s" $internalPvc.mountPath ($internalPvc.tilesSubPath | default "tiles")) -}}
+{{- $fsBasePath := clean (printf "/%s" $internalPvc.mountPath) -}}
 {{- if .Values.enabled -}}
 apiVersion: v1
 kind: ConfigMap
@@ -65,7 +65,7 @@ data:
   {{- end }}
   {{- if has "FS" $storage.cleanupStorageProviders }}
   FS_DELETE_BATCH_SIZE: {{ $fs.delete.batchSize | default 1000 | quote }}
-  FS_BASE_PATH: {{ $tilesFSBasePath | quote }}
+  FS_BASE_PATH: {{ $fsBasePath | quote }}
   {{- end }}
   TILES_DELETION_S3_BUCKET: {{ $s3.tilesBucket | default "" | quote }}
   {{- with .Values.env.strategies.tilesDeletion }}
