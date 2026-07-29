@@ -88,7 +88,9 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     const relativePaths = paths.map((path) => join(subPath, path));
 
     if (!this.arePathsValid(relativePaths))
-      throw new UnrecoverableError('Cannot delete files/folders outside base path or base path itself and must match a valid configured path');
+      throw new UnrecoverableError(
+        'Cannot delete files/folders outside base path or subpath as well as base path or subpath itself. paths must also match a valid configured path.'
+      );
 
     let failures: DeleteFailure = new Map();
 
@@ -162,7 +164,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   private arePathsValid(paths: string[]): boolean {
     this.logger.debug({ msg: 'Checking paths validity', paths });
     const badPaths = paths.filter((path) => {
-      const startsWithAllowedSubPath = this.subPaths.some((subPath) => path.startsWith(subPath));
+      const startsWithAllowedSubPath = this.subPaths.some((subPath) => path.startsWith(normalizeFolderPath(subPath)));
       const absolutePath = resolveAbsolutePath(join(this.basePath, path));
       const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(this.basePath));
       return !(startsWithAllowedSubPath && startsWithBasePath);
