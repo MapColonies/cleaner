@@ -88,6 +88,8 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     subPath,
   }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
     this.logger.debug({ msg: 'Starting FS files/dirs deletion', subPath, pathsCount: paths.length });
+    let totalDeletedPathsCount = 0,
+      totalFailedPathsCount = 0;
 
     const relativePaths = paths.map((path) => join(subPath, path));
 
@@ -108,12 +110,25 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
         if (result.status === 'rejected') {
           const fullPath = join(this.basePath, relativePathsChunk[idx]!);
           const reason = describeError(result.reason);
-          this.logger.error({ msg: 'Failed to delete layer directory', fullPath, reason, err: result.reason });
+          this.logger.error({ msg: 'Failed to delete file/folder', fullPath, reason, err: result.reason });
           const chunkFailure = chunkFailures.get(reason);
           chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? fullPath });
         }
       }
       failures = mergeFailures({ source: chunkFailures, target: failures });
+
+      let failedPathsCount = 0;
+      chunkFailures.forEach((chunkFailure) => (failedPathsCount += chunkFailure.count));
+      const deletedPathsCount = relativePathsChunk.length - failedPathsCount;
+      totalDeletedPathsCount += deletedPathsCount;
+      totalFailedPathsCount += failedPathsCount;
+      this.logger.debug({
+        msg: 'Completed processing current chunk of paths',
+        deletedPathsCount,
+        totalDeletedPathsCount,
+        failedPathsCount,
+        totalFailedPathsCount,
+      });
     }
 
     return { failures };
