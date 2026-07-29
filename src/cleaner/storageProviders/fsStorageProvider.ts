@@ -35,6 +35,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   ) {
     this.fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
     this.subPaths = Object.values(this.fsConfig.subPaths);
+    if (this.subPaths.length === 0) throw new ConfigurationError('subPaths must have at least 1 entry');
     if (this.fsConfig.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
     this.basePath = resolveAbsolutePath(this.fsConfig.basePath);
     this.canDeleteFromFolder(this.basePath);
@@ -90,8 +91,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
 
     const relativePaths = paths.map((path) => join(subPath, path));
 
-    // Prevent path traversal (i.e. accessing folders above root folder)
-    if (!this.checkPathTraversal(relativePaths))
+    if (!this.arePathsValid(relativePaths))
       throw new UnrecoverableError('Cannot delete files/folders outside base path or base path itself and must match a valid configured path');
 
     let failures: DeleteFailure = new Map();
@@ -144,16 +144,23 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     }
   }
 
-  private checkPathTraversal(paths: string[]): boolean {
-    this.logger.debug({ msg: 'Checking path traversal', paths });
-    const result = paths.every((path) => {
+  /**
+   * Preforms several checks on input `paths`.
+   * Includes a check for path traversal (i.e. accessing folders above root folder)
+   * @param paths
+   * @returns boolean whether `paths` are valid and pass all checks
+   */
+  private arePathsValid(paths: string[]): boolean {
+    this.logger.debug({ msg: 'Checking paths validity', paths });
+    const badPaths = paths.filter((path) => {
       const startsWithAllowedSubPath = this.subPaths.some((subPath) => path.startsWith(subPath));
       const absolutePath = resolveAbsolutePath(join(this.basePath, path));
       const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(this.basePath));
-      return startsWithAllowedSubPath && startsWithBasePath;
+      return !(startsWithAllowedSubPath && startsWithBasePath);
     });
-    this.logger.debug({ msg: `Path traversal check ${result ? 'succeeded' : 'failed'}` });
-    return result;
+    const areValid = badPaths.length === 0;
+    this.logger.debug({ msg: `Paths validity check ${areValid ? 'succeeded' : 'failed'}`, ...(!areValid && { badPaths }) });
+    return areValid;
   }
 
   // Attempts to remove any directories that became empty after file deletion.
