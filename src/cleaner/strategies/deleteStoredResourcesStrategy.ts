@@ -27,10 +27,11 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
 
     this.logger.info({
       msg: 'Starting deletion',
-      provider: params.storageProvider,
       count: paths.length,
       paths,
+      provider: params.storageProvider,
       ...(params.storageProvider === 'S3' && { bucket: params.bucket }),
+      ...(params.storageProvider === 'FS' && { subPath: params.subPath }),
     });
 
     const { failures } = await provider.deleteResources(params);

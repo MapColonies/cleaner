@@ -38,7 +38,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     if (this.fsConfig.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
     this.basePath = resolveAbsolutePath(this.fsConfig.basePath);
     this.canDeleteFromFolder(this.basePath);
-    this.logger.debug({ msg: 'Using FS storage provider', basePath: this.basePath });
+    this.logger.debug({ msg: 'Loaded FS storage provider', basePath: this.basePath });
   }
 
   public async targetExists(basePath: string, relativePath: string): Promise<boolean> {

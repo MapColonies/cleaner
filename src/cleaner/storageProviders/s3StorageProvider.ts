@@ -64,7 +64,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       region: this.s3Config.region,
       tls: this.s3Config.sslEnabled,
     });
-    this.logger.debug({ msg: 'Using S3 storage provider', endpoint: this.s3Config.endpoint, batchSize: this.batchSize });
+    this.logger.debug({ msg: 'Loaded S3 storage provider', endpoint: this.s3Config.endpoint, batchSize: this.batchSize });
   }
 
   public async delete(paths: string[], bucket: string): Promise<DeleteResourcesResult> {
