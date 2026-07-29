@@ -71,9 +71,9 @@ describe('FsStorageProvider', () => {
   });
 
   describe('#delete', () => {
-    it('should return empty array for empty input', async () => {
+    it('should return empty failures map for empty input', async () => {
       const result = await provider.delete([], BASE_PATH);
-      expect(result).toEqual([]);
+      expect(result).toEqual({ failures: new Map() });
       expect(unlink).not.toHaveBeenCalled();
     });
 
@@ -94,9 +94,9 @@ describe('FsStorageProvider', () => {
       }
     });
 
-    it('should return empty array when all unlinks succeed', async () => {
+    it('should return empty failures map when all unlinks succeed', async () => {
       const result = await provider.delete(['tile/10/0/0.png', 'tile/10/0/1.png'], BASE_PATH);
-      expect(result).toEqual([]);
+      expect(result).toEqual({ failures: new Map() });
     });
 
     it('should treat ENOENT as a failed deletion tagged with ENOENT reason', async () => {
@@ -105,7 +105,7 @@ describe('FsStorageProvider', () => {
 
       const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
 
-      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'ENOENT' }]);
+      expect(result).toEqual({ failures: new Map([['ENOENT', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
 
     it('should return failed path with reason for non-ENOENT errors', async () => {
@@ -114,7 +114,7 @@ describe('FsStorageProvider', () => {
 
       const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
 
-      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'EACCES' }]);
+      expect(result).toEqual({ failures: new Map([['EACCES', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
 
     it('should fall back to error message when error has no errno code', async () => {
@@ -122,7 +122,7 @@ describe('FsStorageProvider', () => {
 
       const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
 
-      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'disk on fire' }]);
+      expect(result).toEqual({ failures: new Map([['disk on fire', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
 
     it('should fall back to "Unknown" when error has neither errno code nor message', async () => {
@@ -130,7 +130,7 @@ describe('FsStorageProvider', () => {
 
       const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
 
-      expect(result).toEqual([{ path: 'tile/10/0/0.png', reason: 'Unknown' }]);
+      expect(result).toEqual({ failures: new Map([['Unknown', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
 
     it('should handle mixed success, ENOENT and real errors', async () => {
@@ -145,10 +145,12 @@ describe('FsStorageProvider', () => {
       const paths = ['tile/10/0/0.png', 'tile/10/0/1.png', 'tile/10/0/2.png'];
       const result = await provider.delete(paths, BASE_PATH);
 
-      expect(result).toEqual([
-        { path: 'tile/10/0/1.png', reason: 'ENOENT' },
-        { path: 'tile/10/0/2.png', reason: 'EACCES' },
-      ]);
+      expect(result).toEqual({
+        failures: new Map([
+          ['ENOENT', { count: 1, sample: 'tile/10/0/1.png' }],
+          ['EACCES', { count: 1, sample: 'tile/10/0/2.png' }],
+        ]),
+      });
     });
 
     it('should use relative path (not the full absolute path) in failure entries', async () => {
@@ -158,8 +160,8 @@ describe('FsStorageProvider', () => {
       const relativePath = 'layer/v1/10/5/3.png';
       const result = await provider.delete([relativePath], BASE_PATH);
 
-      expect(result).toEqual([{ path: relativePath, reason: 'EACCES' }]);
-      expect(result[0]!.path).not.toContain(BASE_PATH);
+      expect(result).toEqual({ failures: new Map([['EACCES', { count: 1, sample: relativePath }]]) });
+      expect(Array.from(result.failures.values())[0]?.sample).not.toMatch(`^${BASE_PATH}*`);
     });
 
     describe('cleanupEmptyDirs', () => {
@@ -192,8 +194,10 @@ describe('FsStorageProvider', () => {
         const enotempty = Object.assign(new Error('ENOTEMPTY'), { code: 'ENOTEMPTY' });
         vi.mocked(rmdir).mockRejectedValue(enotempty);
 
+        const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
+
         // Should not throw and should return correct failed paths
-        await expect(provider.delete(['tile/10/0/0.png'], BASE_PATH)).resolves.toEqual([]);
+        expect(result).toEqual({ failures: new Map() });
       });
 
       it('should not call rmdir when input is empty', async () => {
@@ -204,49 +208,72 @@ describe('FsStorageProvider', () => {
   });
 
   describe('#deleteResources', () => {
+    const FS_SUB_PATH = 'test/artifacts/tiles';
     const RELATIVE_PATH = 'layer/v1';
 
     it('should successfully call delete all files and return without failures', async () => {
-      const result = await provider.deleteResources({ paths: [RELATIVE_PATH], storageProvider: 'FS' });
+      const result = await provider.deleteResources({ paths: [RELATIVE_PATH], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
-      expect(rm).toHaveBeenCalledWith(join(BASE_PATH, RELATIVE_PATH), { recursive: true, force: true });
-      expect(result).toEqual({ failures: [] });
+      expect(result).toEqual({ failures: new Map() });
+      expect(rm).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH), { recursive: true, force: true });
+    });
+
+    it('should successfully call delete all files and return without failures for multiple paths', async () => {
+      const result = await provider.deleteResources({ paths: [RELATIVE_PATH, RELATIVE_PATH], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(result).toEqual({ failures: new Map() });
+      expect(rm).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH), { recursive: true, force: true });
+    });
+
+    it('should successfully call delete all files and return without failures for multiple paths', async () => {
+      const result = await provider.deleteResources({ paths: [RELATIVE_PATH, `${RELATIVE_PATH}/old`], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(result).toEqual({ failures: new Map() });
+      expect(rm).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH), { recursive: true, force: true });
     });
 
     it('should throw UnrecoverableError when a path escapes the base path via traversal', async () => {
-      await expect(provider.deleteResources({ paths: ['../../../etc/passwd'], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      const result = provider.deleteResources({ paths: ['../../../../etc/passwd'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
     });
 
     it('should throw UnrecoverableError when only one of several paths escapes the base path', async () => {
-      await expect(provider.deleteResources({ paths: [RELATIVE_PATH, '../../escape'], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      const result = provider.deleteResources({ paths: [RELATIVE_PATH, '../../../../escape'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
     });
 
     it('should throw UnrecoverableError when a path resolves to the base path itself', async () => {
-      await expect(provider.deleteResources({ paths: [''], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      const result = provider.deleteResources({ paths: ['../../../'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
     });
 
     it('should throw UnrecoverableError when a path resolves to the base path itself via "."', async () => {
-      await expect(provider.deleteResources({ paths: ['.'], storageProvider: 'FS' })).rejects.toThrow(UnrecoverableError);
+      const result = provider.deleteResources({ paths: ['../../../.'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
     });
 
     it('should return failures entry when rm rejects', async () => {
       vi.mocked(rm).mockRejectedValue(new Error('EACCES'));
 
-      const result = await provider.deleteResources({ paths: [RELATIVE_PATH], storageProvider: 'FS' });
+      const result = await provider.deleteResources({ paths: [RELATIVE_PATH], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
       expect(result).toEqual({
-        failures: [{ path: join(BASE_PATH, RELATIVE_PATH), reason: 'EACCES' }],
+        failures: new Map([['EACCES', { count: 1, sample: join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH) }]]),
       });
     });
 
     it('should not throw when rm rejects', async () => {
       vi.mocked(rm).mockRejectedValue(new Error('Permission denied'));
 
-      const result = provider.deleteResources({ paths: [RELATIVE_PATH], storageProvider: 'FS' });
+      const result = provider.deleteResources({ paths: [RELATIVE_PATH], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
       await expect(result).resolves.not.toThrow();
     });
@@ -291,7 +318,10 @@ describe('FsStorageProvider', () => {
 
     it('should resolve a relative base path (without a leading separator) to an absolute path', () => {
       const relativeConfig = {
-        get: vi.fn().mockReturnValue({ basePath: 'relative/tiles', delete: { batchSize: 100 } } satisfies FsConfig),
+        get: vi.fn().mockReturnValue({
+          ...FS_STORAGE_CONFIG_DEFAULTS,
+          ...({ basePath: 'relative/tiles' } satisfies Pick<FsConfig, 'basePath'>),
+        }),
       } as unknown as ConfigType;
 
       expect(() => new FsStorageProvider(relativeConfig, createMockLogger())).not.toThrow();

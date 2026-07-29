@@ -70,8 +70,8 @@ export function createMockErrorHandler(defaultDecision: ErrorDecision = { should
 
 export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(): IStorageProvider<T> {
   return {
-    delete: vi.fn().mockResolvedValue([]),
-    deleteResources: vi.fn().mockResolvedValue({ failures: [] }),
+    delete: vi.fn().mockResolvedValue({ failures: new Map() }),
+    deleteResources: vi.fn().mockResolvedValue({ failures: new Map() }),
     targetExists: vi.fn().mockResolvedValue(true),
   };
 }
@@ -134,6 +134,9 @@ export const FS_STORAGE_CONFIG_DEFAULTS = {
     batchSize: 3,
   },
   basePath: '/test/tiles',
+  subPaths: {
+    tiles: 'test/artifacts/tiles',
+  },
 } as const satisfies FsConfig;
 
 export function createMockFsConfig(overrides: Record<string, unknown> = {}): ConfigType {

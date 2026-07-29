@@ -8,8 +8,10 @@ import type { ConfigType } from '@src/common/config';
 import { createMockStoredResourcesDeletionStrategyConfig, createMockLogger, createMockStorageProvider } from '../helpers/mocks';
 
 const S3_BUCKET = 'test-bucket';
-const s3Params = { storageProvider: SourceType.S3, paths: ['layer1'], bucket: S3_BUCKET };
-const fsParams = { storageProvider: SourceType.FS, paths: ['layer2'] };
+const FS_SUB_PATH = 'test/artifacts/tiles';
+
+const s3Params: DeleteStoredResourcesParams = { storageProvider: SourceType.S3, paths: ['layer1'], bucket: S3_BUCKET };
+const fsParams: DeleteStoredResourcesParams = { storageProvider: SourceType.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
 
 describe('DeleteStoredResourcesStrategy', () => {
   let strategy: DeleteStoredResourcesStrategy;
@@ -79,7 +81,7 @@ describe('DeleteStoredResourcesStrategy', () => {
     it('should call delete all resources on FS provider', async () => {
       await strategy.execute(fsParams);
 
-      expect(mockFsProvider.deleteResources).toHaveBeenCalledWith({ paths: fsParams.paths, storageProvider: 'FS' });
+      expect(mockFsProvider.deleteResources).toHaveBeenCalledWith({ paths: fsParams.paths, subPath: FS_SUB_PATH, storageProvider: 'FS' });
       expect(mockS3Provider.deleteResources).not.toHaveBeenCalled();
     });
 
@@ -115,7 +117,7 @@ describe('DeleteStoredResourcesStrategy', () => {
 
     it('should throw RecoverableError when deleteResources returns failures', async () => {
       (mockS3Provider.deleteResources as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        failures: [{ path: 'layer1/0/0.png', reason: 'AccessDenied' }],
+        failures: new Map([['AccessDenied', { count: 1, sample: 'layer1/0/0.png' }]]),
       });
 
       const result = strategy.execute(s3Params);
