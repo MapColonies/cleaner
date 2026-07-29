@@ -163,7 +163,8 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       pendingBatches.push(batch);
     }
     if (pendingBatches.length > 0) {
-      const { batchFailures } = await this.flushBatches(provider, storageTarget, pendingBatches);
+      const { batchFailures, processedTilesCount } = await this.flushBatches(provider, storageTarget, pendingBatches);
+      processedTiles += processedTilesCount;
       failures = mergeFailures({ source: batchFailures, target: failures });
       this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.size });
     }
