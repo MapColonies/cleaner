@@ -84,7 +84,11 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       (NOT_FOUND_REASONS.has(failure[0]) ? notFound : retryable).set(failure[0], failure[1]);
     }
 
-    const deletedCount = totalTiles - retryable.size - notFound.size;
+    let retryableCount = 0;
+    retryable.forEach((retryableFailure) => (retryableCount += retryableFailure.count));
+    let notFoundCount = 0;
+    notFound.forEach((notFoundFailure) => (notFoundCount += notFoundFailure.count));
+    const deletedCount = totalTiles - retryableCount - notFoundCount;
 
     if (retryable.size > 0) {
       const { failuresCount, samples, summary } = summarizeDeleteFailures({ failures: retryable });
@@ -92,7 +96,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
         msg: 'Tiles deletion partially failed',
         totalTiles,
         uniqueFailureTypesCount: retryable.size,
-        notFoundCount: notFound.size,
+        notFoundCount,
         deletedCount,
         totalFailuresCount: failuresCount,
         summary,
