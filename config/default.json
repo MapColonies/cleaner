@@ -97,7 +97,8 @@
       "delete": {
         "batchSize": 1000
       },
-      "basePath": "/tiles"
+      "basePath": "/tiles",
+      "subPaths": {}
     }
   },
   "strategies": {

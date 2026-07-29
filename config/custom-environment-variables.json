@@ -105,7 +105,11 @@
           "__format": "number"
         }
       },
-      "basePath": "FS_BASE_PATH"
+      "basePath": "FS_BASE_PATH",
+      "subPaths": {
+        "__name": "FS_SUB_PATHS",
+        "__format": "json"
+      }
     }
   },
   "strategies": {

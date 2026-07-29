@@ -21,17 +21,20 @@ export interface FsConfig {
     batchSize: number;
   };
   basePath: string;
+  subPaths: Record<string, string>;
 }
 
 export class FsStorageProvider implements IStorageProvider<'FS'> {
   private readonly fsConfig: FsConfig;
   private readonly basePath: string;
+  private readonly subPaths: string[];
 
   public constructor(
     private readonly config: ConfigType,
     private readonly logger: Logger
   ) {
     this.fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
+    this.subPaths = Object.values(this.fsConfig.subPaths);
     if (this.fsConfig.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
     this.basePath = resolveAbsolutePath(this.fsConfig.basePath);
     this.canDeleteFromFolder(this.basePath);
@@ -88,7 +91,8 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     const relativePaths = paths.map((path) => join(subPath, path));
 
     // Prevent path traversal (i.e. accessing folders above root folder)
-    if (!this.checkPathTraversal(relativePaths)) throw new UnrecoverableError('Cannot delete files/folders outside base path or base path itself');
+    if (!this.checkPathTraversal(relativePaths))
+      throw new UnrecoverableError('Cannot delete files/folders outside base path or base path itself and must match a valid configured path');
 
     let failures: DeleteFailure = new Map();
 
@@ -143,8 +147,10 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   private checkPathTraversal(paths: string[]): boolean {
     this.logger.debug({ msg: 'Checking path traversal', paths });
     const result = paths.every((path) => {
+      const startsWithAllowedSubPath = this.subPaths.some((subPath) => path.startsWith(subPath));
       const absolutePath = resolveAbsolutePath(join(this.basePath, path));
-      return absolutePath.startsWith(normalizeFolderPath(this.basePath));
+      const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(this.basePath));
+      return startsWithAllowedSubPath && startsWithBasePath;
     });
     this.logger.debug({ msg: `Path traversal check ${result ? 'succeeded' : 'failed'}` });
     return result;

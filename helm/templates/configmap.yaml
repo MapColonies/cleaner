@@ -66,6 +66,13 @@ data:
   {{- if has "FS" $storage.cleanupStorageProviders }}
   FS_DELETE_BATCH_SIZE: {{ $fs.delete.batchSize | default 1000 | quote }}
   FS_BASE_PATH: {{ $fsBasePath | quote }}
+  {{- $subPaths := dict -}}
+  {{- range $key, $val := $internalPvc -}}
+    {{- if and (hasSuffix "SubPath" $key) $val -}}
+      {{- $_ := set $subPaths (trimSuffix "SubPath" $key) (clean $val) -}}
+    {{- end -}}
+  {{- end }}
+  FS_SUB_PATHS: {{ $subPaths | toJson | quote }}
   {{- end }}
   TILES_DELETION_S3_BUCKET: {{ $s3.tilesBucket | default "" | quote }}
   {{- with .Values.env.strategies.tilesDeletion }}
