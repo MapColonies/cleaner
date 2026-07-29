@@ -82,7 +82,8 @@ export const TILES_DELETION_CONFIG_DEFAULTS = {
   batchSize: 100,
   concurrency: 2,
   s3Bucket: 'test-bucket',
-  fsBasePath: '/test/tiles',
+  fsBasePath: '/test',
+  fsSubPath: 'tiles',
 } as const;
 
 export function createMockStrategyConfig(overrides: Record<string, unknown> = {}): ConfigType {
@@ -90,7 +91,8 @@ export function createMockStrategyConfig(overrides: Record<string, unknown> = {}
     'strategies.tilesDeletion.batchSize': TILES_DELETION_CONFIG_DEFAULTS.batchSize,
     'strategies.tilesDeletion.concurrency': TILES_DELETION_CONFIG_DEFAULTS.concurrency,
     'strategies.tilesDeletion.s3Bucket': TILES_DELETION_CONFIG_DEFAULTS.s3Bucket,
-    'storage.fs.basePath': TILES_DELETION_CONFIG_DEFAULTS.fsBasePath,
+    'strategies.tilesDeletion.fsSubPath': TILES_DELETION_CONFIG_DEFAULTS.fsSubPath,
+    'storage.fs.basePath': FS_STORAGE_CONFIG_DEFAULTS.basePath,
     ...overrides,
   };
   return { get: vi.fn().mockImplementation((key: string) => values[key]) } as unknown as ConfigType;
@@ -133,9 +135,9 @@ export const FS_STORAGE_CONFIG_DEFAULTS = {
   delete: {
     batchSize: 3,
   },
-  basePath: '/test/tiles',
+  basePath: '/test',
   subPaths: {
-    tiles: 'test/artifacts/tiles',
+    tiles: 'artifacts/tiles',
   },
 } as const satisfies FsConfig;
 

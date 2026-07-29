@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { faker } from '@faker-js/faker';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { type TilesDeletionParams, SourceType } from '@map-colonies/raster-shared';
@@ -8,7 +9,7 @@ import type { TaskContext } from '@src/cleaner/strategies/strategyFactory';
 import { TilesDeletionStrategy } from '@src/cleaner/strategies/tilesDeletionStrategy';
 import { createMockLogger, createMockStorageProvider, createMockStrategyConfig, TILES_DELETION_CONFIG_DEFAULTS } from '../helpers/mocks';
 
-const { s3Bucket: S3_BUCKET, fsBasePath: FS_BASE_PATH } = TILES_DELETION_CONFIG_DEFAULTS;
+const { s3Bucket: S3_BUCKET, fsBasePath: FS_BASE_PATH, fsSubPath: FS_SUB_PATH } = TILES_DELETION_CONFIG_DEFAULTS;
 
 const JOB_ID = faker.string.uuid();
 const TASK_ID = faker.string.uuid();
@@ -114,7 +115,7 @@ describe('TilesDeletionStrategy', () => {
       it('should check targetExists with FS base path and tilesPath as relativePath', async () => {
         await strategy.execute(fsParams);
 
-        expect(MockFsProvider.targetExists).toHaveBeenCalledWith(FS_BASE_PATH, fsParams.tilesPath);
+        expect(MockFsProvider.targetExists).toHaveBeenCalledWith(join(FS_BASE_PATH, FS_SUB_PATH), fsParams.tilesPath);
       });
     });
 
@@ -129,7 +130,7 @@ describe('TilesDeletionStrategy', () => {
       it('should call FS provider with fsBasePath as storage target', async () => {
         await strategy.execute(fsParams);
 
-        expect(MockFsProvider.delete).toHaveBeenCalledWith(expect.any(Array), FS_BASE_PATH);
+        expect(MockFsProvider.delete).toHaveBeenCalledWith(expect.any(Array), join(FS_BASE_PATH, FS_SUB_PATH));
         expect(MockS3Provider.delete).not.toHaveBeenCalled();
       });
 

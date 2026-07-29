@@ -208,7 +208,7 @@ describe('FsStorageProvider', () => {
   });
 
   describe('#deleteResources', () => {
-    const FS_SUB_PATH = 'test/artifacts/tiles';
+    const FS_SUB_PATH = FS_STORAGE_CONFIG_DEFAULTS.subPaths.tiles;
     const RELATIVE_PATH = 'layer/v1';
 
     it('should successfully call delete all files and return without failures', async () => {
