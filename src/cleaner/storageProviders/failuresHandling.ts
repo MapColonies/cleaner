@@ -1,4 +1,4 @@
-import type { DeleteFailure, DeleteResourcesResult } from './iStorageProvider';
+import type { DeleteFailure, DeleteResult } from './iStorageProvider';
 
 /**
  * Aggregated view of a batch of delete failures — designed to be embedded in a
@@ -27,10 +27,10 @@ export const mergeFailures = ({ source, target }: { source: DeleteFailure; targe
 /**
  * Reduces a list of provider delete failures into a compact, log-friendly
  * shape. Lives alongside `IStorageProvider` because it operates purely on
- * `DeleteResourcesResult` — any caller of `provider.delete()` can use it, regardless
+ * `DeleteResult` — any caller of `provider.delete()` can use it, regardless
  * of which storage backend produced the failures.
  */
-export function summarizeDeleteFailures({ failures }: DeleteResourcesResult): DeleteFailureSummary {
+export function summarizeDeleteFailures({ failures }: DeleteResult): DeleteFailureSummary {
   let failuresCount = 0;
   for (const { count } of failures.values()) {
     failuresCount += count;

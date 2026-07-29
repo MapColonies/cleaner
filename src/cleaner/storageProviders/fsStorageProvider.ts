@@ -3,13 +3,7 @@ import { rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
-import {
-  mergeFailures,
-  type DeleteFailure,
-  type DeleteResourcesResult,
-  type IStorageProvider,
-  type StorageProvider,
-} from '@src/cleaner/storageProviders';
+import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils';
 import type { ConfigType } from '@src/common/config';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
@@ -53,7 +47,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     }
   }
 
-  public async delete(paths: string[], basePath: string): Promise<DeleteResourcesResult> {
+  public async delete(paths: string[], basePath: string): Promise<DeleteResult> {
     this.logger.debug({ msg: 'Deleting files from filesystem', basePath, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
@@ -86,7 +80,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   public async deleteResources({
     paths,
     subPath,
-  }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResourcesResult> {
+  }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResult> {
     this.logger.debug({ msg: 'Starting FS files/dirs deletion', subPath, pathsCount: paths.length });
     let totalDeletedPathsCount = 0,
       totalFailedPathsCount = 0;

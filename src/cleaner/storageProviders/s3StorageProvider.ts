@@ -15,13 +15,7 @@ import {
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import type { ConfigType } from '@common/config';
-import {
-  mergeFailures,
-  type DeleteFailure,
-  type DeleteResourcesResult,
-  type IStorageProvider,
-  type StorageProvider,
-} from '@src/cleaner/storageProviders';
+import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
 import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
 
@@ -67,7 +61,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     this.logger.debug({ msg: 'Loaded S3 storage provider', endpoint: this.s3Config.endpoint, batchSize: this.batchSize });
   }
 
-  public async delete(paths: string[], bucket: string): Promise<DeleteResourcesResult> {
+  public async delete(paths: string[], bucket: string): Promise<DeleteResult> {
     this.logger.debug({ msg: 'Deleting objects from S3', bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
@@ -82,7 +76,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   public async deleteResources({
     bucket,
     paths,
-  }: Extract<DeleteStoredResourcesParams, { storageProvider: S3StorageProviderType }>): Promise<DeleteResourcesResult> {
+  }: Extract<DeleteStoredResourcesParams, { storageProvider: S3StorageProviderType }>): Promise<DeleteResult> {
     this.logger.debug({ msg: `Starting S3 resources deletion`, bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 

@@ -5,7 +5,7 @@ import type { DeleteStoredResourcesParams, Storage } from '@map-colonies/raster-
  */
 export type DeleteFailure = Map<string, { count: number; sample: string }>;
 
-export interface DeleteResourcesResult {
+export interface DeleteResult {
   failures: DeleteFailure;
 }
 
@@ -20,14 +20,14 @@ export interface IStorageProvider<T extends StorageProvider = StorageProvider> {
    * Returns an object including delete failures aggregation with one entry per failed reason.
    * "Not found" is reported as a failure with additional metadata on failure - count and sample
    */
-  delete: (paths: string[], storageTarget: string) => Promise<DeleteResourcesResult>;
+  delete: (paths: string[], storageTarget: string) => Promise<DeleteResult>;
 
   /**
    * Deletes ALL objects/files under the given paths.
    * - S3:  storageTarget = bucket name; paths are root paths to resource(s)
    * - FS:  storageTarget = base directory; paths are relative paths from mounted dir
    */
-  deleteResources: (deleteStoredResourcesParams: Extract<DeleteStoredResourcesParams, { storageProvider: T }>) => Promise<DeleteResourcesResult>;
+  deleteResources: (deleteStoredResourcesParams: Extract<DeleteStoredResourcesParams, { storageProvider: T }>) => Promise<DeleteResult>;
 
   /**
    * Returns true if relativePath exists within storageTarget and contains data.
