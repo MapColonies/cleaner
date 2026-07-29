@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { NoSuchKey } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
@@ -27,6 +28,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   private readonly concurrency: number;
   private readonly s3Bucket: string;
   private readonly fsBasePath: string;
+  private readonly fsTilesDeletionSubPath: string;
 
   public constructor(
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
@@ -39,6 +41,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     this.concurrency = config.get('strategies.tilesDeletion.concurrency') as unknown as number;
     this.s3Bucket = config.get('strategies.tilesDeletion.s3Bucket') as unknown as string;
     this.fsBasePath = config.get('storage.fs.basePath') as unknown as FsConfig['basePath'];
+    this.fsTilesDeletionSubPath = config.get('strategies.tilesDeletion.fsSubPath') as unknown as string;
   }
 
   public validate(params: unknown): TilesDeletionParams {
@@ -119,7 +122,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const storageProvider = this.storageProviders[params.sourceProvider];
     if (storageProvider === undefined) throw new UnrecoverableError(`Unsupported storage provider ${params.sourceProvider}`);
-    const storageTarget = params.sourceProvider === SourceType.S3 ? this.s3Bucket : this.fsBasePath;
+    const storageTarget = params.sourceProvider === SourceType.S3 ? this.s3Bucket : join(this.fsBasePath, this.fsTilesDeletionSubPath);
     this.logger.debug({ msg: `Using ${params.sourceProvider} provider` });
     return { provider: storageProvider, storageTarget };
   }

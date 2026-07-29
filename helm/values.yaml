@@ -32,8 +32,7 @@ storage:
       enabled: false
       name: ""
       mountPath: ""
-      tilesSubPath: ""
-
+      tilesSubPath: "" # e.g. folder/tiles
 
 mclabels:
   component: backend
