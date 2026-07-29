@@ -51,26 +51,24 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     this.logger.debug({ msg: 'Deleting files from filesystem', basePath, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
-    for (const relativePaths of getChunk(paths, this.fsConfig.delete.batchSize)) {
-      const results = await Promise.allSettled(
-        relativePaths.map(async (relativePath) => {
-          await unlink(join(basePath, relativePath));
-        })
-      );
+    const results = await Promise.allSettled(
+      paths.map(async (relativePath) => {
+        await unlink(join(basePath, relativePath));
+      })
+    );
 
-      const chunkFailures: DeleteFailure = new Map();
-      for (const [idx, result] of results.entries()) {
-        if (result.status === 'rejected') {
-          const relativePath = relativePaths[idx]!;
-          const error: unknown = result.reason;
-          const reason = describeError(error);
-          this.logger.debug({ msg: 'Failed to delete file', path: join(basePath, relativePath), reason, error });
-          const chunkFailure = chunkFailures.get(reason);
-          chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePaths[idx]! });
-        }
+    const chunkFailures: DeleteFailure = new Map();
+    for (const [idx, result] of results.entries()) {
+      if (result.status === 'rejected') {
+        const relativePath = paths[idx]!;
+        const error: unknown = result.reason;
+        const reason = describeError(error);
+        this.logger.debug({ msg: 'Failed to delete file', path: join(basePath, relativePath), reason, error });
+        const chunkFailure = chunkFailures.get(reason);
+        chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePath });
       }
-      failures = mergeFailures({ source: chunkFailures, target: failures });
     }
+    failures = mergeFailures({ source: chunkFailures, target: failures });
 
     await this.cleanupEmptyDirs(paths, basePath);
 
