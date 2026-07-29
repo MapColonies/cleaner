@@ -187,6 +187,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
           path,
           keysSize: pageOfObjects.length,
           pageSize: this.batchSize,
+          ...(pageOfObjects.length > 0 && { samplePageResponse: pageOfObjects[0] }),
         });
         const keys = pageOfObjects.map((obj) => obj.Key).filter((key): key is string => key !== undefined && this.matchesTarget(key, path));
 
