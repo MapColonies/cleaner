@@ -64,6 +64,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     this.logger.debug({ msg: `Starting S3 resources deletion`, bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
+    if (paths.length === 0) return { failures };
     if (paths.some((path) => path.length === 0)) throw new UnrecoverableError('Cannot delete resources directly under root path of the bucket'); // Prevent root deletion
 
     const exists = await this.bucketExists(bucket);
