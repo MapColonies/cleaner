@@ -12,10 +12,9 @@ import {
 import { faker } from '@faker-js/faker';
 import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConfigurationError, UnrecoverableError } from '@src/cleaner/errors';
+import { UnrecoverableError } from '@src/cleaner/errors';
 import { S3StorageProvider } from '@src/cleaner/storageProviders/s3StorageProvider';
-import type { ConfigType } from '@src/common/config';
-import { createMockLogger, createMockS3Config, S3_STORAGE_CONFIG_DEFAULTS } from '../helpers/mocks';
+import { createMockLogger, createS3StorageConfig, S3_VALIDATED_CONFIG_DEFAULTS } from '../helpers/mocks';
 
 const mockSend = vi.fn();
 const mockPaginateListObjectsV2Next = vi.fn();
@@ -45,14 +44,31 @@ const BUCKET = 'test-bucket';
 
 describe('S3StorageProvider', () => {
   let provider: S3StorageProvider;
-  let mockConfig: ConfigType;
   let mockLogger: Logger;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockConfig = createMockS3Config();
     mockLogger = createMockLogger();
-    provider = new S3StorageProvider(mockConfig, mockLogger);
+    provider = new S3StorageProvider(createS3StorageConfig(), mockLogger);
+  });
+
+  describe('#constructor', () => {
+    it('should construct S3Client with config values', () => {
+      const provider = new S3StorageProvider(createS3StorageConfig(), mockLogger);
+      expect(S3Client).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentials: {
+            accessKeyId: S3_VALIDATED_CONFIG_DEFAULTS.accessKeyId,
+            secretAccessKey: S3_VALIDATED_CONFIG_DEFAULTS.secretAccessKey,
+          },
+          endpoint: S3_VALIDATED_CONFIG_DEFAULTS.endpoint,
+          forcePathStyle: S3_VALIDATED_CONFIG_DEFAULTS.forcePathStyle,
+          region: S3_VALIDATED_CONFIG_DEFAULTS.region,
+          tls: S3_VALIDATED_CONFIG_DEFAULTS.sslEnabled,
+        })
+      );
+      expect(provider).toBeInstanceOf(S3StorageProvider);
+    });
   });
 
   describe('#delete', () => {
@@ -149,14 +165,10 @@ describe('S3StorageProvider', () => {
       });
     });
 
-    it('should batch paths into chunks of 1000 (S3 limit)', async () => {
+    it('should batch paths into chunks of the configured batch size', async () => {
       const paths = Array.from({ length: 1500 }, (_, i) => `object-${i}.txt`);
-      const mockConfig = createMockS3Config({
-        delete: {
-          batchSize: 1000,
-        },
-      });
-      provider = new S3StorageProvider(mockConfig, mockLogger);
+      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockLogger);
+
       await provider.delete(paths, BUCKET);
 
       expect(mockSend).toHaveBeenCalledTimes(2);
@@ -170,14 +182,9 @@ describe('S3StorageProvider', () => {
       expect(secondCallInput.Delete.Objects).toHaveLength(500);
     });
 
-    it('should cap DeleteObjects requests at S3 max keys limit (1000 keys) even when configured batchSize is larger', async () => {
+    it('should never exceed the S3 max keys limit per request for the maximum allowed batch size', async () => {
       const paths = Array.from({ length: 2500 }, (_, i) => `object-${i}.txt`);
-      const mockConfig = createMockS3Config({
-        delete: {
-          batchSize: 2000,
-        },
-      });
-      provider = new S3StorageProvider(mockConfig, mockLogger);
+      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockLogger);
 
       await provider.delete(paths, BUCKET);
 
@@ -196,6 +203,32 @@ describe('S3StorageProvider', () => {
       const result = await provider.delete(paths, BUCKET);
 
       expect(result).toEqual({ failures: new Map([['AccessDenied', { count: 2, sample: 'object-0.txt' }]]) });
+    });
+
+    it('should ignore returned errors that carry no Key', async () => {
+      mockSend.mockResolvedValue({
+        Errors: [{ Code: 'InternalError' }, { Key: 'b.txt', Code: 'AccessDenied' }],
+      });
+
+      const result = await provider.delete(['a.txt', 'b.txt'], BUCKET);
+
+      expect(result).toEqual({ failures: new Map([['AccessDenied', { count: 1, sample: 'b.txt' }]]) });
+    });
+
+    it('should return an empty failures map when every returned error carries no Key', async () => {
+      mockSend.mockResolvedValue({ Errors: [{ Code: 'InternalError' }] });
+
+      const result = await provider.delete(['a.txt'], BUCKET);
+
+      expect(result).toEqual({ failures: new Map() });
+    });
+
+    it('should tag the chunk with the stringified value when send rejects with a non-Error', async () => {
+      mockSend.mockRejectedValue('connection reset');
+
+      const result = await provider.delete(['a.txt', 'b.txt'], BUCKET);
+
+      expect(result).toEqual({ failures: new Map([['connection reset', { count: 2, sample: 'a.txt' }]]) });
     });
 
     it('should add entire chunk to failures tagged with the thrown error when send rejects', async () => {
@@ -266,6 +299,16 @@ describe('S3StorageProvider', () => {
   describe('#deleteResources', () => {
     const PATH = 'layer/v1';
     const NORMALIZED_PATH = `${PATH}/`;
+
+    it('should return empty result when input paths is empty', async () => {
+      const result = await provider.deleteResources({ paths: [], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: new Map() });
+      expect(mockPaginateListObjectsV2Next).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
+      expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
+      expect(mockSend).toHaveBeenCalledTimes(0);
+    });
 
     it('should return empty result when listing returns no keys', async () => {
       mockSend
@@ -483,6 +526,84 @@ describe('S3StorageProvider', () => {
       expect(mockSend).toHaveBeenCalledTimes(2);
     });
 
+    it('should handle a page that reports its KeyCount', async () => {
+      const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ Errors: [] }); // delete page 1
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { KeyCount: keys.length, Contents: keys.map((Key) => ({ Key })) } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: new Map() });
+      expect(DeleteObjectsCommand).toHaveBeenCalledWith({ Bucket: BUCKET, Delete: { Objects: keys.map((Key) => ({ Key })) } });
+      expect(mockSend).toHaveBeenCalledTimes(3);
+    });
+
+    it('should skip an entire page whose keys all belong to a sibling sharing the prefix', async () => {
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: [{ Key: 'layer/v10/0/0.png' }, { Key: 'layer/v1x/0/0.png' }] } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: new Map() });
+      expect(DeleteObjectsCommand).not.toHaveBeenCalled();
+      expect(mockSend).toHaveBeenCalledTimes(2);
+    });
+
+    it('should accumulate failures of the same reason across pages keeping the first sample', async () => {
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for single object
+        .mockResolvedValueOnce({ Errors: [{ Key: 'layer/v1/0/0.png', Code: 'AccessDenied' }] }) // delete page 1
+        .mockResolvedValueOnce({ Errors: [{ Key: 'layer/v1/0/1.png', Code: 'AccessDenied' }] }); // delete page 2
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: [{ Key: 'layer/v1/0/0.png' }] } })
+        .mockResolvedValueOnce({ done: false, value: { Contents: [{ Key: 'layer/v1/0/1.png' }] } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: new Map([['AccessDenied', { count: 2, sample: 'layer/v1/0/0.png' }]]) });
+    });
+
+    it('should accumulate failures of the same reason across paths keeping the first sample', async () => {
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for path 1
+        .mockResolvedValueOnce({ Errors: [{ Key: 'layer/v1/0/0.png', Code: 'AccessDenied' }] }) // delete path 1 page 1
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })) // no listing found for path 2
+        .mockResolvedValueOnce({ Errors: [{ Key: 'layer/v2/0/0.png', Code: 'AccessDenied' }] }); // delete path 2 page 1
+      mockPaginateListObjectsV2Next
+        .mockResolvedValueOnce({ done: false, value: { Contents: [{ Key: 'layer/v1/0/0.png' }] } })
+        .mockResolvedValueOnce({ done: true, value: undefined })
+        .mockResolvedValueOnce({ done: false, value: { Contents: [{ Key: 'layer/v2/0/0.png' }] } })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+
+      const result = await provider.deleteResources({ paths: ['layer/v1', 'layer/v2'], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(result).toEqual({ failures: new Map([['AccessDenied', { count: 2, sample: 'layer/v1/0/0.png' }]]) });
+    });
+
+    it('should request pages sized by the configured batch size', async () => {
+      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 500 }), mockLogger);
+      mockSend
+        .mockResolvedValueOnce(undefined) // bucket exists
+        .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object
+      mockPaginateListObjectsV2Next.mockResolvedValueOnce({ done: true, value: undefined });
+
+      await provider.deleteResources({ paths: [PATH], bucket: BUCKET, storageProvider: 'S3' });
+
+      expect(paginateListObjectsV2).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 500 }), expect.anything());
+    });
+
     it('should handle empty delete page Errors response', async () => {
       const keys = ['layer/v1/0/0.png', 'layer/v1/0/1.png'];
       mockSend
@@ -679,25 +800,6 @@ describe('S3StorageProvider', () => {
       expect(mockPaginateListObjectsV2Return).toHaveBeenCalledTimes(0);
       expect(mockPaginateListObjectsV2Throw).toHaveBeenCalledTimes(0);
       expect(mockSend).toHaveBeenCalledTimes(3);
-    });
-  });
-
-  describe('#constructor', () => {
-    it('should construct S3Client with config values', () => {
-      expect(S3Client).toHaveBeenCalledWith(
-        expect.objectContaining({
-          endpoint: S3_STORAGE_CONFIG_DEFAULTS.endpoint,
-          forcePathStyle: S3_STORAGE_CONFIG_DEFAULTS.forcePathStyle,
-          region: S3_STORAGE_CONFIG_DEFAULTS.region,
-          tls: S3_STORAGE_CONFIG_DEFAULTS.sslEnabled,
-        })
-      );
-    });
-
-    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
-      const zeroBatchConfig = createMockS3Config({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
-
-      expect(() => new S3StorageProvider(zeroBatchConfig, mockLogger)).toThrow(ConfigurationError);
     });
   });
 });

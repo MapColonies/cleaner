@@ -47,7 +47,7 @@ describe('TilesDeletionStrategy', () => {
     strategy = new TilesDeletionStrategy(createMockLogger(), createMockStrategyConfig(), storageProviders, queueClient, TASK_CONTEXT);
   });
 
-  describe('validate', () => {
+  describe('#validate', () => {
     it('should validate and return S3 params', () => {
       expect(strategy.validate(s3Params)).toEqual(s3Params);
     });
@@ -90,7 +90,7 @@ describe('TilesDeletionStrategy', () => {
     });
   });
 
-  describe('execute', () => {
+  describe('#execute', () => {
     describe('target validation', () => {
       it('should throw UnrecoverableError when S3 storage target does not exist', async () => {
         vi.mocked(MockS3Provider.targetExists).mockResolvedValue(false);
@@ -116,6 +116,14 @@ describe('TilesDeletionStrategy', () => {
         await strategy.execute(fsParams);
 
         expect(MockFsProvider.targetExists).toHaveBeenCalledWith(join(FS_BASE_PATH, FS_SUB_PATH), fsParams.tilesPath);
+      });
+
+      it('should propagate an error thrown by the target existence check', async () => {
+        const expectedError = new Error('EACCES');
+        vi.mocked(MockS3Provider.targetExists).mockRejectedValue(expectedError);
+
+        await expect(strategy.execute(s3Params)).rejects.toThrow(expectedError);
+        expect(MockS3Provider.delete).not.toHaveBeenCalled();
       });
     });
 
@@ -218,6 +226,52 @@ describe('TilesDeletionStrategy', () => {
 
         expect(mockUpdateProgress).toHaveBeenCalledTimes(1);
         expect(mockUpdateProgress).not.toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
+      });
+
+      it('should report the percentage of tiles processed so far', async () => {
+        // batchSize=100, concurrency=2 → flush + progress report after the first 200 of 210 tiles
+        const params: TilesDeletionParams = {
+          ...s3Params,
+          ranges: [{ zoom: 5, minX: 0, maxX: 13, minY: 0, maxY: 14 }],
+        };
+
+        await strategy.execute(params);
+
+        expect(mockUpdateProgress).toHaveBeenCalledWith(JOB_ID, TASK_ID, Math.round((200 / 210) * 100));
+      });
+
+      it('should report progress once per completed concurrency window', async () => {
+        // 420 tiles → two full windows of 200, then a trailing batch of 20
+        const params: TilesDeletionParams = {
+          ...s3Params,
+          ranges: [{ zoom: 5, minX: 0, maxX: 20, minY: 0, maxY: 19 }],
+        };
+
+        await strategy.execute(params);
+
+        expect(mockUpdateProgress).toHaveBeenCalledTimes(2);
+        expect(mockUpdateProgress).toHaveBeenNthCalledWith(1, JOB_ID, TASK_ID, Math.round((200 / 420) * 100));
+        expect(mockUpdateProgress).toHaveBeenNthCalledWith(2, JOB_ID, TASK_ID, Math.round((400 / 420) * 100));
+      });
+
+      it('should not report progress for a tile set smaller than one concurrency window', async () => {
+        await strategy.execute(s3Params);
+
+        expect(mockUpdateProgress).not.toHaveBeenCalled();
+      });
+
+      it('should not flush an empty trailing batch when the tile count divides evenly', async () => {
+        // 200 tiles = exactly batchSize (100) × concurrency (2) → one window, no remainder
+        const params: TilesDeletionParams = {
+          ...s3Params,
+          ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
+        };
+
+        await strategy.execute(params);
+
+        expect(MockS3Provider.delete).toHaveBeenCalledTimes(2);
+        expect(mockUpdateProgress).toHaveBeenCalledTimes(1);
+        expect(mockUpdateProgress).toHaveBeenCalledWith(JOB_ID, TASK_ID, 100);
       });
 
       it('should pass the correct jobId and taskId on mid-stream updates', async () => {
@@ -325,6 +379,55 @@ describe('TilesDeletionStrategy', () => {
         vi.mocked(MockS3Provider.delete).mockRejectedValue(new Error('S3 connection lost'));
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(/S3 connection lost/);
+      });
+
+      it('should aggregate hard failures of the same reason across concurrent batches', async () => {
+        // 200 tiles → two batches of 100, both rejecting with the same error
+        const params: TilesDeletionParams = {
+          ...s3Params,
+          ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
+        };
+        vi.mocked(MockS3Provider.delete).mockRejectedValue(new Error('S3 connection lost'));
+
+        // count is the sum of both batches, sample comes from the first batch that failed
+        await expect(strategy.execute(params)).rejects.toThrow(
+          `Failed to delete 200 tiles. Reasons: S3 connection lost=200. Samples: ${tilePath(5, 0, 0)} (S3 connection lost)`
+        );
+      });
+
+      it('should aggregate hard failures of different reasons across concurrent batches', async () => {
+        const params: TilesDeletionParams = {
+          ...s3Params,
+          ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
+        };
+        vi.mocked(MockS3Provider.delete).mockRejectedValueOnce(new Error('first down')).mockRejectedValueOnce(new Error('second down'));
+
+        await expect(strategy.execute(params)).rejects.toThrow(/Reasons: first down=100, second down=100/);
+      });
+
+      it('should surface both soft failures and hard rejections from the same flush', async () => {
+        const params: TilesDeletionParams = {
+          ...s3Params,
+          ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
+        };
+        vi.mocked(MockS3Provider.delete)
+          .mockResolvedValueOnce({ failures: new Map([['AccessDenied', { count: 3, sample: tilePath(5, 0, 0) }]]) })
+          .mockRejectedValueOnce(new Error('S3 connection lost'));
+
+        // reasons are ordered by descending count
+        await expect(strategy.execute(params)).rejects.toThrow(/Failed to delete 103 tiles\. Reasons: S3 connection lost=100, AccessDenied=3/);
+      });
+
+      it('should tag hard-rejected batches with the errno code when the thrown error carries one', async () => {
+        vi.mocked(MockFsProvider.delete).mockRejectedValue(Object.assign(new Error('permission denied'), { code: 'EACCES' }));
+
+        await expect(strategy.execute(fsParams)).rejects.toThrow(/Reasons: EACCES=4/);
+      });
+
+      it('should treat a hard-rejected batch tagged ENOENT as missing tiles rather than a retryable failure', async () => {
+        vi.mocked(MockFsProvider.delete).mockRejectedValue(Object.assign(new Error('no such file'), { code: 'ENOENT' }));
+
+        await expect(strategy.execute(fsParams)).resolves.toBeUndefined();
       });
     });
   });

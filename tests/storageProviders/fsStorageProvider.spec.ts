@@ -1,13 +1,11 @@
-import { accessSync, Stats, statSync } from 'node:fs';
+import type { Stats } from 'node:fs';
 import { rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { faker } from '@faker-js/faker';
-import { ConfigurationError, UnrecoverableError } from '@src/cleaner/errors';
-import { FsStorageProvider, type FsConfig } from '@src/cleaner/storageProviders/fsStorageProvider';
-import type { ConfigType } from '@src/common/config';
-import { createMockFsConfig, createMockLogger, FS_STORAGE_CONFIG_DEFAULTS } from '../helpers/mocks';
+import { UnrecoverableError } from '@src/cleaner/errors';
+import { FsStorageProvider } from '@src/cleaner/storageProviders/fsStorageProvider';
+import { createFsStorageConfig, createMockLogger, FS_VALIDATED_CONFIG_DEFAULTS } from '../helpers/mocks';
 
 vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
@@ -16,20 +14,11 @@ vi.mock('node:fs/promises', () => ({
   rm: vi.fn(),
 }));
 
-vi.mock(import('node:fs'), async (importOriginal) => {
-  const originModule = await importOriginal();
-  return {
-    ...originModule,
-    accessSync: vi.fn(),
-    statSync: vi.fn(),
-  };
-});
-const BASE_PATH = FS_STORAGE_CONFIG_DEFAULTS.basePath;
+const BASE_PATH = FS_VALIDATED_CONFIG_DEFAULTS.basePath;
 
 describe('FsStorageProvider', () => {
   let provider: FsStorageProvider;
   let mockLogger: Logger;
-  let mockConfig: ConfigType;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,11 +26,16 @@ describe('FsStorageProvider', () => {
     vi.mocked(unlink).mockResolvedValue(undefined);
     vi.mocked(rmdir).mockResolvedValue(undefined);
     vi.mocked(rm).mockResolvedValue(undefined);
-    vi.mocked(accessSync).mockReturnValue(undefined);
-    vi.mocked(statSync).mockReturnValue({ isDirectory: () => true } as Stats);
     mockLogger = createMockLogger();
-    mockConfig = createMockFsConfig();
-    provider = new FsStorageProvider(mockConfig, mockLogger);
+    provider = new FsStorageProvider(createFsStorageConfig(), mockLogger);
+  });
+
+  describe('#constructor', () => {
+    it('should return an instance of the class', () => {
+      const provider = new FsStorageProvider(createFsStorageConfig({ basePath: '/other/base' }), mockLogger);
+
+      expect(provider).toBeInstanceOf(FsStorageProvider);
+    });
   });
 
   describe('#targetExists', () => {
@@ -133,6 +127,55 @@ describe('FsStorageProvider', () => {
       expect(result).toEqual({ failures: new Map([['Unknown', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
 
+    it('should tag failures with the stringified value when a non-Error is thrown', async () => {
+      vi.mocked(unlink).mockRejectedValue('raw string failure');
+
+      const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
+
+      expect(result).toEqual({ failures: new Map([['raw string failure', { count: 1, sample: 'tile/10/0/0.png' }]]) });
+    });
+
+    it('should fall back to "Unknown" when a non-Error empty value is thrown', async () => {
+      vi.mocked(unlink).mockRejectedValue('');
+
+      const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
+
+      expect(result).toEqual({ failures: new Map([['Unknown', { count: 1, sample: 'tile/10/0/0.png' }]]) });
+    });
+
+    it('should fall back to a generic reason when the thrown value cannot be stringified', async () => {
+      vi.mocked(unlink).mockRejectedValue({
+        toString: () => {
+          throw new Error('toString failed');
+        },
+      });
+
+      const result = await provider.delete(['tile/10/0/0.png'], BASE_PATH);
+
+      expect(result).toEqual({ failures: new Map([['non-serializable thrown value', { count: 1, sample: 'tile/10/0/0.png' }]]) });
+    });
+
+    it('should unlink every path of a large input', async () => {
+      const paths = Array.from({ length: 7 }, (_, i) => `tile/10/0/${i}.png`);
+
+      await provider.delete(paths, BASE_PATH);
+
+      expect(unlink).toHaveBeenCalledTimes(7);
+      for (const path of paths) {
+        expect(unlink).toHaveBeenCalledWith(join(BASE_PATH, path));
+      }
+    });
+
+    it('should aggregate failures of the same reason keeping the first sample', async () => {
+      const permError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+      vi.mocked(unlink).mockRejectedValue(permError);
+      const paths = Array.from({ length: 7 }, (_, i) => `tile/10/0/${i}.png`);
+
+      const result = await provider.delete(paths, BASE_PATH);
+
+      expect(result).toEqual({ failures: new Map([['EACCES', { count: 7, sample: 'tile/10/0/0.png' }]]) });
+    });
+
     it('should handle mixed success, ENOENT and real errors', async () => {
       const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       const permError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
@@ -204,12 +247,51 @@ describe('FsStorageProvider', () => {
         await provider.delete([], BASE_PATH);
         expect(rmdir).not.toHaveBeenCalled();
       });
+
+      it('should not call rmdir for a path that has no directory segments', async () => {
+        await provider.delete(['0.png'], BASE_PATH);
+
+        expect(unlink).toHaveBeenCalledWith(join(BASE_PATH, '0.png'));
+        expect(rmdir).not.toHaveBeenCalled();
+      });
+
+      it('should attempt to rmdir ancestors of paths from every batch', async () => {
+        // batchSize is 3 → cleanup runs once for all paths, after the last batch
+        const paths = Array.from({ length: 4 }, (_, i) => `tile/10/${i}/0.png`);
+
+        await provider.delete(paths, BASE_PATH);
+
+        for (let i = 0; i < 4; i++) {
+          expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, `tile/10/${i}`));
+        }
+        expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, 'tile/10'));
+        expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, 'tile'));
+      });
+
+      it('should attempt to rmdir deeper directories before their ancestors', async () => {
+        await provider.delete(['layer/v1/10/0/0.png'], BASE_PATH);
+
+        const order = vi.mocked(rmdir).mock.calls.map(([path]) => path);
+        expect(order).toEqual([
+          join(BASE_PATH, 'layer/v1/10/0'),
+          join(BASE_PATH, 'layer/v1/10'),
+          join(BASE_PATH, 'layer/v1'),
+          join(BASE_PATH, 'layer'),
+        ]);
+      });
     });
   });
 
   describe('#deleteResources', () => {
-    const FS_SUB_PATH = FS_STORAGE_CONFIG_DEFAULTS.subPaths.tiles;
+    const FS_SUB_PATH = FS_VALIDATED_CONFIG_DEFAULTS.subPaths[0]!;
     const RELATIVE_PATH = 'layer/v1';
+
+    it('should successfully return without failures for empty paths', async () => {
+      const result = await provider.deleteResources({ paths: [], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(result).toEqual({ failures: new Map() });
+      expect(rm).not.toHaveBeenCalled();
+    });
 
     it('should successfully call delete all files and return without failures', async () => {
       const result = await provider.deleteResources({ paths: [RELATIVE_PATH], subPath: FS_SUB_PATH, storageProvider: 'FS' });
@@ -277,69 +359,76 @@ describe('FsStorageProvider', () => {
 
       await expect(result).resolves.not.toThrow();
     });
-  });
 
-  describe('#constructor', () => {
-    it('should construct successfully when the base path is accessible and is a directory', () => {
-      expect(() => new FsStorageProvider(mockConfig, mockLogger)).not.toThrow();
-      expect(accessSync).toHaveBeenCalledWith(FS_STORAGE_CONFIG_DEFAULTS.basePath, expect.any(Number));
-      expect(statSync).toHaveBeenCalledWith(FS_STORAGE_CONFIG_DEFAULTS.basePath);
+    it('should rm every path when the input spans multiple batches', async () => {
+      // batchSize is 3 → 7 paths span 3 batches (3 + 3 + 1)
+      const paths = Array.from({ length: 7 }, (_, i) => `layer/v${i}`);
+
+      await provider.deleteResources({ paths, subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(rm).toHaveBeenCalledTimes(7);
+      for (const path of paths) {
+        expect(rm).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, path), { recursive: true, force: true });
+      }
     });
 
-    it('should throw ConfigurationError when the base path does not exist', () => {
-      vi.mocked(accessSync).mockImplementationOnce(() => {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    it('should accumulate failures of the same reason across batches keeping the first sample', async () => {
+      vi.mocked(rm).mockRejectedValue(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+      const paths = Array.from({ length: 7 }, (_, i) => `layer/v${i}`);
+
+      const result = await provider.deleteResources({ paths, subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(result).toEqual({
+        failures: new Map([['EACCES', { count: 7, sample: join(BASE_PATH, FS_SUB_PATH, 'layer/v0') }]]),
       });
-
-      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
     });
 
-    it('should throw ConfigurationError when access to the base path is denied (EACCES)', () => {
-      vi.mocked(accessSync).mockImplementationOnce(() => {
-        throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
+    it('should group failures by reason across batches', async () => {
+      const paths = ['layer/v0', 'layer/v1', 'layer/v2', 'layer/v3'];
+      vi.mocked(rm)
+        .mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }))
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(Object.assign(new Error('EBUSY'), { code: 'EBUSY' }))
+        // 4th path lands in the second batch
+        .mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+
+      const result = await provider.deleteResources({ paths, subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(result).toEqual({
+        failures: new Map([
+          ['EACCES', { count: 2, sample: join(BASE_PATH, FS_SUB_PATH, 'layer/v0') }],
+          ['EBUSY', { count: 1, sample: join(BASE_PATH, FS_SUB_PATH, 'layer/v2') }],
+        ]),
       });
-
-      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
     });
 
-    it('should throw ConfigurationError when access to the base path is denied (EPERM)', () => {
-      vi.mocked(accessSync).mockImplementationOnce(() => {
-        throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
-      });
+    it('should throw UnrecoverableError when a path does not sit under any configured subPath', async () => {
+      const result = provider.deleteResources({ paths: [RELATIVE_PATH], subPath: 'unconfigured/subPath', storageProvider: 'FS' });
 
-      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
+      await expect(result).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
     });
 
-    it('should throw ConfigurationError when the base path exists but is not a directory', () => {
-      vi.mocked(statSync).mockReturnValueOnce({ isDirectory: () => false } as Stats);
+    it('should throw UnrecoverableError when a path resolves to the configured subPath itself', async () => {
+      const result = provider.deleteResources({ paths: [''], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
-      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
+      await expect(result).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
     });
 
-    it('should resolve a relative base path (without a leading separator) to an absolute path', () => {
-      const relativeConfig = {
-        get: vi.fn().mockReturnValue({
-          ...FS_STORAGE_CONFIG_DEFAULTS,
-          ...({ basePath: 'relative/tiles' } satisfies Pick<FsConfig, 'basePath'>),
-        }),
-      } as unknown as ConfigType;
+    it('should throw UnrecoverableError when a path escapes into a sibling that shares the subPath prefix', async () => {
+      // resolves to '<basePath>/artifacts/tiles-backup' — under the base path, but outside the configured subPath
+      const result = provider.deleteResources({ paths: ['../tiles-backup'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
-      expect(() => new FsStorageProvider(relativeConfig, createMockLogger())).not.toThrow();
-      expect(accessSync).toHaveBeenCalledWith('/relative/tiles', expect.any(Number));
+      await expect(result).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
     });
 
-    it('should throw ConfigurationError for an unexpected accessibility error', () => {
-      vi.mocked(accessSync).mockImplementationOnce(() => {
-        throw new Error('disk exploded');
-      });
+    it('should throw UnrecoverableError when only one of several paths escapes the configured subPath', async () => {
+      const result = provider.deleteResources({ paths: [RELATIVE_PATH, '../tiles-backup'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
-      expect(() => new FsStorageProvider(mockConfig, mockLogger)).toThrow(ConfigurationError);
-    });
-
-    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
-      const zeroBatchConfig = createMockFsConfig({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
-
-      expect(() => new FsStorageProvider(zeroBatchConfig, mockLogger)).toThrow(ConfigurationError);
+      await expect(result).rejects.toThrow(UnrecoverableError);
+      expect(rm).not.toHaveBeenCalled();
     });
   });
 });

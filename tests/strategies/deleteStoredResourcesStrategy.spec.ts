@@ -125,6 +125,35 @@ describe('DeleteStoredResourcesStrategy', () => {
       await expect(result).rejects.toThrow(RecoverableError);
     });
 
+    it('should include the failures count, grouped reasons and samples in the RecoverableError message', async () => {
+      (mockS3Provider.deleteResources as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        failures: new Map([
+          ['AccessDenied', { count: 1, sample: 'layer1/0/0.png' }],
+          ['InternalError', { count: 4, sample: 'layer1/0/1.png' }],
+        ]),
+      });
+
+      // reasons and samples are ordered by descending count
+      await expect(strategy.execute(s3Params)).rejects.toThrow(
+        'Failed to delete 5 objects. Reasons: InternalError=4, AccessDenied=1. Samples: layer1/0/1.png (InternalError), layer1/0/0.png (AccessDenied)'
+      );
+    });
+
+    it('should pass every path through to the provider', async () => {
+      const params: DeleteStoredResourcesParams = { ...s3Params, paths: ['layer1', 'layer2', 'layer3'] };
+
+      await strategy.execute(params);
+
+      expect(mockS3Provider.deleteResources).toHaveBeenCalledWith({ paths: params.paths, bucket: S3_BUCKET, storageProvider: 'S3' });
+    });
+
+    it('should resolve without throwing for an empty paths list', async () => {
+      const result = strategy.execute({ ...s3Params, paths: [] });
+
+      await expect(result).resolves.toBeUndefined();
+      expect(mockS3Provider.deleteResources).toHaveBeenCalledWith({ paths: [], bucket: S3_BUCKET, storageProvider: 'S3' });
+    });
+
     it('should rethrow error thrown by deleteResources', async () => {
       const expectedError = new Error('Custom');
       (mockS3Provider.deleteResources as ReturnType<typeof vi.fn>).mockRejectedValueOnce(expectedError);

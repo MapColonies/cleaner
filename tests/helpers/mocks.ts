@@ -1,9 +1,8 @@
 import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { vi } from 'vitest';
-import type { FsConfig } from '@src/cleaner/storageProviders/fsStorageProvider';
 import type { IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders/iStorageProvider';
-import type { S3Config } from '@src/cleaner/storageProviders/s3StorageProvider';
+import type { FsConfig, FsStorageConfig, S3Config, S3StorageConfig } from '@src/cleaner/storageProviders/storageConfig';
 import type { ErrorHandler } from '../../src/cleaner/errors';
 import type { JobTrackerClient } from '../../src/cleaner/httpClients';
 import type { ITaskStrategy, StrategyFactory } from '../../src/cleaner/strategies';
@@ -129,6 +128,22 @@ export function createMockS3Config(overrides: Record<string, unknown> = {}): Con
   } as unknown as ConfigType;
 }
 
+// ─── S3 Validated Storage Config ───────────────────────────────────
+
+export const S3_VALIDATED_CONFIG_DEFAULTS = {
+  endpoint: S3_STORAGE_CONFIG_DEFAULTS.endpoint,
+  accessKeyId: S3_STORAGE_CONFIG_DEFAULTS.accessKeyId,
+  secretAccessKey: S3_STORAGE_CONFIG_DEFAULTS.secretAccessKey,
+  sslEnabled: S3_STORAGE_CONFIG_DEFAULTS.sslEnabled,
+  forcePathStyle: S3_STORAGE_CONFIG_DEFAULTS.forcePathStyle,
+  region: S3_STORAGE_CONFIG_DEFAULTS.region,
+  batchSize: S3_STORAGE_CONFIG_DEFAULTS.delete.batchSize,
+} as const satisfies S3StorageConfig;
+
+export function createS3StorageConfig(overrides: Partial<S3StorageConfig> = {}): S3StorageConfig {
+  return { ...S3_VALIDATED_CONFIG_DEFAULTS, ...overrides };
+}
+
 // ─── FS Storage Config (FsStorageProvider) ───────────────────────────────────
 
 export const FS_STORAGE_CONFIG_DEFAULTS = {
@@ -145,6 +160,18 @@ export function createMockFsConfig(overrides: Record<string, unknown> = {}): Con
   return {
     get: vi.fn().mockReturnValue({ ...FS_STORAGE_CONFIG_DEFAULTS, ...overrides }),
   } as unknown as ConfigType;
+}
+
+// ─── FS Validated Storage Config ───────────────────────────────────
+
+export const FS_VALIDATED_CONFIG_DEFAULTS = {
+  basePath: FS_STORAGE_CONFIG_DEFAULTS.basePath,
+  subPaths: Object.values(FS_STORAGE_CONFIG_DEFAULTS.subPaths),
+  batchSize: FS_STORAGE_CONFIG_DEFAULTS.delete.batchSize,
+} as const satisfies FsStorageConfig;
+
+export function createFsStorageConfig(overrides: Partial<FsStorageConfig> = {}): FsStorageConfig {
+  return { ...FS_VALIDATED_CONFIG_DEFAULTS, ...overrides };
 }
 
 // ─── JobTrackerClient ─────────────────────────────────────────────────────────
