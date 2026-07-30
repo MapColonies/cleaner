@@ -9,9 +9,7 @@
       "level": "info",
       "prettyPrint": false,
       "opentelemetryOptions": {
-        "enabled": false,
-        "url": "",
-        "resourceAttributes": {}
+        "enabled": false
       }
     }
   },
@@ -28,18 +26,26 @@
         {
           "job": "Ingestion_Swap_Update",
           "task": "tiles-deletion"
+        },
+        {
+          "job": "Delete_Layer",
+          "task": "tiles-deletion"
+        },
+        {
+          "job": "Delete_Layer",
+          "task": "artifacts-deletion"
         }
       ]
     }
   },
   "queue": {
-    "jobManagerBaseUrl": "http://localhost:8080",
-    "heartbeatBaseUrl": "http://localhost:8081",
+    "jobManagerBaseUrl": "http://localhost:8081",
+    "heartbeatBaseUrl": "http://localhost:8082",
     "heartbeatIntervalMs": 1000,
     "dequeueIntervalMs": 3000
   },
   "servicesUrl": {
-    "jobTracker": "http://localhost:8082"
+    "jobTracker": "http://localhost:8083"
   },
   "disableHttpClientLogs": false,
   "jobDefinitions": {
@@ -49,11 +55,22 @@
       },
       "swapUpdate": {
         "type": "Ingestion_Swap_Update"
+      },
+      "deleteLayer": {
+        "type": "Delete_Layer"
       }
     },
     "tasks": {
       "tilesDeletion": {
         "type": "tiles-deletion",
+        "maxAttempts": 3
+      },
+      "layerDeletion": {
+        "type": "tiles-deletion",
+        "maxAttempts": 3
+      },
+      "artifactsDeletion": {
+        "type": "artifacts-deletion",
         "maxAttempts": 3
       }
     }
@@ -63,21 +80,35 @@
     "delay": "exponential",
     "shouldResetTimeout": true
   },
-  "s3": {
-    "endpoint": "http://localhost:9000",
-    "accessKeyId": "minioadmin",
-    "secretAccessKey": "minioadmin",
-    "sslEnabled": false,
-    "forcePathStyle": true,
-    "region": "us-east-1"
+  "storage": {
+    "cleanupStorageProviders": ["FS", "S3"],
+    "s3": {
+      "delete": {
+        "batchSize": 1000
+      },
+      "endpoint": "http://localhost:9000",
+      "accessKeyId": "minioadmin",
+      "secretAccessKey": "minioadmin",
+      "sslEnabled": false,
+      "forcePathStyle": true,
+      "region": "us-east-1"
+    },
+    "fs": {
+      "delete": {
+        "batchSize": 1000
+      },
+      "basePath": "/data",
+      "subPaths": {
+        "tilesSubPath": "tiles"
+      }
+    }
   },
   "strategies": {
     "tilesDeletion": {
       "s3Bucket": "",
-      "fsBasePath": "/tiles",
+      "fsSubPath": "tiles",
       "batchSize": 1000,
-      "concurrency": 10,
-      "failureSampleSize": 3
+      "concurrency": 10
     }
   }
 }

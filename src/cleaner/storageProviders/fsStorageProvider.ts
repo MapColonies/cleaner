@@ -1,15 +1,29 @@
+import { rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { stat, unlink, rmdir } from 'node:fs/promises';
 import type { Logger } from '@map-colonies/js-logger';
-import { describeError } from '../errors';
-import type { DeleteFailure, IStorageProvider } from './iStorageProvider';
+import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
+import { inject, injectable } from 'tsyringe';
+import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
+import { getChunk, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils';
+import { SERVICES } from '@common/constants';
+import { describeError, UnrecoverableError } from '../errors';
+import type { FsStorageConfig } from './storageConfig';
 
-export class FsStorageProvider implements IStorageProvider {
-  public constructor(private readonly logger: Logger) {}
+type FSStorageProviderType = Extract<StorageProvider, 'FS'>;
 
-  public async targetExists(storageTarget: string, relativePath: string): Promise<boolean> {
+@injectable()
+export class FsStorageProvider implements IStorageProvider<'FS'> {
+  public constructor(
+    @inject(SERVICES.FS_STORAGE_CONFIG) private readonly fsConfig: FsStorageConfig,
+    @inject(SERVICES.LOGGER) private readonly logger: Logger
+  ) {
+    this.logger.debug({ msg: 'Loaded FS storage provider', basePath: this.fsConfig.basePath });
+  }
+
+  public async targetExists(basePath: string, relativePath: string): Promise<boolean> {
+    this.logger.debug({ msg: 'Checking if target resource exists', basePath, path: relativePath });
     try {
-      await stat(join(storageTarget, relativePath));
+      await stat(join(basePath, relativePath));
       return true;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
@@ -17,33 +31,104 @@ export class FsStorageProvider implements IStorageProvider {
     }
   }
 
-  public async delete(paths: string[], storageTarget: string): Promise<DeleteFailure[]> {
-    if (paths.length === 0) {
-      return [];
-    }
-
-    this.logger.info({ msg: 'Deleting files from filesystem', basePath: storageTarget, count: paths.length });
+  public async delete(paths: string[], basePath: string): Promise<DeleteResult> {
+    this.logger.debug({ msg: 'Deleting files from filesystem', basePath, pathsCount: paths.length });
+    let failures: DeleteFailure = new Map();
 
     const results = await Promise.allSettled(
       paths.map(async (relativePath) => {
-        await unlink(join(storageTarget, relativePath));
+        await unlink(join(basePath, relativePath));
       })
     );
 
-    const failures: DeleteFailure[] = [];
+    const chunkFailures: DeleteFailure = new Map();
     for (const [idx, result] of results.entries()) {
       if (result.status === 'rejected') {
         const relativePath = paths[idx]!;
         const error: unknown = result.reason;
         const reason = describeError(error);
-        this.logger.debug({ msg: 'Failed to delete file', path: join(storageTarget, relativePath), reason, error });
-        failures.push({ path: relativePath, reason });
+        this.logger.debug({ msg: 'Failed to delete file', path: join(basePath, relativePath), reason, error });
+        const chunkFailure = chunkFailures.get(reason);
+        chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePath });
       }
     }
+    failures = mergeFailures({ source: chunkFailures, target: failures });
 
-    await this.cleanupEmptyDirs(paths, storageTarget);
+    await this.cleanupEmptyDirs(paths, basePath);
 
-    return failures;
+    return { failures };
+  }
+
+  public async deleteResources({
+    paths,
+    subPath,
+  }: Extract<DeleteStoredResourcesParams, { storageProvider: FSStorageProviderType }>): Promise<DeleteResult> {
+    this.logger.debug({ msg: 'Starting FS files/dirs deletion', subPath, pathsCount: paths.length });
+    let totalDeletedPathsCount = 0,
+      totalFailedPathsCount = 0;
+
+    const relativePaths = paths.map((path) => join(subPath, path));
+
+    if (!this.arePathsValid(relativePaths))
+      throw new UnrecoverableError(
+        'Cannot delete files/folders outside base path or subpath as well as base path or subpath itself. paths must also match a valid configured path.'
+      );
+
+    let failures: DeleteFailure = new Map();
+
+    for (const relativePathsChunk of getChunk(relativePaths, this.fsConfig.batchSize)) {
+      const results = await Promise.allSettled(
+        relativePathsChunk.map(async (relativePath) => {
+          await rm(join(this.fsConfig.basePath, relativePath), { recursive: true, force: true });
+        })
+      );
+
+      const chunkFailures: DeleteFailure = new Map();
+      for (const [idx, result] of results.entries()) {
+        if (result.status === 'rejected') {
+          const fullPath = join(this.fsConfig.basePath, relativePathsChunk[idx]!);
+          const reason = describeError(result.reason);
+          this.logger.error({ msg: 'Failed to delete file/folder', fullPath, reason, err: result.reason });
+          const chunkFailure = chunkFailures.get(reason);
+          chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? fullPath });
+        }
+      }
+      failures = mergeFailures({ source: chunkFailures, target: failures });
+
+      let failedPathsCount = 0;
+      chunkFailures.forEach((chunkFailure) => (failedPathsCount += chunkFailure.count));
+      const deletedPathsCount = relativePathsChunk.length - failedPathsCount;
+      totalDeletedPathsCount += deletedPathsCount;
+      totalFailedPathsCount += failedPathsCount;
+      this.logger.debug({
+        msg: 'Completed processing current chunk of paths',
+        deletedPathsCount,
+        totalDeletedPathsCount,
+        failedPathsCount,
+        totalFailedPathsCount,
+      });
+    }
+
+    return { failures };
+  }
+
+  /**
+   * Preforms several checks on input `paths`.
+   * Includes a check for path traversal (i.e. accessing folders above root folder)
+   * @param paths
+   * @returns boolean whether `paths` are valid and pass all checks
+   */
+  private arePathsValid(paths: string[]): boolean {
+    this.logger.debug({ msg: 'Checking paths validity', paths });
+    const badPaths = paths.filter((path) => {
+      const startsWithAllowedSubPath = this.fsConfig.subPaths.some((subPath) => path.startsWith(normalizeFolderPath(subPath)));
+      const absolutePath = resolveAbsolutePath(join(this.fsConfig.basePath, path));
+      const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(this.fsConfig.basePath));
+      return !(startsWithAllowedSubPath && startsWithBasePath);
+    });
+    const areValid = badPaths.length === 0;
+    this.logger.debug({ msg: `Paths validity check ${areValid ? 'succeeded' : 'failed'}`, ...(!areValid && { badPaths }) });
+    return areValid;
   }
 
   // Attempts to remove any directories that became empty after file deletion.
@@ -59,6 +144,7 @@ export class FsStorageProvider implements IStorageProvider {
   //   levelIdx 2 → { storageTarget/layer/v1 }
   //   levelIdx 3 → { storageTarget/layer }            (root ancestor, tried last)
   private async cleanupEmptyDirs(relativePaths: string[], storageTarget: string): Promise<void> {
+    this.logger.debug({ msg: 'Deleting empty directories', pathsCount: relativePaths.length });
     // Map from levelIdx → unique absolute dir paths at that depth.
     // Using a Set per level deduplicates dirs shared by multiple deleted files
     // (e.g. a shared parent directory when multiple files within it are deleted at once).

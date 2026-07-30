@@ -73,34 +73,55 @@
       "__format": "boolean"
     }
   },
-  "s3": {
-    "endpoint": "S3_ENDPOINT",
-    "accessKeyId": "S3_ACCESS_KEY_ID",
-    "secretAccessKey": "S3_SECRET_ACCESS_KEY",
-    "sslEnabled": {
-      "__name": "S3_SSL_ENABLED",
-      "__format": "boolean"
+  "storage": {
+    "cleanupStorageProviders": {
+      "__name": "CLEANUP_STORAGE_PROVIDERS",
+      "__format": "json"
     },
-    "forcePathStyle": {
-      "__name": "S3_FORCE_PATH_STYLE",
-      "__format": "boolean"
+    "s3": {
+      "delete": {
+        "batchSize": {
+          "__name": "S3_DELETE_BATCH_SIZE",
+          "__format": "number"
+        }
+      },
+      "endpoint": "S3_ENDPOINT",
+      "accessKeyId": "S3_ACCESS_KEY_ID",
+      "secretAccessKey": "S3_SECRET_ACCESS_KEY",
+      "sslEnabled": {
+        "__name": "S3_SSL_ENABLED",
+        "__format": "boolean"
+      },
+      "forcePathStyle": {
+        "__name": "S3_FORCE_PATH_STYLE",
+        "__format": "boolean"
+      },
+      "region": "S3_REGION"
     },
-    "region": "S3_REGION"
+    "fs": {
+      "delete": {
+        "batchSize": {
+          "__name": "FS_DELETE_BATCH_SIZE",
+          "__format": "number"
+        }
+      },
+      "basePath": "FS_BASE_PATH",
+      "subPaths": {
+        "__name": "FS_SUB_PATHS",
+        "__format": "json"
+      }
+    }
   },
   "strategies": {
     "tilesDeletion": {
       "s3Bucket": "TILES_DELETION_S3_BUCKET",
-      "fsBasePath": "TILES_DELETION_FS_BASE_PATH",
+      "fsSubPath": "TILES_DELETION_FS_SUB_PATH",
       "batchSize": {
         "__name": "TILES_DELETION_BATCH_SIZE",
         "__format": "number"
       },
       "concurrency": {
         "__name": "TILES_DELETION_CONCURRENCY",
-        "__format": "number"
-      },
-      "failureSampleSize": {
-        "__name": "TILES_DELETION_FAILURE_SAMPLE_SIZE",
         "__format": "number"
       }
     }

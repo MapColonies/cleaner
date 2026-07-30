@@ -1,22 +1,33 @@
+import type { DeleteStoredResourcesParams, Storage } from '@map-colonies/raster-shared';
+
 /**
- * A single failed deletion paired with a short reason string (e.g. 'ENOENT',
- * 'AccessDenied', 'NoSuchKey').
+ * A storage for failures with additional metadata.
  */
-export interface DeleteFailure {
-  path: string;
-  reason: string;
+export type DeleteFailure = Map<string, { count: number; sample: string }>;
+
+export interface DeleteResult {
+  failures: DeleteFailure;
 }
 
-export interface IStorageProvider {
+export type StorageProvider = Storage['storageProvider'];
+
+export interface IStorageProvider<T extends StorageProvider = StorageProvider> {
   /**
    * Deletes a batch of relative file paths within the given storage target.
    * - S3:  storageTarget = bucket name; paths are object keys
    * - FS:  storageTarget = base directory; full path = join(storageTarget, path)
    *
-   * Returns one entry per failed deletion. "Not found" is reported as a failure
-   * (with reason 'ENOENT' / 'NoSuchKey').
+   * Returns an object including delete failures aggregation with one entry per failed reason.
+   * "Not found" is reported as a failure with additional metadata on failure - count and sample
    */
-  delete: (paths: string[], storageTarget: string) => Promise<DeleteFailure[]>;
+  delete: (paths: string[], storageTarget: string) => Promise<DeleteResult>;
+
+  /**
+   * Deletes ALL objects/files under the given paths.
+   * - S3:  storageTarget = bucket name; paths are root paths to resource(s)
+   * - FS:  storageTarget = base directory; paths are relative paths from mounted dir
+   */
+  deleteResources: (deleteStoredResourcesParams: Extract<DeleteStoredResourcesParams, { storageProvider: T }>) => Promise<DeleteResult>;
 
   /**
    * Returns true if relativePath exists within storageTarget and contains data.
@@ -25,3 +36,7 @@ export interface IStorageProvider {
    */
   targetExists: (storageTarget: string, relativePath: string) => Promise<boolean>;
 }
+
+export type StorageProviders = {
+  [T in StorageProvider]?: IStorageProvider<T>;
+};

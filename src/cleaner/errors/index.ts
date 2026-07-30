@@ -1,2 +1,2 @@
-export { toError, describeError, RecoverableError, UnrecoverableError, ConfigurationError, ValidationError, StrategyNotFoundError } from './errors';
 export { ErrorHandler } from './errorHandler';
+export { ConfigurationError, describeError, RecoverableError, StrategyNotFoundError, toError, UnrecoverableError, ValidationError } from './errors';
