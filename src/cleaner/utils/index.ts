@@ -1,4 +1,5 @@
 export { getChunk } from './chunk';
+export { assertCanDeleteFromFolder } from './fs';
 export { buildPollingPairs } from './pairBuilder';
-export { validateSchema } from './validationHelper';
 export { normalizeFolderPath, resolveAbsolutePath } from './path';
+export { validateSchema } from './validationHelper';

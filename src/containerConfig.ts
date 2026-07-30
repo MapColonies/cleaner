@@ -13,7 +13,7 @@ import { getTracing } from '@common/tracing';
 import type { StorageProviders } from '@src/cleaner/storageProviders';
 import { ErrorHandler } from './cleaner/errors';
 import { JobTrackerClient } from './cleaner/httpClients';
-import { FsStorageProvider, S3StorageProvider } from './cleaner/storageProviders';
+import { buildFsStorageConfig, buildS3StorageConfig, FsStorageProvider, S3StorageProvider } from './cleaner/storageProviders';
 import { DeleteStoredResourcesStrategy, StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
 import type { QueueConfig } from './cleaner/types';
 import { ConfigType, getConfig } from './common/config';
@@ -34,6 +34,11 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
   const tracer = trace.getTracer(SERVICE_NAME);
   const metricsRegistry = new Registry();
   configInstance.initializeMetrics(metricsRegistry);
+
+  // Startup validations
+  const cleanupStorageProviders = configInstance.get('storage.cleanupStorageProviders') as unknown as string[];
+  const fsStorageConfig = cleanupStorageProviders.includes(SourceType.FS) ? buildFsStorageConfig(configInstance, logger) : undefined;
+  const s3StorageConfig = cleanupStorageProviders.includes(SourceType.S3) ? buildS3StorageConfig(configInstance, logger) : undefined;
 
   const dependencies: InjectionObject<unknown>[] = [
     { token: SERVICES.CONFIG, provider: { useValue: configInstance } },
@@ -98,16 +103,15 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
         useClass: JobTrackerClient,
       },
     },
+    ...(fsStorageConfig ? [{ token: SERVICES.FS_STORAGE_CONFIG, provider: { useValue: fsStorageConfig } }] : []),
+    ...(s3StorageConfig ? [{ token: SERVICES.S3_STORAGE_CONFIG, provider: { useValue: s3StorageConfig } }] : []),
     {
       token: SERVICES.STORAGE_PROVIDERS,
       provider: {
         useFactory: instancePerContainerCachingFactory<StorageProviders>((container) => {
-          const config = container.resolve<ConfigType>(SERVICES.CONFIG);
-          const logger = container.resolve<Logger>(SERVICES.LOGGER);
-          const cleanupStorageProviders = config.get('storage.cleanupStorageProviders') as unknown as string[];
           const providers = {
-            ...(cleanupStorageProviders.includes(SourceType.S3) && { [SourceType.S3]: new S3StorageProvider(config, logger) }),
-            ...(cleanupStorageProviders.includes(SourceType.FS) && { [SourceType.FS]: new FsStorageProvider(config, logger) }),
+            ...(s3StorageConfig && { [SourceType.S3]: container.resolve(S3StorageProvider) }),
+            ...(fsStorageConfig && { [SourceType.FS]: container.resolve(FsStorageProvider) }),
           };
           return providers;
         }),

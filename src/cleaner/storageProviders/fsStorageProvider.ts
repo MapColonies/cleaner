@@ -1,39 +1,23 @@
-import { accessSync, constants, statSync } from 'node:fs';
 import { rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
+import { inject, injectable } from 'tsyringe';
 import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils';
-import type { ConfigType } from '@src/common/config';
-import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
+import { SERVICES } from '@common/constants';
+import { describeError, UnrecoverableError } from '../errors';
+import type { FsStorageConfig } from './storageConfig';
 
 type FSStorageProviderType = Extract<StorageProvider, 'FS'>;
 
-export interface FsConfig {
-  delete: {
-    batchSize: number;
-  };
-  basePath: string;
-  subPaths: Record<string, string>;
-}
-
+@injectable()
 export class FsStorageProvider implements IStorageProvider<'FS'> {
-  private readonly fsConfig: FsConfig;
-  private readonly basePath: string;
-  private readonly subPaths: string[];
-
   public constructor(
-    private readonly config: ConfigType,
-    private readonly logger: Logger
+    @inject(SERVICES.FS_STORAGE_CONFIG) private readonly fsConfig: FsStorageConfig,
+    @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {
-    this.fsConfig = this.config.get('storage.fs') as unknown as FsConfig;
-    this.subPaths = Object.values(this.fsConfig.subPaths);
-    if (this.subPaths.length === 0) throw new ConfigurationError('subPaths must have at least 1 entry');
-    if (this.fsConfig.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
-    this.basePath = resolveAbsolutePath(this.fsConfig.basePath);
-    this.canDeleteFromFolder(this.basePath);
-    this.logger.debug({ msg: 'Loaded FS storage provider', basePath: this.basePath });
+    this.logger.debug({ msg: 'Loaded FS storage provider', basePath: this.fsConfig.basePath });
   }
 
   public async targetExists(basePath: string, relativePath: string): Promise<boolean> {
@@ -92,17 +76,17 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
 
     let failures: DeleteFailure = new Map();
 
-    for (const relativePathsChunk of getChunk(relativePaths, this.fsConfig.delete.batchSize)) {
+    for (const relativePathsChunk of getChunk(relativePaths, this.fsConfig.batchSize)) {
       const results = await Promise.allSettled(
         relativePathsChunk.map(async (relativePath) => {
-          await rm(join(this.basePath, relativePath), { recursive: true, force: true });
+          await rm(join(this.fsConfig.basePath, relativePath), { recursive: true, force: true });
         })
       );
 
       const chunkFailures: DeleteFailure = new Map();
       for (const [idx, result] of results.entries()) {
         if (result.status === 'rejected') {
-          const fullPath = join(this.basePath, relativePathsChunk[idx]!);
+          const fullPath = join(this.fsConfig.basePath, relativePathsChunk[idx]!);
           const reason = describeError(result.reason);
           this.logger.error({ msg: 'Failed to delete file/folder', fullPath, reason, err: result.reason });
           const chunkFailure = chunkFailures.get(reason);
@@ -128,31 +112,6 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     return { failures };
   }
 
-  private canDeleteFromFolder(path: string): void {
-    try {
-      accessSync(path, constants.F_OK | constants.R_OK | constants.W_OK);
-      this.logger.debug({ msg: 'Able to delete from directory', path });
-    } catch (err) {
-      if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-        throw new ConfigurationError(`FS path does not exist: ${path}`);
-      } else if (err instanceof Error && 'code' in err && (err.code === 'EACCES' || err.code === 'EPERM')) {
-        throw new ConfigurationError(`FS path permission denied for path: ${path}`);
-      } else {
-        throw new ConfigurationError(`An unexpected error occurred on FS path accessibility check: ${describeError(err)}`);
-      }
-    }
-
-    try {
-      const pathStat = statSync(path);
-      if (!pathStat.isDirectory()) {
-        throw new ConfigurationError(`FS path exists but it is a file, not a directory: ${path}`);
-      }
-    } catch (err) {
-      if (err instanceof ConfigurationError) throw err;
-      throw new ConfigurationError(`An unexpected error occurred on FS info check: ${describeError(err)}`);
-    }
-  }
-
   /**
    * Preforms several checks on input `paths`.
    * Includes a check for path traversal (i.e. accessing folders above root folder)
@@ -162,9 +121,9 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   private arePathsValid(paths: string[]): boolean {
     this.logger.debug({ msg: 'Checking paths validity', paths });
     const badPaths = paths.filter((path) => {
-      const startsWithAllowedSubPath = this.subPaths.some((subPath) => path.startsWith(normalizeFolderPath(subPath)));
-      const absolutePath = resolveAbsolutePath(join(this.basePath, path));
-      const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(this.basePath));
+      const startsWithAllowedSubPath = this.fsConfig.subPaths.some((subPath) => path.startsWith(normalizeFolderPath(subPath)));
+      const absolutePath = resolveAbsolutePath(join(this.fsConfig.basePath, path));
+      const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(this.fsConfig.basePath));
       return !(startsWithAllowedSubPath && startsWithBasePath);
     });
     const areValid = badPaths.length === 0;

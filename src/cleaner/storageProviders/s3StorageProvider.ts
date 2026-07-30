@@ -14,58 +14,42 @@ import {
 } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
-import type { ConfigType } from '@common/config';
+import { inject, injectable } from 'tsyringe';
+import { SERVICES } from '@common/constants';
 import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
-import { ConfigurationError, describeError, UnrecoverableError } from '../errors';
+import { describeError, UnrecoverableError } from '../errors';
+import type { S3StorageConfig } from './storageConfig';
 
 type S3StorageProviderType = Extract<StorageProvider, 'S3'>;
 
-// S3/MinIO reject DeleteObjects requests with more than 1000 keys, regardless of configured batch size.
-const S3_DELETE_OBJECTS_MAX_KEYS = 1000;
-
-export interface S3Config {
-  delete: {
-    batchSize: number;
-  };
-  endpoint: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  sslEnabled?: boolean;
-  forcePathStyle?: boolean;
-  region?: string;
-}
-
+@injectable()
 export class S3StorageProvider implements IStorageProvider<S3StorageProviderType> {
   private readonly s3Client: S3Client;
-  private readonly s3Config: S3Config;
-  private readonly batchSize: number;
 
   public constructor(
-    config: ConfigType,
-    private readonly logger: Logger
+    @inject(SERVICES.S3_STORAGE_CONFIG) private readonly s3Config: S3StorageConfig,
+    @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {
-    this.s3Config = config.get('storage.s3') as unknown as S3Config;
-    if (this.s3Config.delete.batchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
-    this.batchSize = Math.min(this.s3Config.delete.batchSize, S3_DELETE_OBJECTS_MAX_KEYS);
+    // TODO: move client to a singleton resolution since
     this.s3Client = new S3Client({
-      endpoint: this.s3Config.endpoint,
+      endpoint: s3Config.endpoint,
       credentials: {
-        accessKeyId: this.s3Config.accessKeyId,
-        secretAccessKey: this.s3Config.secretAccessKey,
+        accessKeyId: s3Config.accessKeyId,
+        secretAccessKey: s3Config.secretAccessKey,
       },
-      forcePathStyle: this.s3Config.forcePathStyle,
-      region: this.s3Config.region,
-      tls: this.s3Config.sslEnabled,
+      forcePathStyle: s3Config.forcePathStyle,
+      region: s3Config.region,
+      tls: s3Config.sslEnabled,
     });
-    this.logger.debug({ msg: 'Loaded S3 storage provider', endpoint: this.s3Config.endpoint, batchSize: this.batchSize });
+    this.logger.debug({ msg: 'Loaded S3 storage provider', endpoint: s3Config.endpoint, batchSize: this.s3Config.batchSize });
   }
 
   public async delete(paths: string[], bucket: string): Promise<DeleteResult> {
     this.logger.debug({ msg: 'Deleting objects from S3', bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 
-    for (const chunk of getChunk(paths, Math.min(this.s3Config.delete.batchSize, S3_DELETE_OBJECTS_MAX_KEYS))) {
+    for (const chunk of getChunk(paths, this.s3Config.batchSize)) {
       const chunkFailures = await this.deleteObjects(chunk, bucket);
       failures = mergeFailures({ source: chunkFailures, target: failures });
     }
@@ -170,7 +154,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     const s3Objects = this.getS3Objects({
       bucket,
       prefix: path,
-      pageSize: this.batchSize,
+      pageSize: this.s3Config.batchSize,
     });
 
     try {
@@ -180,7 +164,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
           bucket,
           path,
           keysSize: pageOfObjects.length,
-          pageSize: this.batchSize,
+          pageSize: this.s3Config.batchSize,
           ...(pageOfObjects.length > 0 && { samplePageResponse: pageOfObjects[0] }),
         });
         const keys = pageOfObjects.map((obj) => obj.Key).filter((key): key is string => key !== undefined && this.matchesTarget(key, path));
