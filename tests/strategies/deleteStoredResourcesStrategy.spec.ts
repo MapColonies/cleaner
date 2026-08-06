@@ -1,5 +1,5 @@
 import type { Logger } from '@map-colonies/js-logger';
-import { SourceType, type DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
+import { SourceType, type FsDeleteStoredResourcesParams, type S3DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import { beforeEach, describe, expect, it, type vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
@@ -10,8 +10,8 @@ import { createMockStoredResourcesDeletionStrategyConfig, createMockLogger, crea
 const S3_BUCKET = 'test-bucket';
 const FS_SUB_PATH = 'test/artifacts/tiles';
 
-const s3Params: DeleteStoredResourcesParams = { storageProvider: SourceType.S3, paths: ['layer1'], bucket: S3_BUCKET };
-const fsParams: DeleteStoredResourcesParams = { storageProvider: SourceType.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
+const s3Params: S3DeleteStoredResourcesParams = { storageProvider: SourceType.S3, paths: ['layer1'], bucket: S3_BUCKET };
+const fsParams: FsDeleteStoredResourcesParams = { storageProvider: SourceType.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
 
 describe('DeleteStoredResourcesStrategy', () => {
   let strategy: DeleteStoredResourcesStrategy;
@@ -57,12 +57,26 @@ describe('DeleteStoredResourcesStrategy', () => {
       expect(() => strategy.validate({ storageProvider: 'GCS', catalogId: 'layer1' })).toThrow(ValidationError);
     });
 
-    it('should throw ValidationError when tilesPath is empty string', () => {
-      expect(() => strategy.validate({ storageProvider: SourceType.S3, catalogId: '' })).toThrow(ValidationError);
+    it('should validate and return REDIS params, whose prefix is the locator', () => {
+      const redisParams = { storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84' };
+
+      expect(strategy.validate(redisParams)).toEqual(redisParams);
     });
 
-    it('should throw ValidationError when tilesPath is missing', () => {
-      expect(() => strategy.validate({ storageProvider: SourceType.S3 })).toThrow(ValidationError);
+    it('should throw ValidationError when paths is an empty array', () => {
+      expect(() => strategy.validate({ storageProvider: SourceType.S3, bucket: S3_BUCKET, paths: [] })).toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError when paths is missing', () => {
+      expect(() => strategy.validate({ storageProvider: SourceType.S3, bucket: S3_BUCKET })).toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError when the S3 bucket is missing', () => {
+      expect(() => strategy.validate({ storageProvider: SourceType.S3, paths: ['layer1'] })).toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError when the FS subPath is missing', () => {
+      expect(() => strategy.validate({ storageProvider: SourceType.FS, paths: ['layer1'] })).toThrow(ValidationError);
     });
 
     it('should throw ValidationError for null params', () => {
@@ -94,7 +108,7 @@ describe('DeleteStoredResourcesStrategy', () => {
     });
 
     it('should throw UnrecoverableError for unknown provider', async () => {
-      const unknownParams = { ...s3Params, storageProvider: 'UNKNOWN' } as unknown as DeleteStoredResourcesParams;
+      const unknownParams = { ...s3Params, storageProvider: 'UNKNOWN' } as unknown as S3DeleteStoredResourcesParams;
 
       const result = strategy.execute(unknownParams);
 
@@ -140,7 +154,7 @@ describe('DeleteStoredResourcesStrategy', () => {
     });
 
     it('should pass every path through to the provider', async () => {
-      const params: DeleteStoredResourcesParams = { ...s3Params, paths: ['layer1', 'layer2', 'layer3'] };
+      const params: S3DeleteStoredResourcesParams = { ...s3Params, paths: ['layer1', 'layer2', 'layer3'] };
 
       await strategy.execute(params);
 

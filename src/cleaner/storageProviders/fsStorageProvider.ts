@@ -20,10 +20,19 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     this.logger.debug({ msg: 'Loaded FS storage provider', basePath: this.fsConfig.basePath });
   }
 
-  public async targetExists(basePath: string, relativePath: string): Promise<boolean> {
-    this.logger.debug({ msg: 'Checking if target resource exists', basePath, path: relativePath });
+  /**
+   * @param subPath - Sub path of the configured base path, as supplied by the task
+   * @param relativePath - Path below `subPath` to check for
+   */
+  public async targetExists(subPath: string, relativePath: string): Promise<boolean> {
+    const relativeTargetPath = join(subPath, relativePath);
+    if (!this.arePathsValid([relativeTargetPath]))
+      throw new UnrecoverableError(`Cannot act on paths outside the configured sub paths: ${relativeTargetPath}`);
+
+    const targetPath = join(this.fsConfig.basePath, relativeTargetPath);
+    this.logger.debug({ msg: 'Checking if target resource exists', subPath, path: relativePath, targetPath });
     try {
-      await stat(join(basePath, relativePath));
+      await stat(targetPath);
       return true;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
@@ -31,13 +40,18 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     }
   }
 
-  public async delete(paths: string[], basePath: string): Promise<DeleteResult> {
-    this.logger.debug({ msg: 'Deleting files from filesystem', basePath, pathsCount: paths.length });
+  /**
+   * @param paths - Paths relative to `subPath`
+   * @param subPath - Sub path of the configured base path, as supplied by the task
+   */
+  public async delete(paths: string[], subPath: string): Promise<DeleteResult> {
+    this.logger.debug({ msg: 'Deleting files from filesystem', subPath, pathsCount: paths.length });
+    const targetPath = join(this.fsConfig.basePath, subPath);
     let failures: DeleteFailure = new Map();
 
     const results = await Promise.allSettled(
       paths.map(async (relativePath) => {
-        await unlink(join(basePath, relativePath));
+        await unlink(join(targetPath, relativePath));
       })
     );
 
@@ -47,14 +61,14 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
         const relativePath = paths[idx]!;
         const error: unknown = result.reason;
         const reason = describeError(error);
-        this.logger.debug({ msg: 'Failed to delete file', path: join(basePath, relativePath), reason, error });
+        this.logger.debug({ msg: 'Failed to delete file', path: join(targetPath, relativePath), reason, error });
         const chunkFailure = chunkFailures.get(reason);
         chunkFailures.set(reason, { count: (chunkFailure?.count ?? 0) + 1, sample: chunkFailure?.sample ?? relativePath });
       }
     }
     failures = mergeFailures({ source: chunkFailures, target: failures });
 
-    await this.cleanupEmptyDirs(paths, basePath);
+    await this.cleanupEmptyDirs(paths, targetPath);
 
     return { failures };
   }

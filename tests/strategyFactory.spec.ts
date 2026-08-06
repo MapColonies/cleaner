@@ -7,7 +7,7 @@ import type { IStorageProvider, StorageProviders } from '@src/cleaner/storagePro
 import { StrategyNotFoundError } from '../src/cleaner/errors';
 import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
 import { SERVICES } from '../src/common/constants';
-import { createMockConfig, createMockLogger, createMockQueueClient, createMockStorageProvider } from './helpers/mocks';
+import { createMockLogger, createMockQueueClient, createMockStorageProvider, createMockStrategyConfig } from './helpers/mocks';
 
 class MockStrategy implements ITaskStrategy {
   public validate(params: unknown): Record<string, unknown> {
@@ -39,7 +39,7 @@ describe('StrategyFactory', () => {
     };
 
     container.register(SERVICES.LOGGER, { useValue: mockLogger });
-    container.register(SERVICES.CONFIG, { useValue: createMockConfig() });
+    container.register(SERVICES.CONFIG, { useValue: createMockStrategyConfig() });
     container.register(SERVICES.STORAGE_PROVIDERS, { useValue: storageProviders });
     container.register(SERVICES.QUEUE_CLIENT, { useValue: createMockQueueClient() });
 
