@@ -4,7 +4,7 @@ import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
 import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
-import { getChunk, isPathWithinAllowedSubPaths } from '@src/cleaner/utils';
+import { getChunk, isPathWithinAllowedSubPaths, resolveAbsolutePath } from '@src/cleaner/utils';
 import { SERVICES } from '@common/constants';
 import { describeError, UnrecoverableError } from '../errors';
 import type { FsStorageConfig } from './storageConfig';
