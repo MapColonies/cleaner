@@ -117,6 +117,8 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
       });
     }
 
+    await this.cleanupEmptyDirs(paths, resolveAbsolutePath(join(this.fsConfig.basePath, subPath)));
+
     return { failures };
   }
 
@@ -143,9 +145,11 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
     this.logger.debug({ msg: 'Paths validity check succeeded' });
   }
 
-  // Attempts to remove any directories that became empty after file deletion.
-  // Strategy: collect every ancestor directory of every deleted file, grouped by
-  // depth relative to the file (levelIdx 0 = direct parent, 1 = grandparent, …).
+  // Attempts to remove any directories that became empty after deletion. `relativePaths`
+  // are the deleted targets themselves — files (#delete) or whole resource dirs
+  // (#deleteResources); either way only their ancestors are considered, never the target.
+  // Strategy: collect every ancestor directory of every deleted target, grouped by
+  // depth relative to it (levelIdx 0 = direct parent, 1 = grandparent, …).
   // Delete deepest dirs first so that once a directory is empty its parent can
   // also be removed in a subsequent level. rmdir silently fails on non-empty dirs,
   // so any directory still containing files is simply skipped.
@@ -164,7 +168,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
 
     for (const relativePath of relativePaths) {
       const parts = relativePath.split('/');
-      const segments = parts.slice(0, parts.length - 1); // strip filename, keep dir segments
+      const segments = parts.slice(0, parts.length - 1); // strip the deleted target itself, keep ancestor segments
       for (let count = segments.length; count >= 1; count--) {
         // levelIdx 0 is the innermost dir (direct parent of the tile file);
         // higher values walk toward the storage root.

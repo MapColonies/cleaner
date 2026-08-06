@@ -313,12 +313,14 @@ describe('FsStorageProvider', () => {
   describe('#deleteResources', () => {
     const FS_SUB_PATH = FS_VALIDATED_CONFIG_DEFAULTS.subPaths[0]!;
     const RELATIVE_PATH = 'layer/v1';
+    const SUB_PATH_ROOT = join(BASE_PATH, FS_SUB_PATH);
 
     it('should successfully return without failures for empty paths', async () => {
       const result = await provider.deleteResources({ paths: [], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
       expect(result).toEqual({ failures: new Map() });
       expect(rm).not.toHaveBeenCalled();
+      expect(rmdir).not.toHaveBeenCalled();
     });
 
     it('should successfully call delete all files and return without failures', async () => {
@@ -326,6 +328,7 @@ describe('FsStorageProvider', () => {
 
       expect(result).toEqual({ failures: new Map() });
       expect(rm).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH), { recursive: true, force: true });
+      expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, 'layer'));
     });
 
     it('should successfully call delete all files and return without failures for multiple paths', async () => {
@@ -333,13 +336,16 @@ describe('FsStorageProvider', () => {
 
       expect(result).toEqual({ failures: new Map() });
       expect(rm).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH), { recursive: true, force: true });
+      expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, 'layer'));
     });
 
-    it('should successfully call delete all files and return without failures for multiple paths', async () => {
+    it('should successfully call delete all files and return without failures for nested paths', async () => {
       const result = await provider.deleteResources({ paths: [RELATIVE_PATH, `${RELATIVE_PATH}/old`], subPath: FS_SUB_PATH, storageProvider: 'FS' });
 
       expect(result).toEqual({ failures: new Map() });
       expect(rm).toHaveBeenCalledWith(join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH), { recursive: true, force: true });
+      expect(rmdir).toHaveBeenNthCalledWith(1, join(BASE_PATH, FS_SUB_PATH, 'layer'));
+      expect(rmdir).toHaveBeenNthCalledWith(2, join(BASE_PATH, FS_SUB_PATH, RELATIVE_PATH));
     });
 
     it('should throw UnrecoverableError when a path escapes the base path via traversal', async () => {
@@ -347,6 +353,7 @@ describe('FsStorageProvider', () => {
 
       await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
+      expect(rmdir).not.toHaveBeenCalled();
     });
 
     it('should throw UnrecoverableError when only one of several paths escapes the base path', async () => {
@@ -354,6 +361,7 @@ describe('FsStorageProvider', () => {
 
       await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
+      expect(rmdir).not.toHaveBeenCalled();
     });
 
     it('should throw UnrecoverableError when a path resolves to the base path itself', async () => {
@@ -361,6 +369,7 @@ describe('FsStorageProvider', () => {
 
       await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
+      expect(rmdir).not.toHaveBeenCalled();
     });
 
     it('should throw UnrecoverableError when a path resolves to the base path itself via "."', async () => {
@@ -368,6 +377,7 @@ describe('FsStorageProvider', () => {
 
       await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
+      expect(rmdir).not.toHaveBeenCalled();
     });
 
     it('should return failures entry when rm rejects', async () => {
@@ -457,6 +467,73 @@ describe('FsStorageProvider', () => {
 
       await expect(result).rejects.toThrow(UnrecoverableError);
       expect(rm).not.toHaveBeenCalled();
+    });
+
+    it('should attempt to rmdir every ancestor of the deleted resource, deepest first', async () => {
+      await provider.deleteResources({ paths: ['layer/v1/old'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(vi.mocked(rmdir).mock.calls.map(([path]) => path)).toEqual([join(SUB_PATH_ROOT, 'layer/v1'), join(SUB_PATH_ROOT, 'layer')]);
+    });
+
+    it('should resolve ancestors relative to the subPath root and not to the base path', async () => {
+      await provider.deleteResources({ paths: [RELATIVE_PATH], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(rmdir).toHaveBeenCalledWith(join(SUB_PATH_ROOT, 'layer'));
+      expect(rmdir).not.toHaveBeenCalledWith(join(BASE_PATH, 'layer'));
+    });
+
+    it('should not attempt to rmdir the deleted resource itself, the subPath root or the base path', async () => {
+      await provider.deleteResources({ paths: [RELATIVE_PATH], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      const rmdirCalls = vi.mocked(rmdir).mock.calls.map(([path]) => path);
+      expect(rmdirCalls).not.toContain(join(SUB_PATH_ROOT, RELATIVE_PATH));
+      expect(rmdirCalls).not.toContain(SUB_PATH_ROOT);
+      expect(rmdirCalls).not.toContain(join(BASE_PATH, 'artifacts'));
+      expect(rmdirCalls).not.toContain(BASE_PATH);
+    });
+
+    it('should not call rmdir for a top-level resource path that has no ancestor below the subPath root', async () => {
+      await provider.deleteResources({ paths: ['layer'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(rm).toHaveBeenCalledWith(join(SUB_PATH_ROOT, 'layer'), { recursive: true, force: true });
+      expect(rmdir).not.toHaveBeenCalled();
+    });
+
+    it('should deduplicate rmdir calls for ancestors shared by multiple resource paths', async () => {
+      await provider.deleteResources({ paths: ['layer/v1/old', 'layer/v1/new'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(vi.mocked(rmdir).mock.calls.map(([path]) => path)).toEqual([join(SUB_PATH_ROOT, 'layer/v1'), join(SUB_PATH_ROOT, 'layer')]);
+    });
+
+    it('should attempt to rmdir ancestors of paths from every batch', async () => {
+      const paths = Array.from({ length: 4 }, (_, i) => `layer/v${i}/old`);
+
+      await provider.deleteResources({ paths, subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      for (let i = 0; i < 4; i++) {
+        expect(rmdir).toHaveBeenCalledWith(join(SUB_PATH_ROOT, `layer/v${i}`));
+      }
+      expect(rmdir).toHaveBeenCalledWith(join(SUB_PATH_ROOT, 'layer'));
+    });
+
+    it('should silently ignore rmdir failures (ENOTEMPTY)', async () => {
+      vi.mocked(rmdir).mockRejectedValue(Object.assign(new Error('ENOTEMPTY'), { code: 'ENOTEMPTY' }));
+
+      const result = await provider.deleteResources({ paths: ['layer/v1/old'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(result).toEqual({ failures: new Map() });
+    });
+
+    it('should still attempt cleanup when rm rejects, without adding cleanup errors to the failures', async () => {
+      vi.mocked(rm).mockRejectedValue(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+      vi.mocked(rmdir).mockRejectedValue(Object.assign(new Error('ENOTEMPTY'), { code: 'ENOTEMPTY' }));
+
+      const result = await provider.deleteResources({ paths: ['layer/v1/old'], subPath: FS_SUB_PATH, storageProvider: 'FS' });
+
+      expect(rmdir).toHaveBeenCalledWith(join(SUB_PATH_ROOT, 'layer/v1'));
+      expect(result).toEqual({
+        failures: new Map([['EACCES', { count: 1, sample: join(SUB_PATH_ROOT, 'layer/v1/old') }]]),
+      });
     });
   });
 });
