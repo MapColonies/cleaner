@@ -13,9 +13,7 @@ serviceUrls:
   jobTracker: ""
 
 storage:
-  cleanupStorageProviders:
-    - FS
-    - S3
+  cleanupStorageProviders: {}
   s3:
     delete:
       batchSize: 1000
@@ -24,7 +22,6 @@ storage:
     secretName: ""
     sslEnabled: false
     region: ""
-    tilesBucket: ""
   fs:
     delete:
       batchSize: 1000
