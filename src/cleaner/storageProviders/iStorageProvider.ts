@@ -21,7 +21,7 @@ export interface IStorageProvider<T extends StorageProvider = StorageProvider> {
    * Returns an object including delete failures aggregation with one entry per failed reason.
    * "Not found" is reported as a failure with additional metadata on failure - count and sample
    */
-  delete: (paths: string[], storageTarget: string) => Promise<DeleteResult>;
+  delete: (storageTarget: string, paths: string[]) => Promise<DeleteResult>;
 
   /**
    * Deletes ALL objects/files under the given paths.

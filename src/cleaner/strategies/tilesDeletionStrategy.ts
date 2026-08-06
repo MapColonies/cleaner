@@ -184,7 +184,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     let failures: DeleteFailure = new Map();
 
     const processedTilesCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
-    const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(batch, storageTarget)));
+    const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(storageTarget, batch)));
     for (const [index, result] of results.entries()) {
       if (result.status === 'fulfilled') {
         failures = mergeFailures({ source: result.value.failures, target: failures });

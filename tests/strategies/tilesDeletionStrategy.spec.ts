@@ -148,14 +148,14 @@ describe('TilesDeletionStrategy', () => {
 
         await strategy.execute(params);
 
-        expect(MockS3Provider.delete).toHaveBeenCalledWith(expect.any(Array), 'per-task-bucket');
+        expect(MockS3Provider.delete).toHaveBeenCalledWith('per-task-bucket', expect.any(Array));
         expect(MockFsProvider.delete).not.toHaveBeenCalled();
       });
 
       it("should call FS provider with the task's own subPath as storage target", async () => {
         await strategy.execute(fsParams);
 
-        expect(MockFsProvider.delete).toHaveBeenCalledWith(expect.any(Array), FS_SUB_PATH);
+        expect(MockFsProvider.delete).toHaveBeenCalledWith(FS_SUB_PATH, expect.any(Array));
         expect(MockS3Provider.delete).not.toHaveBeenCalled();
       });
 
@@ -164,7 +164,7 @@ describe('TilesDeletionStrategy', () => {
 
         await strategy.execute({ ...fsParams, subPath });
 
-        expect(MockFsProvider.delete).toHaveBeenCalledWith(expect.any(Array), subPath);
+        expect(MockFsProvider.delete).toHaveBeenCalledWith(subPath, expect.any(Array));
       });
 
       it('should throw UnrecoverableError for REDIS params, whose tiles are not path addressed', async () => {
@@ -205,10 +205,12 @@ describe('TilesDeletionStrategy', () => {
         await strategy.execute(s3Params);
 
         // range: minX=0,maxX=1 minY=0,maxY=1 → 4 tiles, x iterates outer
-        expect(MockS3Provider.delete).toHaveBeenCalledWith(
-          [tilePath(10, 0, 0), tilePath(10, 0, 1), tilePath(10, 1, 0), tilePath(10, 1, 1)],
-          S3_BUCKET
-        );
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [
+          tilePath(10, 0, 0),
+          tilePath(10, 0, 1),
+          tilePath(10, 1, 0),
+          tilePath(10, 1, 1),
+        ]);
       });
 
       it('should use the specified file extension', async () => {
@@ -216,7 +218,7 @@ describe('TilesDeletionStrategy', () => {
 
         await strategy.execute(params);
 
-        const [paths] = vi.mocked(MockS3Provider.delete).mock.calls[0]!;
+        const [, paths] = vi.mocked(MockS3Provider.delete).mock.calls[0]!;
         expect(paths.every((p) => p.endsWith('.jpeg'))).toBe(true);
       });
 
@@ -231,7 +233,7 @@ describe('TilesDeletionStrategy', () => {
 
         await strategy.execute(params);
 
-        expect(MockS3Provider.delete).toHaveBeenCalledWith([tilePath(5, 0, 0), tilePath(6, 0, 0)], S3_BUCKET);
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(5, 0, 0), tilePath(6, 0, 0)]);
       });
 
       it('should offset x/y correctly when range does not start at 0', async () => {
@@ -242,7 +244,7 @@ describe('TilesDeletionStrategy', () => {
 
         await strategy.execute(params);
 
-        expect(MockS3Provider.delete).toHaveBeenCalledWith([tilePath(7, 3, 8), tilePath(7, 3, 9), tilePath(7, 4, 8), tilePath(7, 4, 9)], S3_BUCKET);
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(7, 3, 8), tilePath(7, 3, 9), tilePath(7, 4, 8), tilePath(7, 4, 9)]);
       });
     });
 

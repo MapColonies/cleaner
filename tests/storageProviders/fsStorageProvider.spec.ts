@@ -88,19 +88,19 @@ describe('FsStorageProvider', () => {
 
   describe('#delete', () => {
     it('should return empty failures map for empty input', async () => {
-      const result = await provider.delete([], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, []);
       expect(result).toEqual({ failures: new Map() });
       expect(unlink).not.toHaveBeenCalled();
     });
 
     it('should call unlink with joined base path and relative path', async () => {
-      await provider.delete(['layer/v1/10/0/0.png'], SUB_PATH);
+      await provider.delete(SUB_PATH, ['layer/v1/10/0/0.png']);
 
       expect(unlink).toHaveBeenCalledWith(join(BASE_PATH, SUB_PATH, 'layer/v1/10/0/0.png'));
     });
 
     it('should join a nested sub path onto the base path', async () => {
-      await provider.delete(['tile/10/0/0.png'], `${SUB_PATH}/nested`);
+      await provider.delete(`${SUB_PATH}/nested`, ['tile/10/0/0.png']);
 
       expect(unlink).toHaveBeenCalledWith(join(BASE_PATH, SUB_PATH, 'nested', 'tile/10/0/0.png'));
     });
@@ -108,7 +108,7 @@ describe('FsStorageProvider', () => {
     it('should call unlink for every path', async () => {
       const paths = ['tile/10/0/0.png', 'tile/10/0/1.png', 'tile/10/1/0.png'];
 
-      await provider.delete(paths, SUB_PATH);
+      await provider.delete(SUB_PATH, paths);
 
       expect(unlink).toHaveBeenCalledTimes(3);
       for (const p of paths) {
@@ -117,7 +117,7 @@ describe('FsStorageProvider', () => {
     });
 
     it('should return empty failures map when all unlinks succeed', async () => {
-      const result = await provider.delete(['tile/10/0/0.png', 'tile/10/0/1.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png', 'tile/10/0/1.png']);
       expect(result).toEqual({ failures: new Map() });
     });
 
@@ -125,7 +125,7 @@ describe('FsStorageProvider', () => {
       const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       vi.mocked(unlink).mockRejectedValue(enoent);
 
-      const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
       expect(result).toEqual({ failures: new Map([['ENOENT', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -134,7 +134,7 @@ describe('FsStorageProvider', () => {
       const permError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
       vi.mocked(unlink).mockRejectedValue(permError);
 
-      const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
       expect(result).toEqual({ failures: new Map([['EACCES', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -142,7 +142,7 @@ describe('FsStorageProvider', () => {
     it('should fall back to error message when error has no errno code', async () => {
       vi.mocked(unlink).mockRejectedValue(new Error('disk on fire'));
 
-      const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
       expect(result).toEqual({ failures: new Map([['disk on fire', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -150,7 +150,7 @@ describe('FsStorageProvider', () => {
     it('should fall back to "Unknown" when error has neither errno code nor message', async () => {
       vi.mocked(unlink).mockRejectedValue(new Error(''));
 
-      const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
       expect(result).toEqual({ failures: new Map([['Unknown', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -158,7 +158,7 @@ describe('FsStorageProvider', () => {
     it('should tag failures with the stringified value when a non-Error is thrown', async () => {
       vi.mocked(unlink).mockRejectedValue('raw string failure');
 
-      const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
       expect(result).toEqual({ failures: new Map([['raw string failure', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -166,7 +166,7 @@ describe('FsStorageProvider', () => {
     it('should fall back to "Unknown" when a non-Error empty value is thrown', async () => {
       vi.mocked(unlink).mockRejectedValue('');
 
-      const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
       expect(result).toEqual({ failures: new Map([['Unknown', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -178,7 +178,7 @@ describe('FsStorageProvider', () => {
         },
       });
 
-      const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
       expect(result).toEqual({ failures: new Map([['non-serializable thrown value', { count: 1, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -186,7 +186,7 @@ describe('FsStorageProvider', () => {
     it('should unlink every path of a large input', async () => {
       const paths = Array.from({ length: 7 }, (_, i) => `tile/10/0/${i}.png`);
 
-      await provider.delete(paths, SUB_PATH);
+      await provider.delete(SUB_PATH, paths);
 
       expect(unlink).toHaveBeenCalledTimes(7);
       for (const path of paths) {
@@ -199,7 +199,7 @@ describe('FsStorageProvider', () => {
       vi.mocked(unlink).mockRejectedValue(permError);
       const paths = Array.from({ length: 7 }, (_, i) => `tile/10/0/${i}.png`);
 
-      const result = await provider.delete(paths, SUB_PATH);
+      const result = await provider.delete(SUB_PATH, paths);
 
       expect(result).toEqual({ failures: new Map([['EACCES', { count: 7, sample: 'tile/10/0/0.png' }]]) });
     });
@@ -214,7 +214,7 @@ describe('FsStorageProvider', () => {
         .mockRejectedValueOnce(permError); // real error → failure
 
       const paths = ['tile/10/0/0.png', 'tile/10/0/1.png', 'tile/10/0/2.png'];
-      const result = await provider.delete(paths, SUB_PATH);
+      const result = await provider.delete(SUB_PATH, paths);
 
       expect(result).toEqual({
         failures: new Map([
@@ -229,7 +229,7 @@ describe('FsStorageProvider', () => {
       vi.mocked(unlink).mockRejectedValue(permError);
 
       const relativePath = 'layer/v1/10/5/3.png';
-      const result = await provider.delete([relativePath], SUB_PATH);
+      const result = await provider.delete(SUB_PATH, [relativePath]);
 
       expect(result).toEqual({ failures: new Map([['EACCES', { count: 1, sample: relativePath }]]) });
       expect(Array.from(result.failures.values())[0]?.sample).not.toMatch(`^${BASE_PATH}*`);
@@ -237,13 +237,13 @@ describe('FsStorageProvider', () => {
 
     describe('cleanupEmptyDirs', () => {
       it('should attempt to rmdir the parent directory after deletion', async () => {
-        await provider.delete(['layer/v1/10/0/0.png'], SUB_PATH);
+        await provider.delete(SUB_PATH, ['layer/v1/10/0/0.png']);
 
         expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, SUB_PATH, 'layer/v1/10/0'));
       });
 
       it('should attempt to rmdir all ancestor directories bottom-up', async () => {
-        await provider.delete(['layer/v1/10/0/0.png'], SUB_PATH);
+        await provider.delete(SUB_PATH, ['layer/v1/10/0/0.png']);
 
         // x dir → zoom dir → version dir → layer dir (deepest first)
         expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, SUB_PATH, 'layer/v1/10/0'));
@@ -254,7 +254,7 @@ describe('FsStorageProvider', () => {
 
       it('should deduplicate rmdir calls for shared parent directories', async () => {
         // Both tiles share the same x-dir and zoom dir
-        await provider.delete(['tile/10/0/0.png', 'tile/10/0/1.png'], SUB_PATH);
+        await provider.delete(SUB_PATH, ['tile/10/0/0.png', 'tile/10/0/1.png']);
 
         const rmdirCalls = vi.mocked(rmdir).mock.calls.map(([p]) => p);
         const xDirCalls = rmdirCalls.filter((p) => p === join(BASE_PATH, SUB_PATH, 'tile/10/0'));
@@ -265,19 +265,19 @@ describe('FsStorageProvider', () => {
         const enotempty = Object.assign(new Error('ENOTEMPTY'), { code: 'ENOTEMPTY' });
         vi.mocked(rmdir).mockRejectedValue(enotempty);
 
-        const result = await provider.delete(['tile/10/0/0.png'], SUB_PATH);
+        const result = await provider.delete(SUB_PATH, ['tile/10/0/0.png']);
 
         // Should not throw and should return correct failed paths
         expect(result).toEqual({ failures: new Map() });
       });
 
       it('should not call rmdir when input is empty', async () => {
-        await provider.delete([], SUB_PATH);
+        await provider.delete(SUB_PATH, []);
         expect(rmdir).not.toHaveBeenCalled();
       });
 
       it('should not call rmdir for a path that has no directory segments', async () => {
-        await provider.delete(['0.png'], SUB_PATH);
+        await provider.delete(SUB_PATH, ['0.png']);
 
         expect(unlink).toHaveBeenCalledWith(join(BASE_PATH, SUB_PATH, '0.png'));
         expect(rmdir).not.toHaveBeenCalled();
@@ -287,7 +287,7 @@ describe('FsStorageProvider', () => {
         // batchSize is 3 → cleanup runs once for all paths, after the last batch
         const paths = Array.from({ length: 4 }, (_, i) => `tile/10/${i}/0.png`);
 
-        await provider.delete(paths, SUB_PATH);
+        await provider.delete(SUB_PATH, paths);
 
         for (let i = 0; i < 4; i++) {
           expect(rmdir).toHaveBeenCalledWith(join(BASE_PATH, SUB_PATH, `tile/10/${i}`));
@@ -297,7 +297,7 @@ describe('FsStorageProvider', () => {
       });
 
       it('should attempt to rmdir deeper directories before their ancestors', async () => {
-        await provider.delete(['layer/v1/10/0/0.png'], SUB_PATH);
+        await provider.delete(SUB_PATH, ['layer/v1/10/0/0.png']);
 
         const order = vi.mocked(rmdir).mock.calls.map(([path]) => path);
         expect(order).toEqual([

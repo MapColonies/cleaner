@@ -39,10 +39,10 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   }
 
   /**
-   * @param paths - Paths relative to `subPath`
    * @param subPath - Sub path of the configured base path, as supplied by the task
+   * @param paths - Paths relative to `subPath`
    */
-  public async delete(paths: string[], subPath: string): Promise<DeleteResult> {
+  public async delete(subPath: string, paths: string[]): Promise<DeleteResult> {
     this.logger.debug({ msg: 'Deleting files from filesystem', subPath, pathsCount: paths.length });
     const targetPath = join(this.fsConfig.basePath, subPath);
     let failures: DeleteFailure = new Map();
