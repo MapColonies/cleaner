@@ -4,7 +4,7 @@ import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
 import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
-import { getChunk, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils';
+import { getChunk, isPathWithinAllowedSubPaths } from '@src/cleaner/utils';
 import { SERVICES } from '@common/constants';
 import { describeError, UnrecoverableError } from '../errors';
 import type { FsStorageConfig } from './storageConfig';
@@ -25,11 +25,9 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
    * @param relativePath - Path below `subPath` to check for
    */
   public async targetExists(subPath: string, relativePath: string): Promise<boolean> {
-    const relativeTargetPath = join(subPath, relativePath);
-    if (!this.arePathsValid([relativeTargetPath]))
-      throw new UnrecoverableError(`Cannot act on paths outside the configured sub paths: ${relativeTargetPath}`);
+    this.assertPathsValid([join(subPath, relativePath)]);
 
-    const targetPath = join(this.fsConfig.basePath, relativeTargetPath);
+    const targetPath = join(this.fsConfig.basePath, subPath, relativePath);
     this.logger.debug({ msg: 'Checking if target resource exists', subPath, path: relativePath, targetPath });
     try {
       await stat(targetPath);
@@ -82,11 +80,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
       totalFailedPathsCount = 0;
 
     const relativePaths = paths.map((path) => join(subPath, path));
-
-    if (!this.arePathsValid(relativePaths))
-      throw new UnrecoverableError(
-        'Cannot delete files/folders outside base path or subpath as well as base path or subpath itself. paths must also match a valid configured path.'
-      );
+    this.assertPathsValid(relativePaths);
 
     let failures: DeleteFailure = new Map();
 
@@ -127,22 +121,26 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
   }
 
   /**
-   * Preforms several checks on input `paths`.
-   * Includes a check for path traversal (i.e. accessing folders above root folder)
-   * @param paths
-   * @returns boolean whether `paths` are valid and pass all checks
+   * Gate for every path this provider is asked to touch.
+   * @param relativePaths - Paths relative to the configured base path, sub path included
+   * @throws {UnrecoverableError} if any path fails the check; invalid paths are a producer
+   * bug and will not become valid on retry
    */
-  private arePathsValid(paths: string[]): boolean {
+  private assertPathsValid(paths: string[]): void {
     this.logger.debug({ msg: 'Checking paths validity', paths });
-    const badPaths = paths.filter((path) => {
-      const startsWithAllowedSubPath = this.fsConfig.subPaths.some((subPath) => path.startsWith(normalizeFolderPath(subPath)));
-      const absolutePath = resolveAbsolutePath(join(this.fsConfig.basePath, path));
-      const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(this.fsConfig.basePath));
-      return !(startsWithAllowedSubPath && startsWithBasePath);
-    });
-    const areValid = badPaths.length === 0;
-    this.logger.debug({ msg: `Paths validity check ${areValid ? 'succeeded' : 'failed'}`, ...(!areValid && { badPaths }) });
-    return areValid;
+    const badPaths = paths.filter(
+      (path) => !isPathWithinAllowedSubPaths({ relativePath: path, basePath: this.fsConfig.basePath, allowedSubPaths: this.fsConfig.subPaths })
+    );
+
+    if (badPaths.length > 0) {
+      const { basePath, subPaths } = this.fsConfig;
+      this.logger.error({ msg: 'Paths validity check failed', badPaths, basePath, allowedSubPaths: subPaths });
+      throw new UnrecoverableError(
+        `Cannot delete paths outside the configured sub paths (${subPaths.join(', ')}) of base path '${basePath}', or the sub paths themselves: ${badPaths.join(', ')}`
+      );
+    }
+
+    this.logger.debug({ msg: 'Paths validity check succeeded' });
   }
 
   // Attempts to remove any directories that became empty after file deletion.
