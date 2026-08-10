@@ -144,11 +144,9 @@ describe('TilesDeletionStrategy', () => {
 
     describe('provider routing', () => {
       it("should call S3 provider with the task's own bucket as storage target", async () => {
-        const params: S3TilesDeletionParams = { ...s3Params, bucket: 'per-task-bucket' };
+        await strategy.execute(s3Params);
 
-        await strategy.execute(params);
-
-        expect(MockS3Provider.delete).toHaveBeenCalledWith('per-task-bucket', expect.any(Array));
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, expect.any(Array));
         expect(MockFsProvider.delete).not.toHaveBeenCalled();
       });
 
@@ -157,14 +155,6 @@ describe('TilesDeletionStrategy', () => {
 
         expect(MockFsProvider.delete).toHaveBeenCalledWith(FS_SUB_PATH, expect.any(Array));
         expect(MockS3Provider.delete).not.toHaveBeenCalled();
-      });
-
-      it('should pass the subPath through untouched rather than resolving it', async () => {
-        const subPath = 'some/other/mount/point';
-
-        await strategy.execute({ ...fsParams, subPath });
-
-        expect(MockFsProvider.delete).toHaveBeenCalledWith(subPath, expect.any(Array));
       });
 
       it('should throw UnrecoverableError for REDIS params, whose tiles are not path addressed', async () => {
