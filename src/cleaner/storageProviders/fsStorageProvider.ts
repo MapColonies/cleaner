@@ -128,10 +128,10 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
    * @throws {UnrecoverableError} if any path fails the check; invalid paths are a producer
    * bug and will not become valid on retry
    */
-  private assertPathsValid(paths: string[]): void {
-    this.logger.debug({ msg: 'Checking paths validity', paths });
-    const badPaths = paths.filter(
-      (path) => !isPathWithinAllowedSubPaths({ relativePath: path, basePath: this.fsConfig.basePath, allowedSubPaths: this.fsConfig.subPaths })
+  private assertPathsValid(relativePaths: string[]): void {
+    this.logger.debug({ msg: 'Checking paths validity', relativePaths });
+    const badPaths = relativePaths.filter(
+      (relativePath) => !isPathWithinAllowedSubPaths({ relativePath, basePath: this.fsConfig.basePath, allowedSubPaths: this.fsConfig.subPaths })
     );
 
     if (badPaths.length > 0) {
