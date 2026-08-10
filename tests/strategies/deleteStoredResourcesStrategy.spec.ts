@@ -12,6 +12,7 @@ const FS_SUB_PATH = 'test/artifacts/tiles';
 
 const s3Params: S3DeleteStoredResourcesParams = { storageProvider: SourceType.S3, paths: ['layer1'], bucket: S3_BUCKET };
 const fsParams: FsDeleteStoredResourcesParams = { storageProvider: SourceType.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
+const redisParams = { storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84' };
 
 describe('DeleteStoredResourcesStrategy', () => {
   let strategy: DeleteStoredResourcesStrategy;
@@ -49,18 +50,16 @@ describe('DeleteStoredResourcesStrategy', () => {
       expect(result).toEqual(fsParams);
     });
 
+    it('should validate and return REDIS params, whose prefix is the locator', () => {
+      expect(strategy.validate(redisParams)).toEqual(redisParams);
+    });
+
     it('should throw ValidationError when storageProvider is missing', () => {
       expect(() => strategy.validate({ catalogId: 'layer1' })).toThrow(ValidationError);
     });
 
     it('should throw ValidationError when storageProvider is unknown', () => {
       expect(() => strategy.validate({ storageProvider: 'GCS', catalogId: 'layer1' })).toThrow(ValidationError);
-    });
-
-    it('should validate and return REDIS params, whose prefix is the locator', () => {
-      const redisParams = { storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84' };
-
-      expect(strategy.validate(redisParams)).toEqual(redisParams);
     });
 
     it('should throw ValidationError when paths is an empty array', () => {
@@ -77,6 +76,10 @@ describe('DeleteStoredResourcesStrategy', () => {
 
     it('should throw ValidationError when the FS subPath is missing', () => {
       expect(() => strategy.validate({ storageProvider: SourceType.FS, paths: ['layer1'] })).toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError when the REDIS prefix is missing', () => {
+      expect(() => strategy.validate({ storageProvider: 'REDIS' })).toThrow(ValidationError);
     });
 
     it('should throw ValidationError for null params', () => {
