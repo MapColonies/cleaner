@@ -45,7 +45,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     this.logger.debug({ msg: 'Loaded S3 storage provider', endpoint: s3Config.endpoint, batchSize: this.s3Config.batchSize });
   }
 
-  public async delete(paths: string[], bucket: string): Promise<DeleteResult> {
+  public async delete(bucket: string, paths: string[]): Promise<DeleteResult> {
     this.logger.debug({ msg: 'Deleting objects from S3', bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
 

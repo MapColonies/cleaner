@@ -77,7 +77,7 @@ describe('S3StorageProvider', () => {
     });
 
     it('should return empty failures map for empty input', async () => {
-      const result = await provider.delete([], BUCKET);
+      const result = await provider.delete(BUCKET, []);
       expect(result).toEqual({ failures: new Map() });
       expect(mockSend).not.toHaveBeenCalled();
     });
@@ -85,7 +85,7 @@ describe('S3StorageProvider', () => {
     it('should send DeleteObjectsCommand with correct keys', async () => {
       const paths = ['folder/a.txt', 'folder/b.txt'];
 
-      await provider.delete(paths, BUCKET);
+      await provider.delete(BUCKET, paths);
 
       expect(DeleteObjectsCommand).toHaveBeenCalledWith({
         Bucket: BUCKET,
@@ -97,7 +97,7 @@ describe('S3StorageProvider', () => {
     it('should return empty failures map when all deletes succeed', async () => {
       const paths = ['a.txt', 'b.txt'];
 
-      const result = await provider.delete(paths, BUCKET);
+      const result = await provider.delete(BUCKET, paths);
 
       expect(result).toEqual({ failures: new Map() });
     });
@@ -108,7 +108,7 @@ describe('S3StorageProvider', () => {
       });
       const paths = ['a.txt', 'b.txt'];
 
-      const result = await provider.delete(paths, BUCKET);
+      const result = await provider.delete(BUCKET, paths);
 
       expect(result).toEqual({ failures: new Map([['AccessDenied', { count: 1, sample: 'a.txt' }]]) });
     });
@@ -119,7 +119,7 @@ describe('S3StorageProvider', () => {
       });
       const paths = ['missing.txt'];
 
-      const result = await provider.delete(paths, BUCKET);
+      const result = await provider.delete(BUCKET, paths);
 
       expect(result).toEqual({ failures: new Map([['NoSuchKey', { count: 1, sample: 'missing.txt' }]]) });
     });
@@ -129,7 +129,7 @@ describe('S3StorageProvider', () => {
         Errors: [{ Key: 'a.txt', Message: 'Something bad' }],
       });
 
-      const result = await provider.delete(['a.txt'], BUCKET);
+      const result = await provider.delete(BUCKET, ['a.txt']);
 
       expect(result).toEqual({ failures: new Map([['Something bad', { count: 1, sample: 'a.txt' }]]) });
     });
@@ -139,7 +139,7 @@ describe('S3StorageProvider', () => {
         Errors: [{ Key: 'a.txt' }],
       });
 
-      const result = await provider.delete(['a.txt'], BUCKET);
+      const result = await provider.delete(BUCKET, ['a.txt']);
 
       expect(result).toEqual({ failures: new Map([['Unknown', { count: 1, sample: 'a.txt' }]]) });
     });
@@ -154,7 +154,7 @@ describe('S3StorageProvider', () => {
         ],
       });
 
-      const result = await provider.delete(['a.txt', 'b.txt', 'c.txt', 'd.txt'], BUCKET);
+      const result = await provider.delete(BUCKET, ['a.txt', 'b.txt', 'c.txt', 'd.txt']);
 
       expect(result).toEqual({
         failures: new Map([
@@ -169,7 +169,7 @@ describe('S3StorageProvider', () => {
       const paths = Array.from({ length: 1500 }, (_, i) => `object-${i}.txt`);
       provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockLogger);
 
-      await provider.delete(paths, BUCKET);
+      await provider.delete(BUCKET, paths);
 
       expect(mockSend).toHaveBeenCalledTimes(2);
       const firstCallInput = vi.mocked(DeleteObjectsCommand).mock.calls[0]![0] as {
@@ -186,7 +186,7 @@ describe('S3StorageProvider', () => {
       const paths = Array.from({ length: 2500 }, (_, i) => `object-${i}.txt`);
       provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockLogger);
 
-      await provider.delete(paths, BUCKET);
+      await provider.delete(BUCKET, paths);
 
       expect(mockSend).toHaveBeenCalledTimes(3);
       const callInputs = vi.mocked(DeleteObjectsCommand).mock.calls.map((call) => call[0] as { Delete: { Objects: { Key: string }[] } });
@@ -200,7 +200,7 @@ describe('S3StorageProvider', () => {
         .mockResolvedValueOnce({ Errors: [{ Key: 'object-0.txt', Code: 'AccessDenied' }] })
         .mockResolvedValueOnce({ Errors: [{ Key: 'object-1000.txt', Code: 'AccessDenied' }] });
 
-      const result = await provider.delete(paths, BUCKET);
+      const result = await provider.delete(BUCKET, paths);
 
       expect(result).toEqual({ failures: new Map([['AccessDenied', { count: 2, sample: 'object-0.txt' }]]) });
     });
@@ -210,7 +210,7 @@ describe('S3StorageProvider', () => {
         Errors: [{ Code: 'InternalError' }, { Key: 'b.txt', Code: 'AccessDenied' }],
       });
 
-      const result = await provider.delete(['a.txt', 'b.txt'], BUCKET);
+      const result = await provider.delete(BUCKET, ['a.txt', 'b.txt']);
 
       expect(result).toEqual({ failures: new Map([['AccessDenied', { count: 1, sample: 'b.txt' }]]) });
     });
@@ -218,7 +218,7 @@ describe('S3StorageProvider', () => {
     it('should return an empty failures map when every returned error carries no Key', async () => {
       mockSend.mockResolvedValue({ Errors: [{ Code: 'InternalError' }] });
 
-      const result = await provider.delete(['a.txt'], BUCKET);
+      const result = await provider.delete(BUCKET, ['a.txt']);
 
       expect(result).toEqual({ failures: new Map() });
     });
@@ -226,7 +226,7 @@ describe('S3StorageProvider', () => {
     it('should tag the chunk with the stringified value when send rejects with a non-Error', async () => {
       mockSend.mockRejectedValue('connection reset');
 
-      const result = await provider.delete(['a.txt', 'b.txt'], BUCKET);
+      const result = await provider.delete(BUCKET, ['a.txt', 'b.txt']);
 
       expect(result).toEqual({ failures: new Map([['connection reset', { count: 2, sample: 'a.txt' }]]) });
     });
@@ -235,7 +235,7 @@ describe('S3StorageProvider', () => {
       mockSend.mockRejectedValue(new Error('Network error'));
       const paths = ['a.txt', 'b.txt'];
 
-      const result = await provider.delete(paths, BUCKET);
+      const result = await provider.delete(BUCKET, paths);
 
       expect(result).toEqual({ failures: new Map([['Network error', { count: 2, sample: 'a.txt' }]]) });
     });

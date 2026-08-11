@@ -65,10 +65,6 @@
         "type": "tiles-deletion",
         "maxAttempts": 3
       },
-      "layerDeletion": {
-        "type": "tiles-deletion",
-        "maxAttempts": 3
-      },
       "artifactsDeletion": {
         "type": "artifacts-deletion",
         "maxAttempts": 3
@@ -105,8 +101,6 @@
   },
   "strategies": {
     "tilesDeletion": {
-      "s3Bucket": "",
-      "fsSubPath": "tiles",
       "batchSize": 1000,
       "concurrency": 10
     }

@@ -1,31 +1,38 @@
-import { join } from 'node:path';
 import { faker } from '@faker-js/faker';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { type TilesDeletionParams, SourceType } from '@map-colonies/raster-shared';
+import { type FsTilesDeletionParams, type S3TilesDeletionParams, SourceType } from '@map-colonies/raster-shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import type { TaskContext } from '@src/cleaner/strategies/strategyFactory';
 import { TilesDeletionStrategy } from '@src/cleaner/strategies/tilesDeletionStrategy';
-import { createMockLogger, createMockStorageProvider, createMockStrategyConfig, TILES_DELETION_CONFIG_DEFAULTS } from '../helpers/mocks';
+import { createMockLogger, createMockStorageProvider, createMockStrategyConfig } from '../helpers/mocks';
 
-const { s3Bucket: S3_BUCKET, fsBasePath: FS_BASE_PATH, fsSubPath: FS_SUB_PATH } = TILES_DELETION_CONFIG_DEFAULTS;
+const S3_BUCKET = 'test-bucket';
+const FS_SUB_PATH = 'artifacts/tiles';
 
 const JOB_ID = faker.string.uuid();
 const TASK_ID = faker.string.uuid();
 const TASK_CONTEXT: TaskContext = { jobId: JOB_ID, taskId: TASK_ID, jobType: 'Ingestion_Update', taskType: 'tiles-deletion' };
 
-const s3Params: TilesDeletionParams = {
-  sourceProvider: 'S3',
-  tilesPath: 'layer/v1',
+const s3Params: S3TilesDeletionParams = {
+  storageProvider: 'S3',
+  bucket: S3_BUCKET,
+  tilesRelativePath: 'layer/v1',
   fileExtension: 'png',
   ranges: [{ zoom: 10, minX: 0, maxX: 1, minY: 0, maxY: 1 }],
 };
 
-const fsParams: TilesDeletionParams = { ...s3Params, sourceProvider: 'FS' };
+const fsParams: FsTilesDeletionParams = {
+  storageProvider: 'FS',
+  subPath: FS_SUB_PATH,
+  tilesRelativePath: s3Params.tilesRelativePath,
+  fileExtension: s3Params.fileExtension,
+  ranges: s3Params.ranges,
+};
 
-// Builds an expected tile path under the standard s3Params tilesPath/fileExtension.
-const tilePath = (z: number, x: number, y: number): string => `${s3Params.tilesPath}/${z}/${x}/${y}.${s3Params.fileExtension}`;
+// Builds an expected tile path under the standard tilesRelativePath/fileExtension.
+const tilePath = (z: number, x: number, y: number): string => `${s3Params.tilesRelativePath}/${z}/${x}/${y}.${s3Params.fileExtension}`;
 
 describe('TilesDeletionStrategy', () => {
   let strategy: TilesDeletionStrategy;
@@ -69,20 +76,28 @@ describe('TilesDeletionStrategy', () => {
       expect(strategy.validate({ ...s3Params, ranges })).toEqual({ ...s3Params, ranges });
     });
 
-    it('should throw ValidationError when sourceProvider is missing', () => {
-      expect(() => strategy.validate({ ...s3Params, sourceProvider: undefined })).toThrow(ValidationError);
+    it('should throw ValidationError when storageProvider is missing', () => {
+      expect(() => strategy.validate({ ...s3Params, storageProvider: undefined })).toThrow(ValidationError);
     });
 
-    it('should throw ValidationError for unsupported sourceProvider value', () => {
-      expect(() => strategy.validate({ ...s3Params, sourceProvider: 'GCS' })).toThrow(ValidationError);
+    it('should throw ValidationError for unsupported storageProvider value', () => {
+      expect(() => strategy.validate({ ...s3Params, storageProvider: 'GCS' })).toThrow(ValidationError);
     });
 
     it('should throw ValidationError for empty ranges array', () => {
       expect(() => strategy.validate({ ...s3Params, ranges: [] })).toThrow(ValidationError);
     });
 
-    it('should throw ValidationError for empty tilesPath', () => {
-      expect(() => strategy.validate({ ...s3Params, tilesPath: '' })).toThrow(ValidationError);
+    it('should throw ValidationError for empty tilesRelativePath', () => {
+      expect(() => strategy.validate({ ...s3Params, tilesRelativePath: '' })).toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError when the S3 bucket is missing', () => {
+      expect(() => strategy.validate({ ...s3Params, bucket: undefined })).toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError when the FS subPath is missing', () => {
+      expect(() => strategy.validate({ ...fsParams, subPath: undefined })).toThrow(ValidationError);
     });
 
     it('should throw ValidationError when params is null', () => {
@@ -106,16 +121,16 @@ describe('TilesDeletionStrategy', () => {
         expect(MockFsProvider.delete).not.toHaveBeenCalled();
       });
 
-      it('should check targetExists with S3 bucket and tilesPath as relativePath', async () => {
+      it('should check targetExists with S3 bucket and tilesRelativePath as relativePath', async () => {
         await strategy.execute(s3Params);
 
-        expect(MockS3Provider.targetExists).toHaveBeenCalledWith(S3_BUCKET, s3Params.tilesPath);
+        expect(MockS3Provider.targetExists).toHaveBeenCalledWith(S3_BUCKET, s3Params.tilesRelativePath);
       });
 
-      it('should check targetExists with FS base path and tilesPath as relativePath', async () => {
+      it("should check targetExists with the task's own subPath and tilesRelativePath", async () => {
         await strategy.execute(fsParams);
 
-        expect(MockFsProvider.targetExists).toHaveBeenCalledWith(join(FS_BASE_PATH, FS_SUB_PATH), fsParams.tilesPath);
+        expect(MockFsProvider.targetExists).toHaveBeenCalledWith(FS_SUB_PATH, fsParams.tilesRelativePath);
       });
 
       it('should propagate an error thrown by the target existence check', async () => {
@@ -128,31 +143,39 @@ describe('TilesDeletionStrategy', () => {
     });
 
     describe('provider routing', () => {
-      it('should call S3 provider with s3Bucket as storage target', async () => {
+      it("should call S3 provider with the task's own bucket as storage target", async () => {
         await strategy.execute(s3Params);
 
-        expect(MockS3Provider.delete).toHaveBeenCalledWith(expect.any(Array), S3_BUCKET);
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, expect.any(Array));
         expect(MockFsProvider.delete).not.toHaveBeenCalled();
       });
 
-      it('should call FS provider with fsBasePath as storage target', async () => {
+      it("should call FS provider with the task's own subPath as storage target", async () => {
         await strategy.execute(fsParams);
 
-        expect(MockFsProvider.delete).toHaveBeenCalledWith(expect.any(Array), join(FS_BASE_PATH, FS_SUB_PATH));
+        expect(MockFsProvider.delete).toHaveBeenCalledWith(FS_SUB_PATH, expect.any(Array));
         expect(MockS3Provider.delete).not.toHaveBeenCalled();
       });
 
+      it('should throw UnrecoverableError for REDIS params, whose tiles are not path addressed', async () => {
+        const redisParams = { storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84', ranges: s3Params.ranges };
+
+        await expect(strategy.execute(strategy.validate(redisParams))).rejects.toThrow(UnrecoverableError);
+        expect(MockS3Provider.delete).not.toHaveBeenCalled();
+        expect(MockFsProvider.delete).not.toHaveBeenCalled();
+      });
+
       it('should throw UnrecoverableError for unknown provider', async () => {
-        const unknownParams = { ...s3Params, sourceProvider: 'UNKNOWN' } as unknown as TilesDeletionParams;
+        const unknownParams = { ...s3Params, storageProvider: 'UNKNOWN' } as unknown as S3TilesDeletionParams;
 
         await expect(strategy.execute(unknownParams)).rejects.toThrow(UnrecoverableError);
       });
 
       it('should throw UnrecoverableError when the provider is registered but resolves to undefined', async () => {
-        const storageProviders = {
+        const storageProviders: StorageProviders = {
           [SourceType.FS]: MockFsProvider,
           [SourceType.S3]: undefined,
-        } satisfies StorageProviders;
+        };
         strategy = new TilesDeletionStrategy(
           createMockLogger(),
           createMockStrategyConfig(),
@@ -172,23 +195,25 @@ describe('TilesDeletionStrategy', () => {
         await strategy.execute(s3Params);
 
         // range: minX=0,maxX=1 minY=0,maxY=1 → 4 tiles, x iterates outer
-        expect(MockS3Provider.delete).toHaveBeenCalledWith(
-          [tilePath(10, 0, 0), tilePath(10, 0, 1), tilePath(10, 1, 0), tilePath(10, 1, 1)],
-          S3_BUCKET
-        );
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [
+          tilePath(10, 0, 0),
+          tilePath(10, 0, 1),
+          tilePath(10, 1, 0),
+          tilePath(10, 1, 1),
+        ]);
       });
 
       it('should use the specified file extension', async () => {
-        const params: TilesDeletionParams = { ...s3Params, fileExtension: 'jpeg' };
+        const params: S3TilesDeletionParams = { ...s3Params, fileExtension: 'jpeg' };
 
         await strategy.execute(params);
 
-        const [paths] = vi.mocked(MockS3Provider.delete).mock.calls[0]!;
+        const [, paths] = vi.mocked(MockS3Provider.delete).mock.calls[0]!;
         expect(paths.every((p) => p.endsWith('.jpeg'))).toBe(true);
       });
 
       it('should concatenate tiles from multiple ranges', async () => {
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [
             { zoom: 5, minX: 0, maxX: 0, minY: 0, maxY: 0 },
@@ -198,18 +223,18 @@ describe('TilesDeletionStrategy', () => {
 
         await strategy.execute(params);
 
-        expect(MockS3Provider.delete).toHaveBeenCalledWith([tilePath(5, 0, 0), tilePath(6, 0, 0)], S3_BUCKET);
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(5, 0, 0), tilePath(6, 0, 0)]);
       });
 
       it('should offset x/y correctly when range does not start at 0', async () => {
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 7, minX: 3, maxX: 4, minY: 8, maxY: 9 }],
         };
 
         await strategy.execute(params);
 
-        expect(MockS3Provider.delete).toHaveBeenCalledWith([tilePath(7, 3, 8), tilePath(7, 3, 9), tilePath(7, 4, 8), tilePath(7, 4, 9)], S3_BUCKET);
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(7, 3, 8), tilePath(7, 3, 9), tilePath(7, 4, 8), tilePath(7, 4, 9)]);
       });
     });
 
@@ -217,7 +242,7 @@ describe('TilesDeletionStrategy', () => {
       it('should call updateProgress mid-stream for large tile sets without ever setting 100', async () => {
         // batchSize=100, concurrency=2 → flush after 200 tiles, then final flush for remainder
         // 14 * 15 = 210 tiles
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 13, minY: 0, maxY: 14 }],
         };
@@ -230,7 +255,7 @@ describe('TilesDeletionStrategy', () => {
 
       it('should report the percentage of tiles processed so far', async () => {
         // batchSize=100, concurrency=2 → flush + progress report after the first 200 of 210 tiles
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 13, minY: 0, maxY: 14 }],
         };
@@ -242,7 +267,7 @@ describe('TilesDeletionStrategy', () => {
 
       it('should report progress once per completed concurrency window', async () => {
         // 420 tiles → two full windows of 200, then a trailing batch of 20
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 20, minY: 0, maxY: 19 }],
         };
@@ -262,7 +287,7 @@ describe('TilesDeletionStrategy', () => {
 
       it('should not flush an empty trailing batch when the tile count divides evenly', async () => {
         // 200 tiles = exactly batchSize (100) × concurrency (2) → one window, no remainder
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
         };
@@ -275,7 +300,7 @@ describe('TilesDeletionStrategy', () => {
       });
 
       it('should pass the correct jobId and taskId on mid-stream updates', async () => {
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 13, minY: 0, maxY: 14 }],
         };
@@ -383,7 +408,7 @@ describe('TilesDeletionStrategy', () => {
 
       it('should aggregate hard failures of the same reason across concurrent batches', async () => {
         // 200 tiles → two batches of 100, both rejecting with the same error
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
         };
@@ -396,7 +421,7 @@ describe('TilesDeletionStrategy', () => {
       });
 
       it('should aggregate hard failures of different reasons across concurrent batches', async () => {
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
         };
@@ -406,7 +431,7 @@ describe('TilesDeletionStrategy', () => {
       });
 
       it('should surface both soft failures and hard rejections from the same flush', async () => {
-        const params: TilesDeletionParams = {
+        const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
         };

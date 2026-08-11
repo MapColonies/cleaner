@@ -5,7 +5,6 @@
 {{- $fs := ($storage.fs) | default dict -}}
 {{- $internalPvc := (($fs).internalPvc) | default dict -}}
 {{- $fsBasePath := clean (printf "/%s" $internalPvc.mountPath) -}}
-{{- $fsTilesDeletionSubPath := clean (printf "%s" ($internalPvc.tilesSubPath | default "tiles")) -}}
 {{- if .Values.enabled -}}
 apiVersion: v1
 kind: ConfigMap
@@ -74,9 +73,7 @@ data:
     {{- end -}}
   {{- end }}
   FS_SUB_PATHS: {{ $subPaths | toJson | quote }}
-  TILES_DELETION_FS_SUB_PATH: {{ $fsTilesDeletionSubPath | quote }}
   {{- end }}
-  TILES_DELETION_S3_BUCKET: {{ $s3.tilesBucket | default "" | quote }}
   {{- with .Values.env.strategies.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
   TILES_DELETION_CONCURRENCY: {{ .concurrency | default 10 | quote }}

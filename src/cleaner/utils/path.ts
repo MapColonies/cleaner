@@ -1,4 +1,4 @@
-import { resolve, sep } from 'node:path/posix';
+import { join, resolve, sep } from 'node:path/posix';
 
 export const normalizeFolderPath = (path: string): string => {
   return path.endsWith(sep) ? path : `${path}${sep}`;
@@ -13,4 +13,28 @@ export const normalizeFolderPath = (path: string): string => {
  */
 export const resolveAbsolutePath = (path: string): string => {
   return resolve(`${path.startsWith(sep) ? '' : sep}${path}`);
+};
+
+/**
+ * Guards a caller-supplied relative path before anything is deleted from the filesystem.
+ * A path is allowed only when it lives strictly *under* one of the configured sub paths.
+ *
+ * @param relativePath - Path relative to `basePath`, including the sub path segment
+ * @param basePath - Absolute mounted base directory
+ * @param allowedSubPaths - Sub paths deletion is permitted under, relative to `basePath`
+ * @returns boolean whether `relativePath` passes both checks
+ */
+export const isPathWithinAllowedSubPaths = ({
+  relativePath,
+  basePath,
+  allowedSubPaths,
+}: {
+  relativePath: string;
+  basePath: string;
+  allowedSubPaths: string[];
+}): boolean => {
+  const startsWithAllowedSubPath = allowedSubPaths.some((subPath) => relativePath.startsWith(normalizeFolderPath(subPath)));
+  const absolutePath = resolveAbsolutePath(join(basePath, relativePath));
+  const startsWithBasePath = absolutePath.startsWith(normalizeFolderPath(basePath));
+  return startsWithAllowedSubPath && startsWithBasePath;
 };

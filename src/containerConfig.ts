@@ -129,19 +129,20 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
     },
     {
       token: getJobAndTaskToken({
+        //TODO: Not Supported yet
         //TODO: when we create worker config schema we can move this to a constant and remove the cast
         jobType: configInstance.get('jobDefinitions.jobs.swapUpdate.type') as unknown as string,
         taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
       }),
       provider: {
-        useClass: TilesDeletionStrategy,
+        useClass: DeleteStoredResourcesStrategy,
       },
     },
     {
       token: getJobAndTaskToken({
         //TODO: when we create worker config schema we can move this to a constant and remove the cast
         jobType: configInstance.get('jobDefinitions.jobs.deleteLayer.type') as unknown as string,
-        taskType: configInstance.get('jobDefinitions.tasks.layerDeletion.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
       }),
       provider: {
         useClass: DeleteStoredResourcesStrategy,
