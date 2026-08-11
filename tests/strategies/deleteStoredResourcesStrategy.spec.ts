@@ -15,10 +15,11 @@ import { createMockStoredResourcesDeletionStrategyConfig, createMockLogger, crea
 
 const S3_BUCKET = 'test-bucket';
 const FS_SUB_PATH = 'test/artifacts/tiles';
+const PREFIX = 'layer-redis_WorldCRS84';
 
 const s3Params: S3DeleteStoredResourcesParams = { storageProvider: StorageProvider.S3, paths: ['layer1'], bucket: S3_BUCKET };
 const fsParams: FsDeleteStoredResourcesParams = { storageProvider: StorageProvider.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
-const redisParams: RedisDeleteStoredResourcesParams = { storageProvider: StorageProvider.REDIS, prefix: 'layer-redis_WorldCRS84' };
+const redisParams: RedisDeleteStoredResourcesParams = { storageProvider: StorageProvider.REDIS, prefix: PREFIX };
 
 describe('DeleteStoredResourcesStrategy', () => {
   let strategy: DeleteStoredResourcesStrategy;
