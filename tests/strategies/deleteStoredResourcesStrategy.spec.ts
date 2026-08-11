@@ -1,5 +1,11 @@
 import type { Logger } from '@map-colonies/js-logger';
-import { SourceType, type FsDeleteStoredResourcesParams, type S3DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
+import {
+  RedisDeleteStoredResourcesParams,
+  SourceType,
+  StorageProvider,
+  type FsDeleteStoredResourcesParams,
+  type S3DeleteStoredResourcesParams,
+} from '@map-colonies/raster-shared';
 import { beforeEach, describe, expect, it, type vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
@@ -10,9 +16,9 @@ import { createMockStoredResourcesDeletionStrategyConfig, createMockLogger, crea
 const S3_BUCKET = 'test-bucket';
 const FS_SUB_PATH = 'test/artifacts/tiles';
 
-const s3Params: S3DeleteStoredResourcesParams = { storageProvider: SourceType.S3, paths: ['layer1'], bucket: S3_BUCKET };
-const fsParams: FsDeleteStoredResourcesParams = { storageProvider: SourceType.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
-const redisParams = { storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84' };
+const s3Params: S3DeleteStoredResourcesParams = { storageProvider: StorageProvider.S3, paths: ['layer1'], bucket: S3_BUCKET };
+const fsParams: FsDeleteStoredResourcesParams = { storageProvider: StorageProvider.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
+const redisParams: RedisDeleteStoredResourcesParams = { storageProvider: StorageProvider.REDIS, prefix: 'layer-redis_WorldCRS84' };
 
 describe('DeleteStoredResourcesStrategy', () => {
   let strategy: DeleteStoredResourcesStrategy;
