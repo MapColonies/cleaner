@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.1](https://github.com/MapColonies/cleaner/compare/v1.2.0...v1.2.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* empty dir cleanup (MAPCO-11296) ([#35](https://github.com/MapColonies/cleaner/issues/35)) ([375d819](https://github.com/MapColonies/cleaner/commit/375d819a4b7d038e4481342cacf73bef653bb13a))
+
+## [1.2.0](https://github.com/MapColonies/cleaner/compare/v1.1.3...v1.2.0) (2026-07-30)
+
+
+### Features
+
+* delete layer (MAPCO-1159) ([#33](https://github.com/MapColonies/cleaner/issues/33)) ([eb4c9c9](https://github.com/MapColonies/cleaner/commit/eb4c9c96971e15b100ed6d0e3c24c4d575f058dc))
+
 ## [1.1.3](https://github.com/MapColonies/cleaner/compare/v1.1.2...v1.1.3) (2026-05-17)
 
 

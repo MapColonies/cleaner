@@ -8,6 +8,8 @@ export interface InjectionObject<T> {
   provider: Providers<T>;
 }
 
+export const getJobAndTaskToken = ({ jobType, taskType }: { jobType: string; taskType: string }): string => `${jobType}-${taskType}`;
+
 export const registerDependencies = (
   dependencies: InjectionObject<unknown>[],
   override?: InjectionObject<unknown>[],

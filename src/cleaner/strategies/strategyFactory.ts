@@ -1,8 +1,9 @@
-import { container, inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
+import { container, inject, injectable } from 'tsyringe';
 import { SERVICES } from '@common/constants';
-import { StrategyNotFoundError } from '../errors';
-import type { ITaskStrategy } from './taskStrategy';
+import { StrategyNotFoundError } from '@src/cleaner/errors';
+import type { ITaskStrategy } from '@src/cleaner/strategies';
+import { getJobAndTaskToken } from '@src/common/dependencyRegistration';
 
 export interface TaskContext {
   jobId: string;
@@ -27,8 +28,10 @@ export class StrategyFactory {
   public resolveWithContext(taskContext: TaskContext): ITaskStrategy {
     this.logger.debug({ msg: 'Resolving strategy with task context', ...taskContext });
 
-    if (!container.isRegistered(taskContext.taskType)) {
-      throw new StrategyNotFoundError(taskContext.taskType);
+    const jobTaskToken = getJobAndTaskToken(taskContext);
+
+    if (!container.isRegistered(jobTaskToken)) {
+      throw new StrategyNotFoundError({ jobType: taskContext.jobType, taskType: taskContext.taskType });
     }
 
     const taskContainer = container.createChildContainer();
@@ -39,7 +42,7 @@ export class StrategyFactory {
     taskContainer.register(SERVICES.LOGGER, { useValue: taskLogger });
     taskContainer.register(SERVICES.TASK_CONTEXT, { useValue: taskContext });
 
-    const strategy = taskContainer.resolve<ITaskStrategy>(taskContext.taskType);
+    const strategy = taskContainer.resolve<ITaskStrategy>(jobTaskToken);
 
     taskLogger.debug({ msg: 'Strategy resolved successfully with task context' });
 

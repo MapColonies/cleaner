@@ -1,36 +1,21 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { vi } from 'vitest';
 import { container } from 'tsyringe';
-import { SourceType } from '@map-colonies/raster-shared';
 import type { ITaskResponse, TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { SERVICES } from '@src/common/constants';
-import type { ConfigType } from '@src/common/config';
+import { getJobAndTaskToken } from '@src/common/dependencyRegistration';
 import { TaskPoller } from '@src/worker/taskPoller';
 import { ErrorHandler } from '@src/cleaner/errors';
 import { StrategyFactory, TilesDeletionStrategy } from '@src/cleaner/strategies';
-import type { IStorageProvider } from '@src/cleaner/storageProviders';
+import type { StorageProviders } from '@src/cleaner/storageProviders';
 import type { JobTrackerClient } from '@src/cleaner/httpClients';
 import type { PollingPairConfig } from '@src/cleaner/types';
 import { createMockLogger, createMockQueueClient, createMockStrategyConfig, createMockJobTrackerClient } from '../../helpers/mocks';
-import type { MinioHandle } from './minioContainer';
 
 const TASK_TYPE = 'tiles-deletion';
 const JOB_TYPE = 'Ingestion_Update';
 const POLLING_PAIR: PollingPairConfig = { jobType: JOB_TYPE, taskType: TASK_TYPE, maxAttempts: 3 };
 const POLLER_WATCHDOG_MS = 30_000;
-
-function buildS3ConfigForMinio(handle: MinioHandle): ConfigType {
-  return {
-    get: () => ({
-      endpoint: handle.endpoint,
-      accessKeyId: handle.accessKeyId,
-      secretAccessKey: handle.secretAccessKey,
-      sslEnabled: false,
-      forcePathStyle: true,
-      region: 'us-east-1',
-    }),
-  } as unknown as ConfigType;
-}
 
 /**
  * Returns a queue client whose `dequeue` hands out `task` exactly once for the
@@ -61,9 +46,7 @@ function buildSingleShotQueue(task: ITaskResponse<unknown>, onTerminal: () => vo
 }
 
 interface TestPollerParams {
-  providers: Map<SourceType, IStorageProvider>;
-  bucket: string;
-  fsBase: string;
+  providers: StorageProviders;
   task: ITaskResponse<unknown>;
 }
 
@@ -77,13 +60,12 @@ interface TestPoller {
  * Wires the real TaskPoller → StrategyFactory → TilesDeletionStrategy pipeline,
  * with real S3/FS providers (supplied by the caller) and a single-shot fake
  * QueueClient. The poller terminates as soon as ack/reject fires.
+ *
+ * The strategy reads nothing but batching knobs from config — every storage locator
+ * travels in the task params — so the mock config carries no bucket or base path.
  */
-function buildPoller({ providers, bucket, fsBase, task }: TestPollerParams): TestPoller {
-  const config = createMockStrategyConfig({
-    'strategies.tilesDeletion.s3Bucket': bucket,
-    'strategies.tilesDeletion.fsBasePath': fsBase,
-    'queue.dequeueIntervalMs': 0,
-  });
+function buildPoller({ providers, task }: TestPollerParams): TestPoller {
+  const config = createMockStrategyConfig({ 'queue.dequeueIntervalMs': 0 });
 
   container.register(SERVICES.LOGGER, { useValue: createMockLogger() });
   container.register(SERVICES.CONFIG, { useValue: config });
@@ -93,7 +75,8 @@ function buildPoller({ providers, bucket, fsBase, task }: TestPollerParams): Tes
     void poller.stop();
   });
   container.register(SERVICES.QUEUE_CLIENT, { useValue: queueClient });
-  container.register(TASK_TYPE, { useClass: TilesDeletionStrategy });
+  // StrategyFactory resolves strategies by the combined job+task token, not the task type alone.
+  container.register(getJobAndTaskToken(POLLING_PAIR), { useClass: TilesDeletionStrategy });
 
   const jobTrackerClient = createMockJobTrackerClient();
   container.register(SERVICES.JOB_TRACKER_CLIENT, { useValue: jobTrackerClient });
@@ -114,5 +97,5 @@ function buildPoller({ providers, bucket, fsBase, task }: TestPollerParams): Tes
   return { queueClient, jobTrackerClient, runSingleTask };
 }
 
-export { TASK_TYPE, JOB_TYPE, POLLING_PAIR, buildS3ConfigForMinio, buildSingleShotQueue, buildPoller };
+export { TASK_TYPE, JOB_TYPE, POLLING_PAIR, buildSingleShotQueue, buildPoller };
 export type { TestPoller, TestPollerParams };

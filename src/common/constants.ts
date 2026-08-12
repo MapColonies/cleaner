@@ -19,6 +19,8 @@ export const SERVICES = {
   TASK_VALIDATOR: Symbol('TaskValidator'),
   POLLING_PAIRS: Symbol('PollingPairs'),
   STORAGE_PROVIDERS: Symbol('StorageProviders'),
+  FS_STORAGE_CONFIG: Symbol('FsStorageConfig'),
+  S3_STORAGE_CONFIG: Symbol('S3StorageConfig'),
   TASK_CONTEXT: Symbol('TaskContext'),
   JOB_TRACKER_CLIENT: Symbol('JobTrackerClient'),
   // =============================================================================

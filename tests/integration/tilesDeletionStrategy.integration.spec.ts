@@ -1,9 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { faker } from '@faker-js/faker';
-import { type TilesDeletionParams } from '@map-colonies/raster-shared';
 import { buildTask } from '../helpers/fakes/taskFakes';
-import { buildBaseParams } from '../helpers/fakes/tilesDeletionFakes';
 import {
   fsBackend,
   s3Backend,
@@ -12,6 +10,7 @@ import {
   stopBackends,
   teardownTestStorageContext,
   type BackendHandles,
+  type PathAddressedParams,
   type TestStorageContext,
 } from './helpers/backendFixtures';
 import { buildPoller, TASK_TYPE } from './helpers/testPoller';
@@ -43,18 +42,18 @@ describe('tiles deletion E2E (polling → strategy → real provider → ack)', 
       () => storageContext
     ),
     fsBackend(() => storageContext),
-  ])('$sourceProvider provider', (backend) => {
+  ])('$storageProvider provider', (backend) => {
     it('polls the task, runs the strategy against the chosen provider, and acks after deleting only the requested tiles', async () => {
-      const tilesPath = `${faker.string.uuid()}/${faker.string.uuid()}`;
-      const params: TilesDeletionParams = buildBaseParams({ tilesPath, sourceProvider: backend.sourceProvider });
+      const tilesRelativePath = `${faker.string.uuid()}/${faker.string.uuid()}`;
+      const params: PathAddressedParams = backend.buildParams(tilesRelativePath);
       const target = tilePathsForRanges(params);
       const extras = [...extraTilePathsAroundRanges(params, 2), ...extraTilePathsAtAdjacentZooms(params, [-1, 1])];
       await backend.seed([...target, ...extras]);
       const task = buildTask({ type: TASK_TYPE, parameters: params });
 
-      const { runSingleTask, queueClient, jobTrackerClient } = buildPoller({ ...storageContext, task });
+      const { runSingleTask, queueClient, jobTrackerClient } = buildPoller({ providers: storageContext.providers, task });
       await runSingleTask();
-      const remaining = await backend.list(`${tilesPath}/`);
+      const remaining = await backend.list(`${tilesRelativePath}/`);
 
       expect(remaining.sort()).toEqual([...extras].sort());
       expect(queueClient.ack).toHaveBeenCalledWith(task.jobId, task.id);

@@ -13,20 +13,23 @@ serviceUrls:
   jobTracker: ""
 
 storage:
+  cleanupStorageProviders: {}
   s3:
+    delete:
+      batchSize: 1000
     endpointUrl: ""
     forcePathStyle: true
     secretName: ""
     sslEnabled: false
     region: ""
-    tilesBucket: ""
   fs:
+    delete:
+      batchSize: 1000
     internalPvc:
       enabled: false
       name: ""
       mountPath: ""
-      tilesSubPath: ""
-
+      tilesSubPath: "" # e.g. folder/tiles
 
 mclabels:
   component: backend
@@ -128,7 +131,6 @@ env:
     tilesDeletion:
       batchSize: 1000
       concurrency: 10
-      failureSampleSize: 3
 
 resources:
   enabled: true

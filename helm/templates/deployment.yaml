@@ -54,10 +54,10 @@ spec:
           imagePullPolicy: {{ .pullPolicy | default "IfNotPresent" }}
           {{- end }}
           {{- if .Values.command }}
-          command: 
+          command:
           {{- toYaml .Values.command | nindent 12 }}
           {{- if .Values.args }}
-          args: 
+          args:
           {{- toYaml .Values.args | nindent 12 }}
           {{- end }}
           {{- end }}
@@ -122,7 +122,7 @@ spec:
             httpGet:
               path: {{ .Values.readinessProbe.path }}
               port: {{ .Values.env.targetPort }}
-          {{- end }}        
+          {{- end }}
           {{- if .Values.resources.enabled }}
           resources:
             {{- toYaml .Values.resources.value | nindent 12 }}

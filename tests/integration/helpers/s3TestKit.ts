@@ -9,9 +9,14 @@ import {
   BucketAlreadyOwnedByYou,
   BucketAlreadyExists,
 } from '@aws-sdk/client-s3';
-import { S3_MAX_DELETE_BATCH } from '@src/cleaner/storageProviders/s3StorageProvider';
+import type { S3StorageConfig } from '@src/cleaner/storageProviders';
 import type { MinioHandle } from './minioContainer';
 import { TINY_TILE_BODY } from './tileFixtures';
+
+// S3/MinIO reject a DeleteObjects request carrying more than 1000 keys. Only bucket
+// teardown below batches against it — the provider caps itself via its own config.
+const S3_DELETE_OBJECTS_MAX_KEYS = 1000;
+const TEST_REGION = 'us-east-1';
 
 function createTestS3Client(handle: MinioHandle): S3Client {
   return new S3Client({
@@ -20,10 +25,27 @@ function createTestS3Client(handle: MinioHandle): S3Client {
       accessKeyId: handle.accessKeyId,
       secretAccessKey: handle.secretAccessKey,
     },
-    region: 'us-east-1',
+    region: TEST_REGION,
     forcePathStyle: true,
     tls: false,
   });
+}
+
+/**
+ * The already-validated shape `S3StorageProvider` is injected with in production —
+ * built here straight from the container handle, so the test skips `buildS3StorageConfig`
+ * (and with it the `storage.s3` config lookup) but exercises the real provider.
+ */
+function buildS3StorageConfigForMinio(handle: MinioHandle): S3StorageConfig {
+  return {
+    endpoint: handle.endpoint,
+    accessKeyId: handle.accessKeyId,
+    secretAccessKey: handle.secretAccessKey,
+    sslEnabled: false,
+    forcePathStyle: true,
+    region: TEST_REGION,
+    batchSize: S3_DELETE_OBJECTS_MAX_KEYS,
+  };
 }
 
 async function ensureBucket(client: S3Client, bucket: string): Promise<void> {
@@ -54,8 +76,8 @@ async function listAllKeys(client: S3Client, bucket: string, prefix?: string): P
 
 async function emptyBucket(client: S3Client, bucket: string): Promise<void> {
   const keys = await listAllKeys(client, bucket);
-  for (let i = 0; i < keys.length; i += S3_MAX_DELETE_BATCH) {
-    const chunk = keys.slice(i, i + S3_MAX_DELETE_BATCH);
+  for (let i = 0; i < keys.length; i += S3_DELETE_OBJECTS_MAX_KEYS) {
+    const chunk = keys.slice(i, i + S3_DELETE_OBJECTS_MAX_KEYS);
     await client.send(
       new DeleteObjectsCommand({
         Bucket: bucket,
@@ -81,4 +103,4 @@ async function putManyTiles(client: S3Client, bucket: string, keys: string[]): P
   }
 }
 
-export { createTestS3Client, ensureBucket, deleteBucket, emptyBucket, putTile, putManyTiles, listAllKeys };
+export { createTestS3Client, buildS3StorageConfigForMinio, ensureBucket, deleteBucket, emptyBucket, putTile, putManyTiles, listAllKeys };
