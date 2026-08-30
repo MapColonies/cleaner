@@ -44,8 +44,9 @@ async function startMinio(): Promise<MinioHandle> {
     stop: async (): Promise<void> => {
       try {
         await container.stop();
-      } catch {
-        // ignore; Ryuk will clean up on test process exit
+      } catch (error) {
+        // Non-fatal: Ryuk reaps the container on test process exit, unless it is disabled.
+        console.warn('Failed to stop Minio container; relying on Ryuk to reap it', error);
       }
     },
   };
