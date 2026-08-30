@@ -20,6 +20,8 @@ const DEFAULT_PASSWORD = 'minioadmin';
 async function startMinio(): Promise<MinioHandle> {
   const externalEndpoint = process.env.TEST_MINIO_ENDPOINT;
   if (externalEndpoint !== undefined && externalEndpoint !== '') {
+    console.warn(`Minio: using EXTERNAL server at ${externalEndpoint} (TEST_MINIO_ENDPOINT is set).`);
+    console.warn('Minio: this suite CREATES AND DELETES buckets on that server. Unset TEST_MINIO_ENDPOINT to use a testcontainer.');
     return {
       endpoint: externalEndpoint,
       accessKeyId: process.env.TEST_MINIO_ACCESS_KEY ?? DEFAULT_USER,
@@ -27,7 +29,7 @@ async function startMinio(): Promise<MinioHandle> {
       stop: async (): Promise<void> => Promise.resolve(),
     };
   }
-  console.log('No external Minio endpoint configured, starting testcontainer instance');
+  console.log(`Minio: TEST_MINIO_ENDPOINT is not set, starting testcontainer from ${MINIO_IMAGE}`);
   const container: StartedTestContainer = await new GenericContainer(MINIO_IMAGE)
     .withCommand(['server', '/data'])
     .withEnvironment({

@@ -61,6 +61,25 @@ npm test
 npm run test:watch
 ```
 
+#### Integration tests
+
+`npm run test:integration` needs an S3-compatible server. By default it starts a Minio
+[testcontainer](https://testcontainers.com/) automatically.
+ The image is pinned to the release deployed in our Azure environment; bump it in
+`tests/integration/helpers/minioContainer.ts` when that environment moves.
+
+To run against an already-running Minio instead, set `TEST_MINIO_ENDPOINT`:
+
+| Variable                 | Default      | Purpose                                                            |
+| ------------------------ | ------------ | ------------------------------------------------------------------ |
+| `TEST_MINIO_ENDPOINT`    | _(unset)_    | Point the suite at an existing Minio. Unset means start a container. |
+| `TEST_MINIO_ACCESS_KEY`  | `minioadmin` | Access key for that server.                                        |
+| `TEST_MINIO_SECRET_KEY`  | `minioadmin` | Secret key for that server.                                        |
+
+> **The suite creates and deletes buckets on whichever endpoint it is given.** Never point
+> `TEST_MINIO_ENDPOINT` at a shared or deployed environment, and beware of leaving it exported in a
+> shell profile. Each run prints which mode it selected and against which endpoint.
+
 ## Customizing the Boilerplate
 
 This boilerplate includes example "logistics" code to demonstrate task handling. Follow these steps to adapt it to your use case:
