@@ -8,6 +8,11 @@ interface MinioHandle {
   stop: () => Promise<void>;
 }
 
+/**
+ * Pinned to the release running on our Azure deployment, so the suite exercises the same server
+ * behavior we deploy against.
+ */
+const MINIO_IMAGE = 'minio/minio:RELEASE.2025-07-23T15-54-02Z';
 const MINIO_PORT = 9000;
 const DEFAULT_USER = 'minioadmin';
 const DEFAULT_PASSWORD = 'minioadmin';
@@ -23,7 +28,7 @@ async function startMinio(): Promise<MinioHandle> {
     };
   }
   console.log('No external Minio endpoint configured, starting testcontainer instance');
-  const container: StartedTestContainer = await new GenericContainer('minio/minio:latest')
+  const container: StartedTestContainer = await new GenericContainer(MINIO_IMAGE)
     .withCommand(['server', '/data'])
     .withEnvironment({
       MINIO_ROOT_USER: DEFAULT_USER,
