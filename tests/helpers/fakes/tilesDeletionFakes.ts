@@ -5,12 +5,14 @@ const EXTENSIONS = ['png', 'jpeg'] as const;
 
 /** Fields every path-addressed tiles-deletion member carries, whatever its storage locator. */
 type TilesDeletionCommon = Pick<S3TilesDeletionParams, 'ranges' | 'tilesRelativePath' | 'fileExtension'>;
+const MIN_FAKE_ZOOM = 10;
+const MAX_FAKE_ZOOM = 18;
 
 function buildTileRange(overrides: Partial<TileRange> = {}): TileRange {
   const minX = faker.number.int({ min: 0, max: 50 });
   const minY = faker.number.int({ min: 0, max: 50 });
   return {
-    zoom: faker.number.int({ min: 0, max: 18 }),
+    zoom: faker.number.int({ min: MIN_FAKE_ZOOM, max: MAX_FAKE_ZOOM }),
     minX,
     maxX: minX + faker.number.int({ min: 0, max: 5 }),
     minY,
