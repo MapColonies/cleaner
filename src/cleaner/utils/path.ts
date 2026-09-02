@@ -1,8 +1,27 @@
 import { join, resolve, sep } from 'node:path/posix';
+import type { TileRange } from '@map-colonies/raster-shared';
 
 export const normalizeFolderPath = (path: string): string => {
   return path.endsWith(sep) ? path : `${path}${sep}`;
 };
+
+/** Tile paths for the S3 and FS providers, which address a tile identically. */
+export function* generateTilePaths(range: TileRange, tilesRelativePath: string, fileExtension: string): Generator<string> {
+  for (let x = range.minX; x <= range.maxX; x++) {
+    for (let y = range.minY; y <= range.maxY; y++) {
+      yield `${tilesRelativePath}/${range.zoom}/${x}/${y}.${fileExtension}`;
+    }
+  }
+}
+
+/** Redis tile keys in mapproxy's format */
+export function* generateRedisTileKeys(range: TileRange, prefix: string): Generator<string> {
+  for (let x = range.minX; x <= range.maxX; x++) {
+    for (let y = range.minY; y <= range.maxY; y++) {
+      yield `${prefix}-${range.zoom}-${x}-${y}`;
+    }
+  }
+}
 
 /**
  * Resolves a file system path to an absolute path.
