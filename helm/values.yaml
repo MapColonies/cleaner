@@ -35,6 +35,7 @@ mclabels:
   component: backend
   partOf: core
   owner: raster
+  gisDomain: raster
   prometheus:
     enabled: true
 
