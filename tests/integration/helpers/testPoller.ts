@@ -48,6 +48,8 @@ function buildSingleShotQueue(task: ITaskResponse<unknown>, onTerminal: () => vo
 interface TestPollerParams {
   providers: StorageProviders;
   task: ITaskResponse<unknown>;
+  /** Config keys merged over the strategy defaults, e.g. the batching knobs. */
+  configOverrides?: Record<string, unknown>;
 }
 
 interface TestPoller {
@@ -64,8 +66,8 @@ interface TestPoller {
  * The strategy reads nothing but batching knobs from config — every storage locator
  * travels in the task params — so the mock config carries no bucket or base path.
  */
-function buildPoller({ providers, task }: TestPollerParams): TestPoller {
-  const config = createMockStrategyConfig({ 'queue.dequeueIntervalMs': 0 });
+function buildPoller({ providers, task, configOverrides = {} }: TestPollerParams): TestPoller {
+  const config = createMockStrategyConfig({ 'queue.dequeueIntervalMs': 0, ...configOverrides });
 
   container.register(SERVICES.LOGGER, { useValue: createMockLogger() });
   container.register(SERVICES.CONFIG, { useValue: config });

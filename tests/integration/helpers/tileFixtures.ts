@@ -37,19 +37,22 @@ function paddedRange(range: TileRange, padding: number): TileRange {
  * Builds the set of tiles inside the `paddedRange` but **outside** the original
  * `params.ranges`. These tiles are seeded into the backend before the strategy
  * runs and MUST survive — they prove "only the supplied ranges are deleted".
+ *
+ * Deduped, because with several ranges the padded regions can overlap and yield
+ * the same bystander path twice.
  */
 function extraTilePathsAroundRanges(params: TilesDeletionCommon, padding: number): string[] {
   const targetSet = new Set(tilePathsForRanges(params));
-  const extras: string[] = [];
+  const extras = new Set<string>();
   for (const range of params.ranges) {
     const wider = paddedRange(range, padding);
     for (const path of tilePathsForRange(wider, params.tilesRelativePath, params.fileExtension)) {
       if (!targetSet.has(path)) {
-        extras.push(path);
+        extras.add(path);
       }
     }
   }
-  return extras;
+  return [...extras];
 }
 
 /**
@@ -60,15 +63,21 @@ function extraTilePathsAroundRanges(params: TilesDeletionCommon, padding: number
  * test and must survive after the strategy runs.
  * */
 function extraTilePathsAtAdjacentZooms(params: TilesDeletionCommon, zoomDeltas: number[]): string[] {
-  const extras: string[] = [];
+  const targetSet = new Set(tilePathsForRanges(params));
+  const extras = new Set<string>();
   for (const range of params.ranges) {
     for (const delta of zoomDeltas) {
       const zoom = range.zoom + delta;
       if (zoom < 0) continue;
-      extras.push(`${params.tilesRelativePath}/${zoom}/${range.minX}/${range.minY}.${params.fileExtension}`);
+      const path = `${params.tilesRelativePath}/${zoom}/${range.minX}/${range.minY}.${params.fileExtension}`;
+      // With several ranges, one range's neighbouring zoom can be another range's own zoom,
+      // where the path is a deletion target rather than a bystander that must survive.
+      if (!targetSet.has(path)) {
+        extras.add(path);
+      }
     }
   }
-  return extras;
+  return [...extras];
 }
 
 export { tilePathsForRange, tilePathsForRanges, paddedRange, extraTilePathsAroundRanges, extraTilePathsAtAdjacentZooms, TINY_TILE_BODY };
