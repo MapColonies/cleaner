@@ -207,10 +207,10 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   }
 
   private *generateTileKeys(params: SupportedTilesDeletionParams): Generator<string> {
-    const keysForRange = resolveTileKeyGenerator(params);
+    const toKeys = resolveTileKeyGenerator(params);
 
     for (const range of params.ranges) {
-      yield* keysForRange(range);
+      yield* toKeys(range);
     }
   }
 }
