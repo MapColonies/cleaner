@@ -1,8 +1,29 @@
 import { join, resolve, sep } from 'node:path/posix';
+import type { TileRange } from '@map-colonies/raster-shared';
 
 export const normalizeFolderPath = (path: string): string => {
   return path.endsWith(sep) ? path : `${path}${sep}`;
 };
+
+/**
+ * Walks every tile in a range and yields whatever `formatKey` makes of it, so the traversal
+ * lives in one place and each provider only supplies its own key shape.
+ */
+export function* generateRangeKeys(range: TileRange, formatKey: (zoom: number, x: number, y: number) => string): Generator<string> {
+  for (let x = range.minX; x <= range.maxX; x++) {
+    for (let y = range.minY; y <= range.maxY; y++) {
+      yield formatKey(range.zoom, x, y);
+    }
+  }
+}
+
+/** Tile paths for the S3 and FS providers, which address a tile identically. */
+export const generateTilePaths = (range: TileRange, tilesRelativePath: string, fileExtension: string): Generator<string> =>
+  generateRangeKeys(range, (zoom, x, y) => `${tilesRelativePath}/${zoom}/${x}/${y}.${fileExtension}`);
+
+/** Redis tile keys in mapproxy's format */
+export const generateRedisTileKeys = (range: TileRange, prefix: string): Generator<string> =>
+  generateRangeKeys(range, (zoom, x, y) => `${prefix}-${zoom}-${x}-${y}`);
 
 /**
  * Resolves a file system path to an absolute path.

@@ -1,24 +1,20 @@
 import { NoSuchKey } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { StorageProvider, TileRange, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
+import { StorageProvider, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import { mergeFailures, summarizeDeleteFailures, type DeleteFailure, type StorageProviders } from '@src/cleaner/storageProviders';
 import { RecoverableError, UnrecoverableError, describeError } from '../errors';
 import { ResolvedStorageProvider } from '../storageProviders/iStorageProvider';
-import { validateSchema } from '../utils';
+import { resolveTileKeyGenerator, validateSchema } from '../utils';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
 
 const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
 
-/**
- * The params shapes this strategy can act on today. Redis tiles deletion is not implemented
- * yet (MAPCO-11261): its params carry a key prefix instead of a tiles path, so there are no
- * tile paths to generate.
- */
+/** Redis tiles deletion is not implemented yet (MAPCO-11263). */
 type SupportedTilesDeletionParams = Exclude<TilesDeletionParams, { storageProvider: 'REDIS' }>;
 
 @injectable()
@@ -63,7 +59,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       totalTiles,
     });
 
-    const failures = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
+    const failures = await this.deleteTiles(provider, storageTarget, params, totalTiles);
     this.reportOutcome(failures, totalTiles);
   }
 
@@ -125,7 +121,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     return { provider: storageProvider, storageTarget };
   }
 
-  private async deleteAllTiles(
+  private async deleteTiles(
     provider: ResolvedStorageProvider,
     storageTarget: string,
     params: SupportedTilesDeletionParams,
@@ -137,8 +133,8 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     let batch: string[] = [];
     let processedTiles = 0;
 
-    for (const tilePath of this.generateTilePaths(params)) {
-      batch.push(tilePath);
+    for (const tileKey of this.generateTileKeys(params)) {
+      batch.push(tileKey);
       if (batch.length === this.batchSize) {
         pendingBatches.push(batch);
         batch = [];
@@ -210,17 +206,11 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     return params.ranges.reduce((sum, r) => sum + (r.maxX - r.minX + 1) * (r.maxY - r.minY + 1), 0);
   }
 
-  private *generateTilePaths(params: SupportedTilesDeletionParams): Generator<string> {
-    for (const range of params.ranges) {
-      yield* this.generateRangePaths(range, params.tilesRelativePath, params.fileExtension);
-    }
-  }
+  private *generateTileKeys(params: SupportedTilesDeletionParams): Generator<string> {
+    const toKeys = resolveTileKeyGenerator(params);
 
-  private *generateRangePaths(range: TileRange, tilesRelativePath: string, fileExtension: string): Generator<string> {
-    for (let x = range.minX; x <= range.maxX; x++) {
-      for (let y = range.minY; y <= range.maxY; y++) {
-        yield `${tilesRelativePath}/${range.zoom}/${x}/${y}.${fileExtension}`;
-      }
+    for (const range of params.ranges) {
+      yield* toKeys(range);
     }
   }
 }

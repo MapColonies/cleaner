@@ -1,5 +1,12 @@
+import type { TileRange } from '@map-colonies/raster-shared';
 import { describe, expect, it } from 'vitest';
-import { isPathWithinAllowedSubPaths, normalizeFolderPath, resolveAbsolutePath } from '@src/cleaner/utils/path';
+import {
+  generateRedisTileKeys,
+  generateTilePaths,
+  isPathWithinAllowedSubPaths,
+  normalizeFolderPath,
+  resolveAbsolutePath,
+} from '@src/cleaner/utils/path';
 
 const BASE_PATH = '/data';
 const ALLOWED_SUB_PATHS = ['artifacts/tiles', 'artifacts/gpkgs'];
@@ -63,6 +70,59 @@ describe('path', () => {
 
     it('should reject every path when no sub paths are allowed', () => {
       expect(isPathWithinAllowedSubPaths({ relativePath: 'artifacts/tiles/layer', basePath: BASE_PATH, allowedSubPaths: [] })).toBe(false);
+    });
+  });
+
+  describe('#generateTilePaths', () => {
+    it('should yield a path per tile, ordered x-major then y', () => {
+      const range: TileRange = { zoom: 3, minX: 1, maxX: 2, minY: 5, maxY: 6 };
+
+      expect([...generateTilePaths(range, 'layer/v1', 'png')]).toEqual([
+        'layer/v1/3/1/5.png',
+        'layer/v1/3/1/6.png',
+        'layer/v1/3/2/5.png',
+        'layer/v1/3/2/6.png',
+      ]);
+    });
+
+    it('should yield a single path for a range covering one tile', () => {
+      const range: TileRange = { zoom: 0, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+      expect([...generateTilePaths(range, 'layer/v1', 'jpeg')]).toEqual(['layer/v1/0/0/0.jpeg']);
+    });
+  });
+
+  describe('#generateRedisTileKeys', () => {
+    it('should yield dash-separated keys with zoom first and no file extension', () => {
+      const range: TileRange = { zoom: 3, minX: 1, maxX: 2, minY: 5, maxY: 6 };
+
+      expect([...generateRedisTileKeys(range, 'myLayer-redis_WorldCRS84')]).toEqual([
+        'myLayer-redis_WorldCRS84-3-1-5',
+        'myLayer-redis_WorldCRS84-3-1-6',
+        'myLayer-redis_WorldCRS84-3-2-5',
+        'myLayer-redis_WorldCRS84-3-2-6',
+      ]);
+    });
+
+    // Captured off a live MapProxy command stream (DISCOVERY.md). A wrong key deletes nothing
+    // and still reports success, so it is pinned exactly.
+    it('should reproduce the key format captured from MapProxy', () => {
+      const range: TileRange = { zoom: 12, minX: 4892, maxX: 4892, minY: 2784, maxY: 2784 };
+
+      expect([...generateRedisTileKeys(range, 'benchmark')]).toEqual(['benchmark-12-4892-2784']);
+    });
+
+    // Production uses mapproxy-api's `{cacheName}_{gridName}` fallback, not the layer id.
+    it('should treat the prefix as an opaque string', () => {
+      const range: TileRange = { zoom: 0, minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+      expect([...generateRedisTileKeys(range, 'myLayer-redis_WorldCRS84')]).toEqual(['myLayer-redis_WorldCRS84-0-0-0']);
+    });
+
+    it('should yield a single key for a range covering one tile', () => {
+      const range: TileRange = { zoom: 21, minX: 7, maxX: 7, minY: 9, maxY: 9 };
+
+      expect([...generateRedisTileKeys(range, 'p')]).toEqual(['p-21-7-9']);
     });
   });
 });
