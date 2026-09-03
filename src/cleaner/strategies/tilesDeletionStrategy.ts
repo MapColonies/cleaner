@@ -59,7 +59,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       totalTiles,
     });
 
-    const failures = await this.deleteAllTiles(provider, storageTarget, params, totalTiles);
+    const failures = await this.deleteTiles(provider, storageTarget, params, totalTiles);
     this.reportOutcome(failures, totalTiles);
   }
 
@@ -121,7 +121,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     return { provider: storageProvider, storageTarget };
   }
 
-  private async deleteAllTiles(
+  private async deleteTiles(
     provider: ResolvedStorageProvider,
     storageTarget: string,
     params: SupportedTilesDeletionParams,
