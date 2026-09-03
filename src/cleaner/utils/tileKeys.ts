@@ -1,5 +1,5 @@
 import { StorageProvider, type TileRange, type TilesDeletionParams } from '@map-colonies/raster-shared';
-import { generateRedisTileKeys, generateTilePaths } from '../utils';
+import { generateRedisTileKeys, generateTilePaths } from './path';
 
 /**
  * Picks the tile-key format for a deletion request. Switching on the discriminant (rather than

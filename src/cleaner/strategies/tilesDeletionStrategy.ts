@@ -8,10 +8,9 @@ import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
 import { mergeFailures, summarizeDeleteFailures, type DeleteFailure, type StorageProviders } from '@src/cleaner/storageProviders';
 import { RecoverableError, UnrecoverableError, describeError } from '../errors';
 import { ResolvedStorageProvider } from '../storageProviders/iStorageProvider';
-import { validateSchema } from '../utils';
+import { resolveTileKeyGenerator, validateSchema } from '../utils';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
-import { resolveTileKeyGenerator } from './tileKeys';
 
 const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
 

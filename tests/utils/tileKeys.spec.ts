@@ -1,7 +1,7 @@
 import { faker } from '@faker-js/faker';
 import type { FsTilesDeletionParams, RedisTilesDeletionParams, S3TilesDeletionParams, TileRange } from '@map-colonies/raster-shared';
 import { describe, expect, it } from 'vitest';
-import { resolveTileKeyGenerator } from '@src/cleaner/strategies/tileKeys';
+import { resolveTileKeyGenerator } from '@src/cleaner/utils/tileKeys';
 
 const RANGE: TileRange = { zoom: 3, minX: 1, maxX: 2, minY: 5, maxY: 6 };
 
