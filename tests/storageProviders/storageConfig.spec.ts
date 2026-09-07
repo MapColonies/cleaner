@@ -2,14 +2,16 @@ import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { faker } from '@faker-js/faker';
 import { ConfigurationError } from '@src/cleaner/errors';
-import { buildFsStorageConfig, buildS3StorageConfig, type FsConfig } from '@src/cleaner/storageProviders/storageConfig';
+import { buildFsStorageConfig, buildRedisStorageConfig, buildS3StorageConfig, type FsConfig } from '@src/cleaner/storageProviders/storageConfig';
 import { assertCanDeleteFromFolder } from '@src/cleaner/utils/fs';
 import type { ConfigType } from '@src/common/config';
 import {
   createFsStorageConfig,
   createMockFsConfig,
   createMockLogger,
+  createMockRedisConfig,
   createMockS3Config,
+  createRedisStorageConfig,
   createS3StorageConfig,
   FS_STORAGE_CONFIG_DEFAULTS,
 } from '../helpers/mocks';
@@ -131,6 +133,44 @@ describe('storageConfig', () => {
       const config = createMockS3Config({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
 
       expect(() => buildS3StorageConfig(config, mockLogger)).toThrow(ConfigurationError);
+    });
+  });
+
+  describe('#buildRedisStorageConfig', () => {
+    it('should return the validated config with the delete batch size hoisted', () => {
+      const config = createMockRedisConfig();
+
+      const result = buildRedisStorageConfig(config, mockLogger);
+
+      expect(result).toStrictEqual(createRedisStorageConfig());
+    });
+
+    it('should carry optional credentials and tls through', () => {
+      const config = createMockRedisConfig({ username: 'user', password: 'secret', tlsEnabled: true });
+
+      const result = buildRedisStorageConfig(config, mockLogger);
+
+      expect(result).toMatchObject({ username: 'user', password: 'secret', tlsEnabled: true });
+    });
+
+    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
+      const config = createMockRedisConfig({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
+
+      expect(() => buildRedisStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
+    });
+
+    it('should throw ConfigurationError when scanCount is less than or equal to 0', () => {
+      const config = createMockRedisConfig({ scanCount: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) });
+
+      expect(() => buildRedisStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
+    });
+
+    it('should not log the password, so a secret never reaches the logs', () => {
+      const config = createMockRedisConfig({ password: 'secret' });
+
+      buildRedisStorageConfig(config, mockLogger);
+
+      expect(JSON.stringify(vi.mocked(mockLogger.info).mock.calls)).not.toContain('secret');
     });
   });
 });

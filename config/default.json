@@ -97,6 +97,15 @@
       "subPaths": {
         "tilesSubPath": "tiles"
       }
+    },
+    "redis": {
+      "delete": {
+        "batchSize": 1000
+      },
+      "host": "localhost",
+      "port": 6379,
+      "db": 0,
+      "scanCount": 1000
     }
   },
   "strategies": {

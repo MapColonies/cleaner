@@ -4,9 +4,12 @@ export type { DeleteFailure, DeleteResult, IStorageProvider, StorageProvider, St
 export { S3StorageProvider } from './s3StorageProvider';
 export {
   buildFsStorageConfig,
+  buildRedisStorageConfig,
   buildS3StorageConfig,
   type FsConfig,
   type FsStorageConfig,
+  type RedisConfig,
+  type RedisStorageConfig,
   type S3Config,
   type S3StorageConfig,
 } from './storageConfig';
