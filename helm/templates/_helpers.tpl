@@ -96,17 +96,6 @@ Returns the cloud provider image pull secret name from global if exists or from 
 {{- end -}}
 
 {{/*
-Returns the tracing url from global if exists or from the chart's values
-*/}}
-{{- define "cleaner.tracingUrl" -}}
-{{- if .Values.global.tracing.url }}
-    {{- .Values.global.tracing.url -}}
-{{- else if .Values.cloudProvider -}}
-    {{- .Values.env.tracing.url -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Returns the metrics url from global if exists or from the chart's values
 */}}
 {{- define "cleaner.metricsUrl" -}}

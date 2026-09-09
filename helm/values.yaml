@@ -1,6 +1,7 @@
 global:
   cloudProvider: {}
   tracing: {}
+  openTelemetryOptions: {}
   metrics: {}
   jobDefinitions: {}
   storage: {}
@@ -49,9 +50,9 @@ nameOverride: ""
 fullnameOverride: ""
 
 configManagement:
-  offlineMode: false
+  offlineMode: true
   name: 'cleaner'
-  version: ''
+  version: 'latest'
   serverUrl: ''
 
 jobDefinitions: {}
@@ -103,6 +104,7 @@ image:
 
 env:
   port: 8080
+  targetPort: 8080
   logLevel: info
   prettyPrintEnabled: false
   openTelemetryOptions:
@@ -115,12 +117,15 @@ env:
   queue:
     heartbeatIntervalMs: 1000
     dequeueIntervalMs: 3000
+  jobnik:
+    worker:
+      concurrency: 1
   worker:
     capabilities:
       pairs:
         - job: "Ingestion_Update"
           task: "tiles-deletion"
-        - job: "Ingestion_Swap_Update"
+        - job: "Delete_Layer"
           task: "tiles-deletion"
   httpRetry:
     attempts: 3

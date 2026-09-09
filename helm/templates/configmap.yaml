@@ -1,4 +1,5 @@
-{{- $tracingUrl := include "cleaner.tracingUrl" . -}}
+{{- $tracing := fromYaml (include "common.tracing.merged" .) -}}
+{{- $openTelemetryOptions := fromYaml (include "common.openTelemetryOptions.merged" .) -}}
 {{- $serviceUrls := fromYaml (include "common.serviceUrls.merged" .) -}}
 {{- $storage := fromYaml (include "common.storage.merged" .) -}}
 {{- $s3 := ($storage.s3) | default dict -}}
@@ -13,16 +14,16 @@ metadata:
 data:
   LOG_LEVEL: {{ .Values.env.logLevel | quote }}
   LOG_PRETTY_PRINT_ENABLED: {{ .Values.env.prettyPrintEnabled | quote }}
-  {{- with .Values.env.openTelemetryOptions }}
+  {{- with $openTelemetryOptions }}
   TELEMETRY_LOGGER_OTEL_ENABLED: {{ .enabled | default false | quote }}
   {{- if .enabled }}
   TELEMETRY_LOGGER_OTEL_URL: {{ .url | default "" | quote }}
   TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES: {{ .resourceAttributes | default dict | toJson | quote }}
   {{- end}}
   {{- end }}
-  {{- if .Values.env.tracing.enabled }}
+  {{- if $tracing.enabled }}
   TELEMETRY_TRACING_ENABLED: 'true'
-  TELEMETRY_TRACING_URL: {{ $tracingUrl }}
+  TELEMETRY_TRACING_URL: {{ $tracing.url | default "" | quote }}
   {{- end }}
   npm_config_cache: /tmp/
   {{- with .Values.configManagement }}
