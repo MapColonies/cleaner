@@ -4,6 +4,7 @@
 {{- $cloudProviderDockerRegistryUrl := include "cleaner.cloudProviderDockerRegistryUrl" . -}}
 {{- $cloudProviderImagePullSecretName := include "cleaner.cloudProviderImagePullSecretName" . -}}
 {{- $imageTag := include "cleaner.tag" . -}}
+{{- $server := .Values.server -}}
 {{- $ca := fromYaml (include "common.ca.merged" .) -}}
 {{- $storage := fromYaml (include "common.storage.merged" .) -}}
 {{- $s3 := ($storage.s3) | default dict -}}
@@ -80,7 +81,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.uid
             - name: SERVER_PORT
-              value: {{ .Values.env.targetPort | quote }}
+              value: {{ $server.targetPort | quote }}
             {{- if $ca.secretName }}
             - name: REQUESTS_CA_BUNDLE
               value: {{ printf "%s/%s" $ca.path $ca.key | quote }}
@@ -112,7 +113,7 @@ spec:
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
             httpGet:
               path: {{ .Values.livenessProbe.path }}
-              port: {{ .Values.env.targetPort }}
+              port: {{ $server.targetPort }}
           {{- end }}
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
@@ -121,7 +122,7 @@ spec:
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
             httpGet:
               path: {{ .Values.readinessProbe.path }}
-              port: {{ .Values.env.targetPort }}
+              port: {{ $server.targetPort }}
           {{- end }}
           {{- if .Values.resources.enabled }}
           resources:

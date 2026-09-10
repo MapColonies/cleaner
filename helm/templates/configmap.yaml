@@ -1,5 +1,6 @@
-{{- $tracing := fromYaml (include "common.tracing.merged" .) -}}
-{{- $openTelemetryOptions := fromYaml (include "common.openTelemetryOptions.merged" .) -}}
+{{- $telemetry := .Values.telemetry -}}
+{{- $tracingUrl := include "cleaner.tracingUrl" . -}}
+{{- $opentelemetryLoggingUrl := include "cleaner.opentelemetryLoggingUrl" . -}}
 {{- $serviceUrls := fromYaml (include "common.serviceUrls.merged" .) -}}
 {{- $storage := fromYaml (include "common.storage.merged" .) -}}
 {{- $s3 := ($storage.s3) | default dict -}}
@@ -12,18 +13,22 @@ kind: ConfigMap
 metadata:
   name: {{ printf "%s-configmap" (include "cleaner.fullname" .) }}
 data:
-  LOG_LEVEL: {{ .Values.env.logLevel | quote }}
-  LOG_PRETTY_PRINT_ENABLED: {{ .Values.env.prettyPrintEnabled | quote }}
-  {{- with $openTelemetryOptions }}
-  TELEMETRY_LOGGER_OTEL_ENABLED: {{ .enabled | default false | quote }}
+  {{- with $telemetry }}
+  LOG_LEVEL: {{ .logger.level | quote }}
+  LOG_PRETTY_PRINT_ENABLED: {{ .logger.prettyPrint | quote }}
+  {{- with .logger.opentelemetryOptions }}
+  OPENTELEMETRY_LOGGING_ENABLED: {{ .enabled | quote }}
   {{- if .enabled }}
-  TELEMETRY_LOGGER_OTEL_URL: {{ .url | default "" | quote }}
-  TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES: {{ .resourceAttributes | default dict | toJson | quote }}
-  {{- end}}
+  OTLP_LOGGER_ENDPOINT_URL: {{ $opentelemetryLoggingUrl | quote }}
+  {{- if .resourceAttributes }}
+  OTEL_RESOURCE_ATTRIBUTES: {{ include "cleaner.otelResourceAttributes" .resourceAttributes | quote }}
   {{- end }}
-  {{- if $tracing.enabled }}
-  TELEMETRY_TRACING_ENABLED: 'true'
-  TELEMETRY_TRACING_URL: {{ $tracing.url | default "" | quote }}
+  {{- end }}
+  {{- end }}
+  TELEMETRY_TRACING_ENABLED: {{ .tracing.enabled | quote }}
+  {{- if .tracing.enabled }}
+  TELEMETRY_TRACING_URL: {{ $tracingUrl | quote }}
+  {{- end }}
   {{- end }}
   npm_config_cache: /tmp/
   {{- with .Values.configManagement }}
@@ -32,14 +37,14 @@ data:
   CONFIG_OFFLINE_MODE: {{ .offlineMode | quote }}
   CONFIG_SERVER_URL: {{ .serverUrl | quote }}
   {{- end }}
-  {{- with .Values.env.worker.capabilities }}
+  {{- with .Values.worker.capabilities }}
   WORKER_CAPABILITY_PAIRS: {{ .pairs | toJson | quote }}
   {{- end }}
   QUEUE_JOB_MANAGER_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
   QUEUE_HEARTBEAT_BASE_URL: {{ $serviceUrls.heartbeatManager | default "" | quote }}
   SERVICES_URL_JOB_TRACKER: {{ $serviceUrls.jobTracker | default "" | quote }}
-  DISABLE_HTTP_CLIENT_LOGS: {{ .Values.env.disableHttpClientLogs | default false | quote }}
-  {{- with .Values.env.queue }}
+  DISABLE_HTTP_CLIENT_LOGS: {{ .Values.disableHttpClientLogs | default false | quote }}
+  {{- with .Values.queue }}
   QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | default 1000 | quote }}
   QUEUE_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | default 3000 | quote }}
   {{- end }}
@@ -47,13 +52,13 @@ data:
   {{- if $jobDefinitions }}
   JOB_DEFINITIONS: {{ $jobDefinitions | toJson | quote }}
   {{- end }}
-  {{- with .Values.env.httpRetry }}
+  {{- with .Values.httpRetry }}
   HTTP_RETRY_ATTEMPTS: {{ .attempts | quote }}
   HTTP_RETRY_DELAY: {{ .delay | quote }}
   HTTP_RETRY_SHOULD_RESET_TIMEOUT: {{ .shouldResetTimeout | quote }}
   {{- end }}
   JOBNIK_SDK_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
-  {{- with .Values.env.jobnik.worker }}
+  {{- with .Values.jobnik.worker }}
   JOBNIK_WORKER_CONCURRENCY: {{ .concurrency | default 1 | quote }}
   {{- end }}
   CLEANUP_STORAGE_PROVIDERS: {{ $storage.cleanupStorageProviders | toJson | quote }}
@@ -75,7 +80,7 @@ data:
   {{- end }}
   FS_SUB_PATHS: {{ $subPaths | toJson | quote }}
   {{- end }}
-  {{- with .Values.env.strategies.tilesDeletion }}
+  {{- with .Values.strategies.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
   TILES_DELETION_CONCURRENCY: {{ .concurrency | default 10 | quote }}
   {{- end }}

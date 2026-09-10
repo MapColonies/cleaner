@@ -1,8 +1,9 @@
 global:
   cloudProvider: {}
-  tracing: {}
-  openTelemetryOptions: {}
-  metrics: {}
+  telemetry:
+    tracing: {}
+    logger:
+      opentelemetryOptions: {}
   jobDefinitions: {}
   storage: {}
   serviceUrls: {}
@@ -102,40 +103,57 @@ image:
   # tag: 'latest'
   pullPolicy: IfNotPresent
 
-env:
+server:
   port: 8080
   targetPort: 8080
-  logLevel: info
-  prettyPrintEnabled: false
-  openTelemetryOptions:
-    enabled: false
-    url: ""
-    resourceAttributes: {}
+
+telemetry:
+  logger:
+    level: info
+    prettyPrint: false
+    # OpenTelemetry logging. Rendered into the configmap as OPENTELEMETRY_LOGGING_ENABLED,
+    # OTLP_LOGGER_ENDPOINT_URL and, when resourceAttributes is set, OTEL_RESOURCE_ATTRIBUTES
+    # as a key=value,key=value list. All three are mapped in
+    # config/custom-environment-variables.json.
+    # url can be overridden from global.telemetry.logger.opentelemetryOptions.url.
+    opentelemetryOptions:
+      enabled: true
+      url: http://localhost:4317
+      # resourceAttributes:
+      #   service.namespace: namespace
+      #   deployment.environment: dev
   tracing:
-    enabled: false
-    url: ""
-  queue:
-    heartbeatIntervalMs: 1000
-    dequeueIntervalMs: 3000
-  jobnik:
-    worker:
-      concurrency: 1
+    enabled: true
+    # url can be overridden from global.telemetry.tracing.url
+    url: http://localhost:4318/v1/traces
+
+queue:
+  heartbeatIntervalMs: 1000
+  dequeueIntervalMs: 3000
+
+jobnik:
   worker:
-    capabilities:
-      pairs:
-        - job: "Ingestion_Update"
-          task: "tiles-deletion"
-        - job: "Delete_Layer"
-          task: "tiles-deletion"
-  httpRetry:
-    attempts: 3
-    delay: "exponential"
-    shouldResetTimeout: true
-  disableHttpClientLogs: false
-  strategies:
-    tilesDeletion:
-      batchSize: 1000
-      concurrency: 10
+    concurrency: 1
+
+worker:
+  capabilities:
+    pairs:
+      - job: "Ingestion_Update"
+        task: "tiles-deletion"
+      - job: "Delete_Layer"
+        task: "tiles-deletion"
+
+httpRetry:
+  attempts: 3
+  delay: "exponential"
+  shouldResetTimeout: true
+
+disableHttpClientLogs: false
+
+strategies:
+  tilesDeletion:
+    batchSize: 1000
+    concurrency: 10
 
 resources:
   enabled: true
