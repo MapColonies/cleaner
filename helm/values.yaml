@@ -7,7 +7,10 @@ global:
   jobDefinitions: {}
   storage: {}
   serviceUrls: {}
-  ca: {}
+  ca:
+    secretName: ''
+    path: '/usr/local/share/ca-certificates'
+    key: 'ca.crt'
 
 serviceUrls:
   jobManager: ""
@@ -91,11 +94,6 @@ cloudProvider:
   dockerRegistryUrl: ''
   imagePullSecretName: ''
   flavor: openshift
-
-ca:
-  secretName: ''
-  path: '/usr/local/share/ca-certificates'
-  key: 'ca.crt'
 
 image:
   repository: cleaner
