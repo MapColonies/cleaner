@@ -15,7 +15,7 @@ serviceUrls:
   jobTracker: ""
 
 storage:
-  cleanupStorageProviders: {}
+  cleanupStorageProviders: [] # e.g. [S3, FS]
   s3:
     delete:
       batchSize: 1000
@@ -54,7 +54,7 @@ configManagement:
   offlineMode: true
   name: 'cleaner'
   version: 'latest'
-  serverUrl: ''
+  serverUrl: 'http://localhost:8080/api'
 
 jobDefinitions: {}
 
