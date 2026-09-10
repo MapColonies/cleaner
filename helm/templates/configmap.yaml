@@ -58,7 +58,7 @@ data:
   HTTP_RETRY_SHOULD_RESET_TIMEOUT: {{ .shouldResetTimeout | quote }}
   {{- end }}
   JOBNIK_SDK_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
-  {{- with (.Values.env.jobnik | default dict).worker }}
+  {{- with .Values.env.jobnik.worker }}
   JOBNIK_WORKER_CONCURRENCY: {{ .concurrency | default 1 | quote }}
   {{- end }}
   CLEANUP_STORAGE_PROVIDERS: {{ $storage.cleanupStorageProviders | toJson | quote }}

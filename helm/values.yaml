@@ -126,6 +126,9 @@ env:
   queue:
     heartbeatIntervalMs: 1000
     dequeueIntervalMs: 3000
+  jobnik:
+    worker:
+      concurrency: 1
   worker:
     capabilities:
       pairs:
