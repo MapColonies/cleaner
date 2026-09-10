@@ -111,11 +111,6 @@ telemetry:
   logger:
     level: info
     prettyPrint: false
-    # OpenTelemetry logging. Rendered into the configmap as OPENTELEMETRY_LOGGING_ENABLED,
-    # OTLP_LOGGER_ENDPOINT_URL and, when resourceAttributes is set, OTEL_RESOURCE_ATTRIBUTES
-    # as a key=value,key=value list. All three are mapped in
-    # config/custom-environment-variables.json.
-    # url can be overridden from global.telemetry.logger.opentelemetryOptions.url.
     opentelemetryOptions:
       enabled: true
       url: http://localhost:4317
