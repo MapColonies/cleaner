@@ -1,11 +1,16 @@
 global:
   cloudProvider: {}
-  tracing: {}
-  metrics: {}
+  telemetry:
+    tracing: {}
+    logger:
+      opentelemetryOptions: {}
   jobDefinitions: {}
   storage: {}
   serviceUrls: {}
-  ca: {}
+  ca:
+    secretName: ''
+    path: '/usr/local/share/ca-certificates'
+    key: 'ca.crt'
 
 serviceUrls:
   jobManager: ""
@@ -13,7 +18,7 @@ serviceUrls:
   jobTracker: ""
 
 storage:
-  cleanupStorageProviders: {}
+  cleanupStorageProviders: [] # e.g. [S3, FS]
   s3:
     delete:
       batchSize: 1000
@@ -49,10 +54,10 @@ nameOverride: ""
 fullnameOverride: ""
 
 configManagement:
-  offlineMode: false
+  offlineMode: true
   name: 'cleaner'
-  version: ''
-  serverUrl: ''
+  version: 'latest'
+  serverUrl: 'http://localhost:8080/api'
 
 jobDefinitions: {}
 
@@ -90,37 +95,44 @@ cloudProvider:
   imagePullSecretName: ''
   flavor: openshift
 
-ca:
-  secretName: ''
-  path: '/usr/local/share/ca-certificates'
-  key: 'ca.crt'
-
 image:
   repository: cleaner
   # If commented, appVersion will be taken. See: _helpers.tpl
   # tag: 'latest'
   pullPolicy: IfNotPresent
 
-env:
+server:
   port: 8080
-  logLevel: info
-  prettyPrintEnabled: false
-  openTelemetryOptions:
-    enabled: false
-    url: ""
-    resourceAttributes: {}
+  targetPort: 8080
+
+telemetry:
+  logger:
+    level: info
+    prettyPrint: false
+    opentelemetryOptions:
+      enabled: true
+      url: http://localhost:4317
+      # resourceAttributes:
+      #   service.namespace: namespace
+      #   deployment.environment: dev
   tracing:
-    enabled: false
-    url: ""
+    enabled: true
+    # url can be overridden from global.telemetry.tracing.url
+    url: http://localhost:4318/v1/traces
+
+env:
   queue:
     heartbeatIntervalMs: 1000
     dequeueIntervalMs: 3000
+  jobnik:
+    worker:
+      concurrency: 1
   worker:
     capabilities:
       pairs:
         - job: "Ingestion_Update"
           task: "tiles-deletion"
-        - job: "Ingestion_Swap_Update"
+        - job: "Delete_Layer"
           task: "tiles-deletion"
   httpRetry:
     attempts: 3
