@@ -37,14 +37,14 @@ data:
   CONFIG_OFFLINE_MODE: {{ .offlineMode | quote }}
   CONFIG_SERVER_URL: {{ .serverUrl | quote }}
   {{- end }}
-  {{- with .Values.worker.capabilities }}
+  {{- with .Values.env.worker.capabilities }}
   WORKER_CAPABILITY_PAIRS: {{ .pairs | toJson | quote }}
   {{- end }}
   QUEUE_JOB_MANAGER_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
   QUEUE_HEARTBEAT_BASE_URL: {{ $serviceUrls.heartbeatManager | default "" | quote }}
   SERVICES_URL_JOB_TRACKER: {{ $serviceUrls.jobTracker | default "" | quote }}
-  DISABLE_HTTP_CLIENT_LOGS: {{ .Values.disableHttpClientLogs | default false | quote }}
-  {{- with .Values.queue }}
+  DISABLE_HTTP_CLIENT_LOGS: {{ .Values.env.disableHttpClientLogs | default false | quote }}
+  {{- with .Values.env.queue }}
   QUEUE_HEARTBEAT_INTERVAL_MS: {{ .heartbeatIntervalMs | default 1000 | quote }}
   QUEUE_DEQUEUE_INTERVAL_MS: {{ .dequeueIntervalMs | default 3000 | quote }}
   {{- end }}
@@ -52,13 +52,13 @@ data:
   {{- if $jobDefinitions }}
   JOB_DEFINITIONS: {{ $jobDefinitions | toJson | quote }}
   {{- end }}
-  {{- with .Values.httpRetry }}
+  {{- with .Values.env.httpRetry }}
   HTTP_RETRY_ATTEMPTS: {{ .attempts | quote }}
   HTTP_RETRY_DELAY: {{ .delay | quote }}
   HTTP_RETRY_SHOULD_RESET_TIMEOUT: {{ .shouldResetTimeout | quote }}
   {{- end }}
   JOBNIK_SDK_BASE_URL: {{ $serviceUrls.jobManager | default "" | quote }}
-  {{- with .Values.jobnik.worker }}
+  {{- with .Values.env.jobnik.worker }}
   JOBNIK_WORKER_CONCURRENCY: {{ .concurrency | default 1 | quote }}
   {{- end }}
   CLEANUP_STORAGE_PROVIDERS: {{ $storage.cleanupStorageProviders | toJson | quote }}
@@ -80,7 +80,7 @@ data:
   {{- end }}
   FS_SUB_PATHS: {{ $subPaths | toJson | quote }}
   {{- end }}
-  {{- with .Values.strategies.tilesDeletion }}
+  {{- with .Values.env.strategies.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
   TILES_DELETION_CONCURRENCY: {{ .concurrency | default 10 | quote }}
   {{- end }}

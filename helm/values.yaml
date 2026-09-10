@@ -127,33 +127,29 @@ telemetry:
     # url can be overridden from global.telemetry.tracing.url
     url: http://localhost:4318/v1/traces
 
-queue:
-  heartbeatIntervalMs: 1000
-  dequeueIntervalMs: 3000
-
-jobnik:
+env:
+  queue:
+    heartbeatIntervalMs: 1000
+    dequeueIntervalMs: 3000
+  jobnik:
+    worker:
+      concurrency: 1
   worker:
-    concurrency: 1
-
-worker:
-  capabilities:
-    pairs:
-      - job: "Ingestion_Update"
-        task: "tiles-deletion"
-      - job: "Delete_Layer"
-        task: "tiles-deletion"
-
-httpRetry:
-  attempts: 3
-  delay: "exponential"
-  shouldResetTimeout: true
-
-disableHttpClientLogs: false
-
-strategies:
-  tilesDeletion:
-    batchSize: 1000
-    concurrency: 10
+    capabilities:
+      pairs:
+        - job: "Ingestion_Update"
+          task: "tiles-deletion"
+        - job: "Delete_Layer"
+          task: "tiles-deletion"
+  httpRetry:
+    attempts: 3
+    delay: "exponential"
+    shouldResetTimeout: true
+  disableHttpClientLogs: false
+  strategies:
+    tilesDeletion:
+      batchSize: 1000
+      concurrency: 10
 
 resources:
   enabled: true
