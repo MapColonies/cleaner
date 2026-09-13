@@ -30,6 +30,19 @@ function asRedis(fake: FakeRedis): Redis {
   return fake as unknown as Redis;
 }
 
+/** A client whose SCAN walks `pages` in order, returning to cursor '0' only on the last one. */
+function createScanningClient(pages: string[][]): FakeRedis {
+  const client = createFakeClient();
+  let call = 0;
+  client.scan = vi.fn().mockImplementation(async () => {
+    const page = pages[call] ?? [];
+    call += 1;
+    const cursor = call >= pages.length ? '0' : String(call);
+    return Promise.resolve([cursor, page] as [string, string[]]);
+  });
+  return client;
+}
+
 describe('RedisStorageProvider', () => {
   const config = createRedisStorageConfig({ batchSize: 3, scanCount: 2 });
   let client: FakeRedis;
@@ -95,6 +108,109 @@ describe('RedisStorageProvider', () => {
 
       expect(client.unlink).not.toHaveBeenCalled();
       expect(result).toEqual({ failures: new Map(), deletedCount: 0 });
+    });
+  });
+
+  describe('#deleteResources', () => {
+    it('should scan the prefix and unlink everything it finds', async () => {
+      client = createScanningClient([['p-1-1-1', 'p-1-1-2'], ['p-2-1-1']]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      const result = await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
+
+      expect([...client.unlinked].sort()).toEqual(['p-1-1-1', 'p-1-1-2', 'p-2-1-1']);
+      expect(result.deletedCount).toBe(3);
+      expect(result.failures.size).toBe(0);
+    });
+
+    it('should follow the cursor until it returns to 0', async () => {
+      client = createScanningClient([['a'], ['b'], ['c']]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
+
+      expect(client.scan).toHaveBeenCalledTimes(3);
+    });
+
+    it('should keep scanning past an empty page, because MATCH filters after retrieval', async () => {
+      client = createScanningClient([[], ['found']]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      const result = await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
+
+      expect(client.unlinked).toEqual(['found']);
+      expect(result.deletedCount).toBe(1);
+    });
+
+    it('should not unlink at all for an empty page', async () => {
+      client = createScanningClient([[], []]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
+
+      expect(client.unlink).not.toHaveBeenCalled();
+    });
+
+    it('should scan with the prefix and a trailing dash wildcard', async () => {
+      client = createScanningClient([[]]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84' });
+
+      expect(client.scan).toHaveBeenCalledWith('0', 'MATCH', 'layer-redis_WorldCRS84-*', 'COUNT', config.scanCount);
+    });
+
+    it('should report deletedCount 0 for a cold cache rather than failing', async () => {
+      client = createScanningClient([[]]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      const result = await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
+
+      expect(result).toEqual({ failures: new Map(), deletedCount: 0 });
+    });
+
+    it('should accumulate failures across pages without losing the count', async () => {
+      client = createScanningClient([['a'], ['b']]);
+      client.unlink = vi.fn().mockRejectedValue(new Error('READONLY'));
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      const result = await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
+
+      expect(result.failures.get('READONLY')).toEqual({ count: 2, sample: 'a' });
+      expect(result.deletedCount).toBe(0);
+    });
+  });
+
+  describe('#targetExists', () => {
+    it('should return true as soon as one key is found', async () => {
+      client = createScanningClient([['p-1-1-1']]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      await expect(provider.targetExists('p', 'ignored')).resolves.toBe(true);
+    });
+
+    it('should return false when the prefix holds nothing', async () => {
+      client = createScanningClient([[]]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      await expect(provider.targetExists('p', 'ignored')).resolves.toBe(false);
+    });
+
+    it('should stop scanning once a key is found rather than walking the whole keyspace', async () => {
+      client = createScanningClient([['found'], ['more']]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      await provider.targetExists('p', 'ignored');
+
+      expect(client.scan).toHaveBeenCalledTimes(1);
+    });
+
+    it('should keep looking past an empty page before concluding the prefix is empty', async () => {
+      client = createScanningClient([[], ['found']]);
+      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
+
+      await expect(provider.targetExists('p', 'ignored')).resolves.toBe(true);
+      expect(client.scan).toHaveBeenCalledTimes(2);
     });
   });
 });
