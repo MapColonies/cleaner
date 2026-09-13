@@ -21,6 +21,8 @@ export const SERVICES = {
   STORAGE_PROVIDERS: Symbol('StorageProviders'),
   FS_STORAGE_CONFIG: Symbol('FsStorageConfig'),
   S3_STORAGE_CONFIG: Symbol('S3StorageConfig'),
+  REDIS_STORAGE_CONFIG: Symbol('RedisStorageConfig'),
+  REDIS_CONNECTION: Symbol('RedisConnection'),
   TASK_CONTEXT: Symbol('TaskContext'),
   JOB_TRACKER_CLIENT: Symbol('JobTrackerClient'),
   // =============================================================================

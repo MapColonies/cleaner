@@ -7,6 +7,7 @@ export type DeleteFailure = Map<string, { count: number; sample: string }>;
 
 export interface DeleteResult {
   failures: DeleteFailure;
+  deletedCount?: number;
 }
 
 export type StorageProvider = Storage['storageProvider'];
