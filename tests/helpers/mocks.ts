@@ -74,11 +74,13 @@ export function createMockErrorHandler(defaultDecision: ErrorDecision = { should
 
 // ─── StorageProvider ─────────────────────────────────────────────────────────
 
-export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(): IStorageProvider<T> {
+export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(): Required<IStorageProvider<T>>;
+export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(options: { targetExists: false }): IStorageProvider<T>;
+export function createMockStorageProvider<T extends StorageProvider = StorageProvider>({ targetExists = true } = {}): IStorageProvider<T> {
   return {
     delete: vi.fn().mockResolvedValue({ failures: new Map(), deletedCount: 0 }),
     deleteResources: vi.fn().mockResolvedValue({ failures: new Map(), deletedCount: 0 }),
-    targetExists: vi.fn().mockResolvedValue(true),
+    ...(targetExists && { targetExists: vi.fn().mockResolvedValue(true) }),
   };
 }
 

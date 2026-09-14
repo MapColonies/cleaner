@@ -5,17 +5,21 @@ import { StorageProvider, TilesDeletionParams, tilesDeletionParamsSchema } from 
 import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
-import { countFailures, mergeFailures, summarizeDeleteFailures, type DeleteFailure, type StorageProviders } from '@src/cleaner/storageProviders';
+import {
+  countFailures,
+  mergeFailures,
+  summarizeDeleteFailures,
+  type DeleteFailure,
+  type ResolvedStorageProvider,
+  type StorageProviders,
+  type StorageTarget,
+} from '@src/cleaner/storageProviders';
 import { RecoverableError, UnrecoverableError, describeError } from '../errors';
-import { ResolvedStorageProvider } from '../storageProviders/iStorageProvider';
 import { resolveTileKeyGenerator, validateSchema } from '../utils';
 import type { TaskContext } from './strategyFactory';
 import type { ITaskStrategy } from './taskStrategy';
 
 const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
-
-/** Redis tiles deletion is not implemented yet (MAPCO-11263). */
-type SupportedTilesDeletionParams = Exclude<TilesDeletionParams, { storageProvider: 'REDIS' }>;
 
 @injectable()
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
@@ -39,15 +43,8 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   }
 
   public async execute(params: TilesDeletionParams): Promise<void> {
-    if (params.storageProvider === StorageProvider.REDIS) {
-      throw new UnrecoverableError(`Tiles deletion is not implemented for ${StorageProvider.REDIS} storage`);
-    }
-
-    const { provider, storageTarget } = this.resolveStorageProvider(params);
-
-    if (!(await provider.targetExists(storageTarget, params.tilesRelativePath))) {
-      throw new UnrecoverableError(`${params.storageProvider} storage target does not exist: ${storageTarget}/${params.tilesRelativePath}`);
-    }
+    const { provider, storageTarget, relativePath } = this.resolveStorageProvider(params);
+    await this.assertTargetExists(provider, storageTarget, relativePath);
 
     const totalTiles = this.countTiles(params);
 
@@ -107,19 +104,39 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     this.logger.info({ msg: 'Tiles deletion completed successfully', deletedCount });
   }
 
-  private resolveStorageProvider(params: SupportedTilesDeletionParams): { provider: ResolvedStorageProvider; storageTarget: string } {
+  private resolveStorageProvider(params: TilesDeletionParams): StorageTarget & { provider: ResolvedStorageProvider } {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const storageProvider = this.storageProviders[params.storageProvider];
     if (storageProvider === undefined) throw new UnrecoverableError(`Unsupported storage provider ${params.storageProvider}`);
-    const storageTarget = params.storageProvider === StorageProvider.S3 ? params.bucket : params.subPath;
-    this.logger.debug({ msg: `Using ${params.storageProvider} provider`, storageTarget });
-    return { provider: storageProvider, storageTarget };
+    const target = this.resolveTarget(params);
+    this.logger.debug({ msg: `Using ${params.storageProvider} provider`, ...target });
+    return { provider: storageProvider, ...target };
+  }
+
+  private resolveTarget(params: TilesDeletionParams): StorageTarget {
+    switch (params.storageProvider) {
+      case StorageProvider.S3:
+        return { storageTarget: params.bucket, relativePath: params.tilesRelativePath };
+      case StorageProvider.FS:
+        return { storageTarget: params.subPath, relativePath: params.tilesRelativePath };
+      case StorageProvider.REDIS:
+        return { storageTarget: params.prefix };
+    }
+  }
+
+  private async assertTargetExists(provider: ResolvedStorageProvider, storageTarget: string, relativePath?: string): Promise<void> {
+    if (provider.targetExists === undefined || relativePath === undefined) {
+      return;
+    }
+    if (!(await provider.targetExists(storageTarget, relativePath))) {
+      throw new UnrecoverableError(`Tiles storage target does not exist: ${storageTarget}/${relativePath}`);
+    }
   }
 
   private async deleteTiles(
     provider: ResolvedStorageProvider,
     storageTarget: string,
-    params: SupportedTilesDeletionParams,
+    params: TilesDeletionParams,
     totalTiles: number
   ): Promise<{ failures: DeleteFailure; deletedCount: number }> {
     const { jobId, taskId } = this.taskContext;
@@ -200,11 +217,11 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
    * For each range, the tile count is the product of the width (maxX - minX + 1)
    * and height (maxY - minY + 1) of the range grid.
    */
-  private countTiles(params: SupportedTilesDeletionParams): number {
+  private countTiles(params: TilesDeletionParams): number {
     return params.ranges.reduce((sum, r) => sum + (r.maxX - r.minX + 1) * (r.maxY - r.minY + 1), 0);
   }
 
-  private *generateTileKeys(params: SupportedTilesDeletionParams): Generator<string> {
+  private *generateTileKeys(params: TilesDeletionParams): Generator<string> {
     const toKeys = resolveTileKeyGenerator(params);
 
     for (const range of params.ranges) {

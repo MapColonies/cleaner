@@ -56,16 +56,6 @@ export class RedisStorageProvider implements IStorageProvider<RedisStorageProvid
     return { failures, deletedCount };
   }
 
-  public async targetExists(prefix: string, relativePath: string): Promise<boolean> {
-    for await (const keys of this.scanKeys(this.matchPattern(prefix))) {
-      if (keys.length > 0) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   private matchPattern(prefix: string): string {
     return `${prefix}-*`;
   }

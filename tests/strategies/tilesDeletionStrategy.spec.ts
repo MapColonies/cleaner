@@ -1,6 +1,12 @@
 import { faker } from '@faker-js/faker';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { type FsTilesDeletionParams, type S3TilesDeletionParams, SourceType } from '@map-colonies/raster-shared';
+import {
+  type FsTilesDeletionParams,
+  type RedisTilesDeletionParams,
+  type S3TilesDeletionParams,
+  SourceType,
+  StorageProvider,
+} from '@map-colonies/raster-shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
@@ -36,8 +42,8 @@ const tilePath = (z: number, x: number, y: number): string => `${s3Params.tilesR
 
 describe('TilesDeletionStrategy', () => {
   let strategy: TilesDeletionStrategy;
-  let MockS3Provider: IStorageProvider<'S3'>;
-  let MockFsProvider: IStorageProvider<'FS'>;
+  let MockS3Provider: Required<IStorageProvider<'S3'>>;
+  let MockFsProvider: Required<IStorageProvider<'FS'>>;
   let mockUpdateProgress: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -157,14 +163,6 @@ describe('TilesDeletionStrategy', () => {
         expect(MockS3Provider.delete).not.toHaveBeenCalled();
       });
 
-      it('should throw UnrecoverableError for REDIS params, whose tiles are not path addressed', async () => {
-        const redisParams = { storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84', ranges: s3Params.ranges };
-
-        await expect(strategy.execute(strategy.validate(redisParams))).rejects.toThrow(UnrecoverableError);
-        expect(MockS3Provider.delete).not.toHaveBeenCalled();
-        expect(MockFsProvider.delete).not.toHaveBeenCalled();
-      });
-
       it('should throw UnrecoverableError for unknown provider', async () => {
         const unknownParams = { ...s3Params, storageProvider: 'UNKNOWN' } as unknown as S3TilesDeletionParams;
 
@@ -235,6 +233,60 @@ describe('TilesDeletionStrategy', () => {
         await strategy.execute(params);
 
         expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(7, 3, 8), tilePath(7, 3, 9), tilePath(7, 4, 8), tilePath(7, 4, 9)]);
+      });
+    });
+
+    describe('REDIS provider', () => {
+      const redisParams: RedisTilesDeletionParams = {
+        storageProvider: StorageProvider.REDIS,
+        prefix: 'eli_test-Orthophoto-redis_WorldCRS84',
+        ranges: [{ zoom: 3, minX: 1, maxX: 2, minY: 5, maxY: 6 }],
+      };
+      let MockRedisProvider: IStorageProvider<'REDIS'>;
+
+      const buildStrategy = (storageProviders: StorageProviders): TilesDeletionStrategy => {
+        const queueClient = { updateProgress: mockUpdateProgress } as unknown as QueueClient;
+        return new TilesDeletionStrategy(createMockLogger(), createMockStrategyConfig(), storageProviders, queueClient, TASK_CONTEXT);
+      };
+
+      beforeEach(() => {
+        MockRedisProvider = createMockStorageProvider({ targetExists: false });
+      });
+
+      it('should delete redis tile keys with the prefix as storage target', async () => {
+        vi.mocked(MockRedisProvider.delete).mockResolvedValue({ failures: new Map(), deletedCount: 4 });
+        const redisStrategy = buildStrategy({ [StorageProvider.REDIS]: MockRedisProvider });
+
+        await expect(redisStrategy.execute(redisParams)).resolves.toBeUndefined();
+
+        expect(MockRedisProvider.delete).toHaveBeenCalledWith(redisParams.prefix, [
+          `${redisParams.prefix}-3-1-5`,
+          `${redisParams.prefix}-3-1-6`,
+          `${redisParams.prefix}-3-2-5`,
+          `${redisParams.prefix}-3-2-6`,
+        ]);
+      });
+
+      it('should skip the target existence check when the provider does not implement it', async () => {
+        vi.mocked(MockRedisProvider.delete).mockResolvedValue({ failures: new Map(), deletedCount: 0 });
+        const redisStrategy = buildStrategy({ [StorageProvider.REDIS]: MockRedisProvider });
+
+        await expect(redisStrategy.execute(redisParams)).resolves.toBeUndefined();
+
+        expect(MockRedisProvider.delete).toHaveBeenCalledTimes(1);
+      });
+
+      it('should still enforce targetExists for S3', async () => {
+        vi.mocked(MockS3Provider.targetExists).mockResolvedValue(false);
+        const s3Strategy = buildStrategy({ [StorageProvider.S3]: MockS3Provider });
+
+        await expect(s3Strategy.execute(s3Params)).rejects.toThrow(UnrecoverableError);
+      });
+
+      it('should throw UnrecoverableError when the redis provider is not registered', async () => {
+        const redisStrategy = buildStrategy({});
+
+        await expect(redisStrategy.execute(redisParams)).rejects.toThrow(UnrecoverableError);
       });
     });
 

@@ -180,37 +180,4 @@ describe('RedisStorageProvider', () => {
       expect(result.deletedCount).toBe(0);
     });
   });
-
-  describe('#targetExists', () => {
-    it('should return true as soon as one key is found', async () => {
-      client = createScanningClient([['p-1-1-1']]);
-      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
-
-      await expect(provider.targetExists('p', 'ignored')).resolves.toBe(true);
-    });
-
-    it('should return false when the prefix holds nothing', async () => {
-      client = createScanningClient([[]]);
-      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
-
-      await expect(provider.targetExists('p', 'ignored')).resolves.toBe(false);
-    });
-
-    it('should stop scanning once a key is found rather than walking the whole keyspace', async () => {
-      client = createScanningClient([['found'], ['more']]);
-      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
-
-      await provider.targetExists('p', 'ignored');
-
-      expect(client.scan).toHaveBeenCalledTimes(1);
-    });
-
-    it('should keep looking past an empty page before concluding the prefix is empty', async () => {
-      client = createScanningClient([[], ['found']]);
-      provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
-
-      await expect(provider.targetExists('p', 'ignored')).resolves.toBe(true);
-      expect(client.scan).toHaveBeenCalledTimes(2);
-    });
-  });
 });

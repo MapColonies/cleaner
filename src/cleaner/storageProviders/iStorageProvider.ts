@@ -5,6 +5,12 @@ import type { DeleteStoredResourcesParams, Storage } from '@map-colonies/raster-
  */
 export type DeleteFailure = Map<string, { count: number; sample: string }>;
 
+/** Where a deletion operates. Redis keys are flat under the prefix, so it has no relativePath. */
+export interface StorageTarget {
+  storageTarget: string;
+  relativePath?: string;
+}
+
 export interface DeleteResult {
   failures: DeleteFailure;
   deletedCount: number;
@@ -33,8 +39,9 @@ export interface IStorageProvider<T extends StorageProvider = StorageProvider> {
    * - S3:  storageTarget = bucket, relativePath = key prefix — lists objects (KeyCount > 0)
    * - FS:  storageTarget = sub path of the configured base path, relativePath = subdirectory
    *        below it — checks fs.stat, subject to the same sub path validation as `delete`
+   * Optional: a cache store (Redis) cannot tell a missing target from a cold cache, so it omits it.
    */
-  targetExists: (storageTarget: string, relativePath: string) => Promise<boolean>;
+  targetExists?: (storageTarget: string, relativePath: string) => Promise<boolean>;
 }
 
 export type StorageProviders = {
