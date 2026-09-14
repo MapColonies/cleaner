@@ -7,7 +7,7 @@ export type DeleteFailure = Map<string, { count: number; sample: string }>;
 
 export interface DeleteResult {
   failures: DeleteFailure;
-  deletedCount?: number;
+  deletedCount: number;
 }
 
 export type StorageProvider = Storage['storageProvider'];
@@ -18,9 +18,6 @@ export interface IStorageProvider<T extends StorageProvider = StorageProvider> {
    * - S3:  storageTarget = bucket name; paths are object keys
    * - FS:  storageTarget = sub path of the configured base path; the provider joins its own
    *        base path and rejects anything falling outside the configured deletion sub paths
-   *
-   * Returns an object including delete failures aggregation with one entry per failed reason.
-   * "Not found" is reported as a failure with additional metadata on failure - count and sample
    */
   delete: (storageTarget: string, paths: string[]) => Promise<DeleteResult>;
 

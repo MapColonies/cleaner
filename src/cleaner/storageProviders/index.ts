@@ -1,4 +1,4 @@
-export { mergeFailures, summarizeDeleteFailures, type DeleteFailureSummary } from './failuresHandling';
+export { countFailures, mergeFailures, summarizeDeleteFailures, type DeleteFailureSummary } from './failuresHandling';
 export { FsStorageProvider } from './fsStorageProvider';
 export type { DeleteFailure, DeleteResult, IStorageProvider, StorageProvider, StorageProviders } from './iStorageProvider';
 export { createRedisConnection } from './redisClient';

@@ -76,8 +76,8 @@ export function createMockErrorHandler(defaultDecision: ErrorDecision = { should
 
 export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(): IStorageProvider<T> {
   return {
-    delete: vi.fn().mockResolvedValue({ failures: new Map() }),
-    deleteResources: vi.fn().mockResolvedValue({ failures: new Map() }),
+    delete: vi.fn().mockResolvedValue({ failures: new Map(), deletedCount: 0 }),
+    deleteResources: vi.fn().mockResolvedValue({ failures: new Map(), deletedCount: 0 }),
     targetExists: vi.fn().mockResolvedValue(true),
   };
 }
