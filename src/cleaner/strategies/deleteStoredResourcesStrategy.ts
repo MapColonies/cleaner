@@ -30,9 +30,6 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
       count: paths.length,
       paths,
       provider: params.storageProvider,
-      ...(params.storageProvider === StorageProvider.S3 && { bucket: params.bucket }),
-      ...(params.storageProvider === StorageProvider.FS && { subPath: params.subPath }),
-      ...(params.storageProvider === StorageProvider.REDIS && { prefix: params.prefix }),
     });
 
     const { failures } = await provider.deleteResources(params);
