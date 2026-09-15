@@ -10,9 +10,9 @@ interface MinioHandle {
 
 /**
  * Pinned to the release running on our Azure deployment, so the suite exercises the same server
- * behavior we deploy against.
+ * behavior we deploy against. Pulled from Quay: Docker Hub no longer serves `minio/minio`
  */
-const MINIO_IMAGE = 'minio/minio:RELEASE.2025-07-23T15-54-02Z';
+const MINIO_IMAGE = 'quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z';
 const MINIO_PORT = 9000;
 const DEFAULT_USER = 'minioadmin';
 const DEFAULT_PASSWORD = 'minioadmin';

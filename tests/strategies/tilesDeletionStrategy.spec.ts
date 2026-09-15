@@ -1,6 +1,12 @@
 import { faker } from '@faker-js/faker';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { type FsTilesDeletionParams, type S3TilesDeletionParams, SourceType } from '@map-colonies/raster-shared';
+import {
+  type FsTilesDeletionParams,
+  type RedisTilesDeletionParams,
+  type S3TilesDeletionParams,
+  SourceType,
+  StorageProvider,
+} from '@map-colonies/raster-shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
@@ -36,8 +42,8 @@ const tilePath = (z: number, x: number, y: number): string => `${s3Params.tilesR
 
 describe('TilesDeletionStrategy', () => {
   let strategy: TilesDeletionStrategy;
-  let MockS3Provider: IStorageProvider<'S3'>;
-  let MockFsProvider: IStorageProvider<'FS'>;
+  let MockS3Provider: Required<IStorageProvider<'S3'>>;
+  let MockFsProvider: Required<IStorageProvider<'FS'>>;
   let mockUpdateProgress: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -157,14 +163,6 @@ describe('TilesDeletionStrategy', () => {
         expect(MockS3Provider.delete).not.toHaveBeenCalled();
       });
 
-      it('should throw UnrecoverableError for REDIS params, whose tiles are not path addressed', async () => {
-        const redisParams = { storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84', ranges: s3Params.ranges };
-
-        await expect(strategy.execute(strategy.validate(redisParams))).rejects.toThrow(UnrecoverableError);
-        expect(MockS3Provider.delete).not.toHaveBeenCalled();
-        expect(MockFsProvider.delete).not.toHaveBeenCalled();
-      });
-
       it('should throw UnrecoverableError for unknown provider', async () => {
         const unknownParams = { ...s3Params, storageProvider: 'UNKNOWN' } as unknown as S3TilesDeletionParams;
 
@@ -235,6 +233,60 @@ describe('TilesDeletionStrategy', () => {
         await strategy.execute(params);
 
         expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(7, 3, 8), tilePath(7, 3, 9), tilePath(7, 4, 8), tilePath(7, 4, 9)]);
+      });
+    });
+
+    describe('REDIS provider', () => {
+      const redisParams: RedisTilesDeletionParams = {
+        storageProvider: StorageProvider.REDIS,
+        prefix: 'test-Orthophoto-redis_WorldCRS84',
+        ranges: [{ zoom: 3, minX: 1, maxX: 2, minY: 5, maxY: 6 }],
+      };
+      let MockRedisProvider: IStorageProvider<'REDIS'>;
+
+      const buildStrategy = (storageProviders: StorageProviders): TilesDeletionStrategy => {
+        const queueClient = { updateProgress: mockUpdateProgress } as unknown as QueueClient;
+        return new TilesDeletionStrategy(createMockLogger(), createMockStrategyConfig(), storageProviders, queueClient, TASK_CONTEXT);
+      };
+
+      beforeEach(() => {
+        MockRedisProvider = createMockStorageProvider({ targetExists: false });
+      });
+
+      it('should delete redis tile keys with the prefix as storage target', async () => {
+        vi.mocked(MockRedisProvider.delete).mockResolvedValue({ failures: new Map(), deletedCount: 4 });
+        const redisStrategy = buildStrategy({ [StorageProvider.REDIS]: MockRedisProvider });
+
+        await expect(redisStrategy.execute(redisParams)).resolves.toBeUndefined();
+
+        expect(MockRedisProvider.delete).toHaveBeenCalledWith(redisParams.prefix, [
+          `${redisParams.prefix}-3-1-5`,
+          `${redisParams.prefix}-3-1-6`,
+          `${redisParams.prefix}-3-2-5`,
+          `${redisParams.prefix}-3-2-6`,
+        ]);
+      });
+
+      it('should skip the target existence check when the provider does not implement it', async () => {
+        vi.mocked(MockRedisProvider.delete).mockResolvedValue({ failures: new Map(), deletedCount: 0 });
+        const redisStrategy = buildStrategy({ [StorageProvider.REDIS]: MockRedisProvider });
+
+        await expect(redisStrategy.execute(redisParams)).resolves.toBeUndefined();
+
+        expect(MockRedisProvider.delete).toHaveBeenCalledTimes(1);
+      });
+
+      it('should still enforce targetExists for S3', async () => {
+        vi.mocked(MockS3Provider.targetExists).mockResolvedValue(false);
+        const s3Strategy = buildStrategy({ [StorageProvider.S3]: MockS3Provider });
+
+        await expect(s3Strategy.execute(s3Params)).rejects.toThrow(UnrecoverableError);
+      });
+
+      it('should throw UnrecoverableError when the redis provider is not registered', async () => {
+        const redisStrategy = buildStrategy({});
+
+        await expect(redisStrategy.execute(redisParams)).rejects.toThrow(UnrecoverableError);
       });
     });
 
@@ -311,7 +363,10 @@ describe('TilesDeletionStrategy', () => {
       });
 
       it('should not call updateProgress when retryable failures occur', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map([['AccessDenied', { count: 1, sample: tilePath(10, 0, 0) }]]) });
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([['AccessDenied', { count: 1, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 0,
+        });
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(RecoverableError);
 
@@ -319,7 +374,10 @@ describe('TilesDeletionStrategy', () => {
       });
 
       it('should not call updateProgress when only not-found failures occur', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map([['NoSuchKey', { count: 1, sample: tilePath(10, 0, 0) }]]) });
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([['NoSuchKey', { count: 1, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 0,
+        });
 
         await expect(strategy.execute(s3Params)).resolves.toBeUndefined();
         expect(mockUpdateProgress).not.toHaveBeenCalled();
@@ -328,13 +386,19 @@ describe('TilesDeletionStrategy', () => {
 
     describe('failure handling', () => {
       it('should throw RecoverableError when provider returns fatal failed paths', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map([['AccessDenied', { count: 1, sample: tilePath(10, 0, 0) }]]) });
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([['AccessDenied', { count: 1, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 0,
+        });
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(RecoverableError);
       });
 
       it('should include fatal failed count in RecoverableError message', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map([['AccessDenied', { count: 2, sample: tilePath(10, 0, 0) }]]) });
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([['AccessDenied', { count: 2, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 0,
+        });
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(/Failed to delete 2/);
       });
@@ -345,6 +409,7 @@ describe('TilesDeletionStrategy', () => {
             ['EACCES', { count: 2, sample: tilePath(10, 0, 0) }],
             ['AccessDenied', { count: 1, sample: tilePath(10, 1, 0) }],
           ]),
+          deletedCount: 0,
         });
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(/Reasons: EACCES=2, AccessDenied=1/);
@@ -356,13 +421,17 @@ describe('TilesDeletionStrategy', () => {
             ['NoSuchKey', { count: 1, sample: tilePath(10, 0, 0) }],
             ['AccessDenied', { count: 1, sample: tilePath(10, 0, 1) }],
           ]),
+          deletedCount: 0,
         });
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(/Failed to delete 1.*Reasons: AccessDenied=1/);
       });
 
       it('should include path and reason in the failure sample', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map([['AccessDenied', { count: 1, sample: tilePath(10, 0, 0) }]]) });
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([['AccessDenied', { count: 1, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 0,
+        });
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(/layer\/v1\/10\/0\/0\.png \(AccessDenied\)/);
       });
@@ -370,19 +439,23 @@ describe('TilesDeletionStrategy', () => {
       it('should resolve successfully when all failures are not-found (ENOENT)', async () => {
         vi.mocked(MockFsProvider.delete).mockResolvedValue({
           failures: new Map([['ENOENT', { count: 1, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 3,
         });
 
         await expect(strategy.execute(fsParams)).resolves.toBeUndefined();
       });
 
       it('should resolve successfully when all failures are not-found (NoSuchKey)', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map([['NoSuchKey', { count: 1, sample: tilePath(10, 0, 0) }]]) });
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([['NoSuchKey', { count: 1, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 0,
+        });
 
         await expect(strategy.execute(s3Params)).resolves.toBeUndefined();
       });
 
       it('should resolve successfully when provider returns no failed paths', async () => {
-        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map() });
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map(), deletedCount: 4 });
 
         await expect(strategy.execute(s3Params)).resolves.toBeUndefined();
       });
@@ -436,7 +509,7 @@ describe('TilesDeletionStrategy', () => {
           ranges: [{ zoom: 5, minX: 0, maxX: 9, minY: 0, maxY: 19 }],
         };
         vi.mocked(MockS3Provider.delete)
-          .mockResolvedValueOnce({ failures: new Map([['AccessDenied', { count: 3, sample: tilePath(5, 0, 0) }]]) })
+          .mockResolvedValueOnce({ failures: new Map([['AccessDenied', { count: 3, sample: tilePath(5, 0, 0) }]]), deletedCount: 0 })
           .mockRejectedValueOnce(new Error('S3 connection lost'));
 
         // reasons are ordered by descending count
@@ -453,6 +526,92 @@ describe('TilesDeletionStrategy', () => {
         vi.mocked(MockFsProvider.delete).mockRejectedValue(Object.assign(new Error('no such file'), { code: 'ENOENT' }));
 
         await expect(strategy.execute(fsParams)).resolves.toBeUndefined();
+      });
+    });
+
+    describe('deleted count reporting', () => {
+      let mockLogger: ReturnType<typeof createMockLogger>;
+
+      function buildStrategyWithLogger(batchSize = 100): TilesDeletionStrategy {
+        mockLogger = createMockLogger();
+        const storageProviders: StorageProviders = { [SourceType.S3]: MockS3Provider };
+        const queueClient = { updateProgress: mockUpdateProgress } as unknown as QueueClient;
+        const config = createMockStrategyConfig({
+          'strategies.tilesDeletion.batchSize': batchSize,
+          'strategies.tilesDeletion.concurrency': 2,
+        });
+        return new TilesDeletionStrategy(mockLogger, config, storageProviders, queueClient, TASK_CONTEXT);
+      }
+
+      it('should report the count the provider observed rather than the number of tiles attempted', async () => {
+        // s3Params spans 4 tiles; the store reports only 2 existed
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map(), deletedCount: 2 });
+
+        await buildStrategyWithLogger().execute(s3Params);
+
+        expect(mockLogger.info).toHaveBeenCalledWith(expect.objectContaining({ msg: 'Tiles deletion completed successfully', deletedCount: 2 }));
+      });
+
+      it('should sum the observed count across batches', async () => {
+        // batchSize 1 over a 2x2 range → four delete calls
+        vi.mocked(MockS3Provider.delete)
+          .mockResolvedValueOnce({ failures: new Map(), deletedCount: 1 })
+          .mockResolvedValueOnce({ failures: new Map(), deletedCount: 1 })
+          .mockResolvedValue({ failures: new Map(), deletedCount: 0 });
+
+        await buildStrategyWithLogger(1).execute(s3Params);
+
+        expect(vi.mocked(MockS3Provider.delete)).toHaveBeenCalledTimes(4);
+        expect(mockLogger.info).toHaveBeenCalledWith(expect.objectContaining({ msg: 'Tiles deletion completed successfully', deletedCount: 2 }));
+      });
+
+      it('should report zero deletions when the store found nothing, which is the wrong-prefix signal', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({ failures: new Map(), deletedCount: 0 });
+
+        await buildStrategyWithLogger().execute(s3Params);
+
+        expect(mockLogger.info).toHaveBeenCalledWith(expect.objectContaining({ msg: 'Tiles deletion completed successfully', deletedCount: 0 }));
+      });
+
+      it('should count a hard-rejected batch as zero deletions', async () => {
+        // batchSize 1, concurrency 2: the first window has one success and one rejection.
+        vi.mocked(MockS3Provider.delete)
+          .mockResolvedValueOnce({ failures: new Map(), deletedCount: 1 })
+          .mockRejectedValueOnce(new Error('S3 connection lost'))
+          .mockResolvedValue({ failures: new Map(), deletedCount: 1 });
+
+        await expect(buildStrategyWithLogger(1).execute(s3Params)).rejects.toThrow(RecoverableError);
+
+        expect(mockLogger.error).toHaveBeenCalledWith(expect.objectContaining({ msg: 'Tiles deletion partially failed', deletedCount: 3 }));
+      });
+
+      it('should report the observed count in the partial-failure log too', async () => {
+        vi.mocked(MockS3Provider.delete)
+          .mockResolvedValueOnce({ failures: new Map(), deletedCount: 0 })
+          .mockResolvedValue({ failures: new Map([['AccessDenied', { count: 1, sample: tilePath(10, 0, 0) }]]), deletedCount: 0 });
+
+        await expect(buildStrategyWithLogger(1).execute(s3Params)).rejects.toThrow(RecoverableError);
+
+        expect(mockLogger.error).toHaveBeenCalledWith(expect.objectContaining({ msg: 'Tiles deletion partially failed', deletedCount: 0 }));
+      });
+
+      it('should report the not-found tile count, not the number of not-found reasons', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([['NoSuchKey', { count: 3, sample: tilePath(10, 0, 0) }]]),
+          deletedCount: 1,
+        });
+
+        await buildStrategyWithLogger().execute(s3Params);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            msg: 'Tiles deletion completed with missing tiles',
+            totalTiles: 4,
+            notFoundCount: 3,
+            deletedCount: 1,
+            allTilesMissing: false,
+          })
+        );
       });
     });
   });

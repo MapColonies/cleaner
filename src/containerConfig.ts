@@ -1,7 +1,7 @@
 import { IWorker, JobnikSDK } from '@map-colonies/jobnik-sdk';
 import { jsLogger, type Logger } from '@map-colonies/js-logger';
 import { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { SourceType } from '@map-colonies/raster-shared';
+import { SourceType, StorageProvider } from '@map-colonies/raster-shared';
 import { getOtelMixin } from '@map-colonies/telemetry';
 import { trace } from '@opentelemetry/api';
 import { Registry } from 'prom-client';
@@ -13,7 +13,15 @@ import { getTracing } from '@common/tracing';
 import type { StorageProviders } from '@src/cleaner/storageProviders';
 import { ErrorHandler } from './cleaner/errors';
 import { JobTrackerClient } from './cleaner/httpClients';
-import { buildFsStorageConfig, buildS3StorageConfig, FsStorageProvider, S3StorageProvider } from './cleaner/storageProviders';
+import {
+  buildFsStorageConfig,
+  buildRedisStorageConfig,
+  buildS3StorageConfig,
+  createRedisConnection,
+  FsStorageProvider,
+  RedisStorageProvider,
+  S3StorageProvider,
+} from './cleaner/storageProviders';
 import { DeleteStoredResourcesStrategy, StrategyFactory, TilesDeletionStrategy } from './cleaner/strategies';
 import type { QueueConfig } from './cleaner/types';
 import { ConfigType, getConfig } from './common/config';
@@ -39,6 +47,8 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
   const cleanupStorageProviders = configInstance.get('storage.cleanupStorageProviders') as unknown as string[];
   const fsStorageConfig = cleanupStorageProviders.includes(SourceType.FS) ? buildFsStorageConfig(configInstance, logger) : undefined;
   const s3StorageConfig = cleanupStorageProviders.includes(SourceType.S3) ? buildS3StorageConfig(configInstance, logger) : undefined;
+  const redisStorageConfig = cleanupStorageProviders.includes(StorageProvider.REDIS) ? buildRedisStorageConfig(configInstance, logger) : undefined;
+  const redisConnection = redisStorageConfig ? await createRedisConnection(redisStorageConfig, logger) : undefined;
 
   const dependencies: InjectionObject<unknown>[] = [
     { token: SERVICES.CONFIG, provider: { useValue: configInstance } },
@@ -105,6 +115,8 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
     },
     ...(fsStorageConfig ? [{ token: SERVICES.FS_STORAGE_CONFIG, provider: { useValue: fsStorageConfig } }] : []),
     ...(s3StorageConfig ? [{ token: SERVICES.S3_STORAGE_CONFIG, provider: { useValue: s3StorageConfig } }] : []),
+    ...(redisStorageConfig ? [{ token: SERVICES.REDIS_STORAGE_CONFIG, provider: { useValue: redisStorageConfig } }] : []),
+    ...(redisConnection ? [{ token: SERVICES.REDIS_CONNECTION, provider: { useValue: redisConnection } }] : []),
     {
       token: SERVICES.STORAGE_PROVIDERS,
       provider: {
@@ -112,6 +124,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
           const providers = {
             ...(s3StorageConfig && { [SourceType.S3]: container.resolve(S3StorageProvider) }),
             ...(fsStorageConfig && { [SourceType.FS]: container.resolve(FsStorageProvider) }),
+            ...(redisConnection && { [StorageProvider.REDIS]: container.resolve(RedisStorageProvider) }),
           };
           return providers;
         }),
@@ -158,13 +171,35 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
         useClass: DeleteStoredResourcesStrategy,
       },
     },
+    // Redis cache invalidation created by overseer after an ingestion finalizes: an update deletes the
+    // tile ranges of the ingested footprint, a swap wipes the whole cache prefix.
+    {
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.updateCacheDeletion.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
+      }),
+      provider: {
+        useClass: TilesDeletionStrategy,
+      },
+    },
+    {
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.swapCacheDeletion.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
+      }),
+      provider: {
+        useClass: DeleteStoredResourcesStrategy,
+      },
+    },
     {
       token: 'onSignal',
       provider: {
         useFactory: (container) => {
           const worker = container.resolve<IWorker>(SERVICES.WORKER);
           return async (): Promise<void> => {
-            await Promise.all([getTracing().stop(), worker.stop()]);
+            await Promise.all([getTracing().stop(), worker.stop(), redisConnection?.quit()]);
           };
         },
       },

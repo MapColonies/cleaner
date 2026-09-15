@@ -13,6 +13,14 @@ export interface DeleteFailureSummary {
   samples: string[];
 }
 
+export const countFailures = (failures: DeleteFailure): number => {
+  let count = 0;
+  for (const { count: reasonCount } of failures.values()) {
+    count += reasonCount;
+  }
+  return count;
+};
+
 export const mergeFailures = ({ source, target }: { source: DeleteFailure; target: DeleteFailure }): DeleteFailure => {
   const failures: DeleteFailure = structuredClone(target);
 
@@ -24,17 +32,9 @@ export const mergeFailures = ({ source, target }: { source: DeleteFailure; targe
   return failures;
 };
 
-/**
- * Reduces a list of provider delete failures into a compact, log-friendly
- * shape. Lives alongside `IStorageProvider` because it operates purely on
- * `DeleteResult` — any caller of `provider.delete()` can use it, regardless
- * of which storage backend produced the failures.
- */
-export function summarizeDeleteFailures({ failures }: DeleteResult): DeleteFailureSummary {
-  let failuresCount = 0;
-  for (const { count } of failures.values()) {
-    failuresCount += count;
-  }
+/** Reduces delete failures into a compact, log-friendly shape, independent of the storage backend. */
+export function summarizeDeleteFailures({ failures }: Pick<DeleteResult, 'failures'>): DeleteFailureSummary {
+  const failuresCount = countFailures(failures);
 
   const sortedFailures = Array.from(failures.entries()).sort(([, { count: a }], [, { count: b }]) => b - a);
   const summary = sortedFailures.map(([reason, { count }]) => `${reason}=${count}`).join(', ');

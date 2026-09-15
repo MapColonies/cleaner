@@ -4,6 +4,7 @@ global:
   metrics: {}
   jobDefinitions: {}
   storage: {}
+  redis: {}
   serviceUrls: {}
   ca: {}
 
@@ -13,7 +14,7 @@ serviceUrls:
   jobTracker: ""
 
 storage:
-  cleanupStorageProviders: {}
+  cleanupStorageProviders: [] # any of "FS", "S3", "REDIS"
   s3:
     delete:
       batchSize: 1000
@@ -30,6 +31,19 @@ storage:
       name: ""
       mountPath: ""
       tilesSubPath: "" # e.g. folder/tiles
+  redis:
+    host: ""
+    port: 6379
+    db: 0
+    # Same nesting as global.redis.auth; username is sent only when non-empty
+    auth:
+      enabled: false
+      username: ""
+      password: ""
+    tlsEnabled: false
+    scanCount: 1000
+    delete:
+      batchSize: 1000
 
 mclabels:
   component: backend
@@ -115,12 +129,19 @@ env:
   queue:
     heartbeatIntervalMs: 1000
     dequeueIntervalMs: 3000
+  jobnik:
+    worker:
+      concurrency: 1
   worker:
     capabilities:
       pairs:
         - job: "Ingestion_Update"
           task: "tiles-deletion"
         - job: "Ingestion_Swap_Update"
+          task: "tiles-deletion"
+        - job: "Update_Delete_Cache"
+          task: "tiles-deletion"
+        - job: "Swap_Delete_Cache"
           task: "tiles-deletion"
   httpRetry:
     attempts: 3

@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import type { Logger } from '@map-colonies/js-logger';
 import {
   RedisDeleteStoredResourcesParams,
@@ -6,7 +7,7 @@ import {
   type FsDeleteStoredResourcesParams,
   type S3DeleteStoredResourcesParams,
 } from '@map-colonies/raster-shared';
-import { beforeEach, describe, expect, it, type vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import { DeleteStoredResourcesStrategy } from '@src/cleaner/strategies/deleteStoredResourcesStrategy';
@@ -16,6 +17,10 @@ import { createMockStoredResourcesDeletionStrategyConfig, createMockLogger, crea
 const S3_BUCKET = 'test-bucket';
 const FS_SUB_PATH = 'test/artifacts/tiles';
 const PREFIX = 'layer-redis_WorldCRS84';
+const RELOAD_WINDOW_SECONDS = 308;
+const MS_PER_SECOND = 1000;
+
+vi.mock('node:timers/promises', () => ({ setTimeout: vi.fn().mockResolvedValue(undefined) }));
 
 const s3Params: S3DeleteStoredResourcesParams = { storageProvider: StorageProvider.S3, paths: ['layer1'], bucket: S3_BUCKET };
 const fsParams: FsDeleteStoredResourcesParams = { storageProvider: StorageProvider.FS, paths: ['layer2'], subPath: FS_SUB_PATH };
@@ -27,18 +32,23 @@ describe('DeleteStoredResourcesStrategy', () => {
   let mockS3Provider: IStorageProvider<'S3'>;
   // eslint-disable-next-line @typescript-eslint/naming-convention
   let mockFsProvider: IStorageProvider<'FS'>;
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  let mockRedisProvider: IStorageProvider<'REDIS'>;
   let mockLogger: Logger;
   let mockConfig: ConfigType;
 
   beforeEach(() => {
     mockS3Provider = createMockStorageProvider();
     mockFsProvider = createMockStorageProvider();
+    mockRedisProvider = createMockStorageProvider({ targetExists: false });
     mockLogger = createMockLogger();
+    vi.mocked(sleep).mockClear();
     mockConfig = createMockStoredResourcesDeletionStrategyConfig();
 
     const storageProviders: StorageProviders = {
       [SourceType.FS]: mockFsProvider,
       [SourceType.S3]: mockS3Provider,
+      [StorageProvider.REDIS]: mockRedisProvider,
     };
 
     strategy = new DeleteStoredResourcesStrategy(mockLogger, mockConfig, storageProviders);
@@ -176,6 +186,33 @@ describe('DeleteStoredResourcesStrategy', () => {
 
       await expect(result).resolves.toBeUndefined();
       expect(mockS3Provider.deleteResources).toHaveBeenCalledWith({ paths: [], bucket: S3_BUCKET, storageProvider: 'S3' });
+    });
+
+    describe('REDIS provider', () => {
+      it('should wipe the prefix immediately when the task carries no delay', async () => {
+        await strategy.execute(redisParams);
+
+        expect(sleep).not.toHaveBeenCalled();
+        expect(mockRedisProvider.deleteResources).toHaveBeenCalledWith(redisParams);
+        expect(mockS3Provider.deleteResources).not.toHaveBeenCalled();
+      });
+
+      it('should wait out the reload window before wiping when the task carries delaySeconds', async () => {
+        const params: RedisDeleteStoredResourcesParams = { ...redisParams, delaySeconds: RELOAD_WINDOW_SECONDS };
+
+        await strategy.execute(params);
+
+        expect(sleep).toHaveBeenCalledExactlyOnceWith(RELOAD_WINDOW_SECONDS * MS_PER_SECOND);
+        expect(vi.mocked(sleep).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(mockRedisProvider.deleteResources).mock.invocationCallOrder[0]!);
+        expect(mockRedisProvider.deleteResources).toHaveBeenCalledWith(params);
+      });
+
+      it('should not wait when delaySeconds is zero', async () => {
+        await strategy.execute({ ...redisParams, delaySeconds: 0 });
+
+        expect(sleep).not.toHaveBeenCalled();
+        expect(mockRedisProvider.deleteResources).toHaveBeenCalledOnce();
+      });
     });
 
     it('should rethrow error thrown by deleteResources', async () => {

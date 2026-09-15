@@ -2,7 +2,14 @@ import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 import { vi } from 'vitest';
 import type { IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders/iStorageProvider';
-import type { FsConfig, FsStorageConfig, S3Config, S3StorageConfig } from '@src/cleaner/storageProviders/storageConfig';
+import type {
+  FsConfig,
+  FsStorageConfig,
+  RedisConfig,
+  RedisStorageConfig,
+  S3Config,
+  S3StorageConfig,
+} from '@src/cleaner/storageProviders/storageConfig';
 import type { ErrorHandler } from '../../src/cleaner/errors';
 import type { JobTrackerClient } from '../../src/cleaner/httpClients';
 import type { ITaskStrategy, StrategyFactory } from '../../src/cleaner/strategies';
@@ -67,11 +74,13 @@ export function createMockErrorHandler(defaultDecision: ErrorDecision = { should
 
 // ─── StorageProvider ─────────────────────────────────────────────────────────
 
-export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(): IStorageProvider<T> {
+export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(): Required<IStorageProvider<T>>;
+export function createMockStorageProvider<T extends StorageProvider = StorageProvider>(options: { targetExists: false }): IStorageProvider<T>;
+export function createMockStorageProvider<T extends StorageProvider = StorageProvider>({ targetExists = true } = {}): IStorageProvider<T> {
   return {
-    delete: vi.fn().mockResolvedValue({ failures: new Map() }),
-    deleteResources: vi.fn().mockResolvedValue({ failures: new Map() }),
-    targetExists: vi.fn().mockResolvedValue(true),
+    delete: vi.fn().mockResolvedValue({ failures: new Map(), deletedCount: 0 }),
+    deleteResources: vi.fn().mockResolvedValue({ failures: new Map(), deletedCount: 0 }),
+    ...(targetExists && { targetExists: vi.fn().mockResolvedValue(true) }),
   };
 }
 
@@ -166,6 +175,38 @@ export const FS_VALIDATED_CONFIG_DEFAULTS = {
 
 export function createFsStorageConfig(overrides: Partial<FsStorageConfig> = {}): FsStorageConfig {
   return { ...FS_VALIDATED_CONFIG_DEFAULTS, ...overrides };
+}
+
+// ─── Redis Storage Config (RedisStorageProvider) ─────────────────────────────
+
+export const REDIS_STORAGE_CONFIG_DEFAULTS = {
+  delete: {
+    batchSize: 3,
+  },
+  host: 'localhost',
+  port: 6379,
+  db: 0,
+  scanCount: 10,
+} as const satisfies RedisConfig;
+
+export function createMockRedisConfig(overrides: Record<string, unknown> = {}): ConfigType {
+  return {
+    get: vi.fn().mockReturnValue({ ...REDIS_STORAGE_CONFIG_DEFAULTS, ...overrides }),
+  } as unknown as ConfigType;
+}
+
+// ─── Redis Validated Storage Config ──────────────────────────────────────────
+
+export const REDIS_VALIDATED_CONFIG_DEFAULTS = {
+  host: REDIS_STORAGE_CONFIG_DEFAULTS.host,
+  port: REDIS_STORAGE_CONFIG_DEFAULTS.port,
+  db: REDIS_STORAGE_CONFIG_DEFAULTS.db,
+  scanCount: REDIS_STORAGE_CONFIG_DEFAULTS.scanCount,
+  batchSize: REDIS_STORAGE_CONFIG_DEFAULTS.delete.batchSize,
+} as const satisfies RedisStorageConfig;
+
+export function createRedisStorageConfig(overrides: Partial<RedisStorageConfig> = {}): RedisStorageConfig {
+  return { ...REDIS_VALIDATED_CONFIG_DEFAULTS, ...overrides };
 }
 
 // ─── JobTrackerClient ─────────────────────────────────────────────────────────

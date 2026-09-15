@@ -1,12 +1,25 @@
-export { mergeFailures, summarizeDeleteFailures, type DeleteFailureSummary } from './failuresHandling';
+export { countFailures, mergeFailures, summarizeDeleteFailures, type DeleteFailureSummary } from './failuresHandling';
 export { FsStorageProvider } from './fsStorageProvider';
-export type { DeleteFailure, DeleteResult, IStorageProvider, StorageProvider, StorageProviders } from './iStorageProvider';
+export type {
+  DeleteFailure,
+  DeleteResult,
+  IStorageProvider,
+  ResolvedStorageProvider,
+  StorageProvider,
+  StorageProviders,
+  StorageTarget,
+} from './iStorageProvider';
+export { createRedisConnection } from './redisClient';
+export { RedisStorageProvider } from './redisStorageProvider';
 export { S3StorageProvider } from './s3StorageProvider';
 export {
   buildFsStorageConfig,
+  buildRedisStorageConfig,
   buildS3StorageConfig,
   type FsConfig,
   type FsStorageConfig,
+  type RedisConfig,
+  type RedisStorageConfig,
   type S3Config,
   type S3StorageConfig,
 } from './storageConfig';

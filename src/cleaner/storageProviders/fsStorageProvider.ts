@@ -3,7 +3,14 @@ import { join } from 'node:path';
 import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
-import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
+import {
+  countFailures,
+  mergeFailures,
+  type DeleteFailure,
+  type DeleteResult,
+  type IStorageProvider,
+  type StorageProvider,
+} from '@src/cleaner/storageProviders';
 import { getChunk, isPathWithinAllowedSubPaths, resolveAbsolutePath } from '@src/cleaner/utils';
 import { SERVICES } from '@common/constants';
 import { describeError, UnrecoverableError } from '../errors';
@@ -68,7 +75,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
 
     await this.cleanupEmptyDirs(paths, targetPath);
 
-    return { failures };
+    return { failures, deletedCount: paths.length - countFailures(failures) };
   }
 
   public async deleteResources({
@@ -103,8 +110,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
       }
       failures = mergeFailures({ source: chunkFailures, target: failures });
 
-      let failedPathsCount = 0;
-      chunkFailures.forEach((chunkFailure) => (failedPathsCount += chunkFailure.count));
+      const failedPathsCount = countFailures(chunkFailures);
       const deletedPathsCount = relativePathsChunk.length - failedPathsCount;
       totalDeletedPathsCount += deletedPathsCount;
       totalFailedPathsCount += failedPathsCount;
@@ -119,7 +125,7 @@ export class FsStorageProvider implements IStorageProvider<'FS'> {
 
     await this.cleanupEmptyDirs(paths, resolveAbsolutePath(join(this.fsConfig.basePath, subPath)));
 
-    return { failures };
+    return { failures, deletedCount: totalDeletedPathsCount };
   }
 
   /**

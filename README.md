@@ -63,22 +63,26 @@ npm run test:watch
 
 #### Integration tests
 
-`npm run test:integration` needs an S3-compatible server. By default it starts a Minio
-[testcontainer](https://testcontainers.com/) automatically.
- The image is pinned to the release deployed in our Azure environment; bump it in
-`tests/integration/helpers/minioContainer.ts` when that environment moves.
+`npm run test:integration` needs an S3-compatible server and a Redis server. By default it starts
+a Minio and a Redis [testcontainer](https://testcontainers.com/) automatically.
+The images are pinned to the releases deployed in our environments; bump them in
+`tests/integration/helpers/minioContainer.ts` and `tests/integration/helpers/redisContainer.ts`
+when those environments move.
 
-To run against an already-running Minio instead, set `TEST_MINIO_ENDPOINT`:
+To run against already-running servers instead, set the `TEST_*` variables:
 
-| Variable                 | Default      | Purpose                                                            |
-| ------------------------ | ------------ | ------------------------------------------------------------------ |
+| Variable                 | Default      | Purpose                                                              |
+| ------------------------ | ------------ | -------------------------------------------------------------------- |
 | `TEST_MINIO_ENDPOINT`    | _(unset)_    | Point the suite at an existing Minio. Unset means start a container. |
-| `TEST_MINIO_ACCESS_KEY`  | `minioadmin` | Access key for that server.                                        |
-| `TEST_MINIO_SECRET_KEY`  | `minioadmin` | Secret key for that server.                                        |
+| `TEST_MINIO_ACCESS_KEY`  | `minioadmin` | Access key for that server.                                          |
+| `TEST_MINIO_SECRET_KEY`  | `minioadmin` | Secret key for that server.                                          |
+| `TEST_REDIS_HOST`        | _(unset)_    | Point the suite at an existing Redis. Unset means start a container. |
+| `TEST_REDIS_PORT`        | `6379`       | Port for that server.                                                |
 
-> **The suite creates and deletes buckets on whichever endpoint it is given.** Never point
-> `TEST_MINIO_ENDPOINT` at a shared or deployed environment, and beware of leaving it exported in a
-> shell profile. Each run prints which mode it selected and against which endpoint.
+> **The suite creates and deletes buckets on whichever Minio it is given, and calls `FLUSHDB` on
+> whichever Redis it is given.** Never point `TEST_MINIO_ENDPOINT` or `TEST_REDIS_HOST` at a shared
+> or deployed environment, and beware of leaving them exported in a shell profile. Each run prints
+> which mode it selected and against which server.
 
 ## Customizing the Boilerplate
 

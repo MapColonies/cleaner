@@ -3,6 +3,7 @@
 {{- $storage := fromYaml (include "common.storage.merged" .) -}}
 {{- $s3 := ($storage.s3) | default dict -}}
 {{- $fs := ($storage.fs) | default dict -}}
+{{- $redis := fromYaml (include "common.redis.merged" .) -}}
 {{- $internalPvc := (($fs).internalPvc) | default dict -}}
 {{- $fsBasePath := clean (printf "/%s" $internalPvc.mountPath) -}}
 {{- if .Values.enabled -}}
@@ -73,6 +74,22 @@ data:
     {{- end -}}
   {{- end }}
   FS_SUB_PATHS: {{ $subPaths | toJson | quote }}
+  {{- end }}
+  {{- if has "REDIS" $storage.cleanupStorageProviders }}
+  REDIS_DELETE_BATCH_SIZE: {{ $redis.delete.batchSize | default 1000 | quote }}
+  REDIS_HOST: {{ $redis.host | quote }}
+  REDIS_PORT: {{ $redis.port | default 6379 | quote }}
+  REDIS_DB: {{ $redis.db | default 0 | quote }}
+  REDIS_SCAN_COUNT: {{ $redis.scanCount | default 1000 | quote }}
+  REDIS_TLS_ENABLED: {{ $redis.tlsEnabled | default false | quote }}
+  {{- with $redis.auth }}
+  {{- if .enabled }}
+  {{- if .username }}
+  REDIS_USERNAME: {{ .username | quote }}
+  {{- end }}
+  REDIS_PASSWORD: {{ .password | quote }}
+  {{- end }}
+  {{- end }}
   {{- end }}
   {{- with .Values.env.strategies.tilesDeletion }}
   TILES_DELETION_BATCH_SIZE: {{ .batchSize | default 1000 | quote }}
