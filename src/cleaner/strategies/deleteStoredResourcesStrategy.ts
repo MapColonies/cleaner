@@ -1,8 +1,9 @@
+import { setTimeout } from 'node:timers/promises';
 import type { Logger } from '@map-colonies/js-logger';
 import { deleteStoredResourcesParamsSchema, DeleteStoredResourcesParams, StorageProvider } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
-import { SERVICES } from '@common/constants';
+import { MS_PER_SECOND, SERVICES } from '@common/constants';
 import { summarizeDeleteFailures, type IStorageProvider, type StorageProviders } from '@src/cleaner/storageProviders';
 import { RecoverableError, UnrecoverableError } from '../errors';
 import { validateSchema } from '../utils';
@@ -24,6 +25,10 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
   public async execute(params: DeleteStoredResourcesParams): Promise<void> {
     const paths = params.storageProvider === StorageProvider.REDIS ? [] : params.paths;
     const provider = this.resolveStorageProvider(params.storageProvider);
+
+    if (params.storageProvider === StorageProvider.REDIS) {
+      await this.awaitReloadWindow(params.prefix, params.delaySeconds);
+    }
 
     this.logger.info({
       msg: 'Starting deletion',
@@ -52,6 +57,14 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
       provider: params.storageProvider,
       paths,
     });
+  }
+
+  private async awaitReloadWindow(prefix: string, delaySeconds = 0): Promise<void> {
+    if (delaySeconds === 0) {
+      return;
+    }
+    this.logger.info({ msg: 'Waiting for the reload window before deleting', prefix, delaySeconds });
+    await setTimeout(delaySeconds * MS_PER_SECOND);
   }
 
   private resolveStorageProvider<K extends StorageProvider>(storageProvider: K): IStorageProvider<K> {

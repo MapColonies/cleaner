@@ -34,3 +34,4 @@ export const SERVICES = {
 } satisfies Record<string, symbol>;
 
 export const PERCENTAGE_COMPLETE = 100;
+export const MS_PER_SECOND = 1000;

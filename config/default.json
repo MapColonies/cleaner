@@ -34,6 +34,14 @@
         {
           "job": "Delete_Layer",
           "task": "artifacts-deletion"
+        },
+        {
+          "job": "Update_Delete_Cache",
+          "task": "tiles-deletion"
+        },
+        {
+          "job": "Swap_Delete_Cache",
+          "task": "tiles-deletion"
         }
       ]
     }
@@ -58,6 +66,12 @@
       },
       "deleteLayer": {
         "type": "Delete_Layer"
+      },
+      "updateCacheDeletion": {
+        "type": "Update_Delete_Cache"
+      },
+      "swapCacheDeletion": {
+        "type": "Swap_Delete_Cache"
       }
     },
     "tasks": {
@@ -77,7 +91,7 @@
     "shouldResetTimeout": true
   },
   "storage": {
-    "cleanupStorageProviders": ["FS", "S3"],
+    "cleanupStorageProviders": ["FS", "S3", "REDIS"],
     "s3": {
       "delete": {
         "batchSize": 1000

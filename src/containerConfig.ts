@@ -171,6 +171,28 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
         useClass: DeleteStoredResourcesStrategy,
       },
     },
+    // Redis cache invalidation created by overseer after an ingestion finalizes: an update deletes the
+    // tile ranges of the ingested footprint, a swap wipes the whole cache prefix.
+    {
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.updateCacheDeletion.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
+      }),
+      provider: {
+        useClass: TilesDeletionStrategy,
+      },
+    },
+    {
+      token: getJobAndTaskToken({
+        //TODO: when we create worker config schema we can move this to a constant and remove the cast
+        jobType: configInstance.get('jobDefinitions.jobs.swapCacheDeletion.type') as unknown as string,
+        taskType: configInstance.get('jobDefinitions.tasks.tilesDeletion.type') as unknown as string,
+      }),
+      provider: {
+        useClass: DeleteStoredResourcesStrategy,
+      },
+    },
     {
       token: 'onSignal',
       provider: {
