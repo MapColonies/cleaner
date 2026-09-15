@@ -239,7 +239,7 @@ describe('TilesDeletionStrategy', () => {
     describe('REDIS provider', () => {
       const redisParams: RedisTilesDeletionParams = {
         storageProvider: StorageProvider.REDIS,
-        prefix: 'eli_test-Orthophoto-redis_WorldCRS84',
+        prefix: 'test-Orthophoto-redis_WorldCRS84',
         ranges: [{ zoom: 3, minX: 1, maxX: 2, minY: 5, maxY: 6 }],
       };
       let MockRedisProvider: IStorageProvider<'REDIS'>;
