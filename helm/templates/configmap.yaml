@@ -84,7 +84,7 @@ data:
   REDIS_TLS_ENABLED: {{ $redis.tlsEnabled | default false | quote }}
   {{- with $redis.auth }}
   {{- if .enabled }}
-  {{- if .enableRedisUser }}
+  {{- if .username }}
   REDIS_USERNAME: {{ .username | quote }}
   {{- end }}
   REDIS_PASSWORD: {{ .password | quote }}

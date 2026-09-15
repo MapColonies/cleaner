@@ -32,11 +32,12 @@ storage:
       mountPath: ""
       tilesSubPath: "" # e.g. folder/tiles
   redis:
-    enabled: false
     host: ""
+    port: 6379
+    db: 0
+    # Same nesting as global.redis.auth; username is sent only when non-empty
     auth:
       enabled: false
-      enableRedisUser: false
       username: ""
       password: ""
     tlsEnabled: false
