@@ -14,14 +14,11 @@
       },
       "opentelemetryOptions": {
         "enabled": {
-          "__name": "TELEMETRY_LOGGER_OTEL_ENABLED",
+          "__name": "OPENTELEMETRY_LOGGING_ENABLED",
           "__format": "boolean"
         },
-        "url": "TELEMETRY_LOGGER_OTEL_URL",
-        "resourceAttributes": {
-          "__name": "TELEMETRY_LOGGER_OTEL_RESOURCE_ATTRIBUTES",
-          "__format": "json"
-        }
+        "url": "OTLP_LOGGER_ENDPOINT_URL",
+        "resourceAttributes": "OTEL_RESOURCE_ATTRIBUTES"
       }
     }
   },

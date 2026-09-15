@@ -56,7 +56,3 @@ Custom definitions
 {{- define "common.storage.merged" -}}
 {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.storage .Values.global.storage ) "context" . ) }}
 {{- end -}}
-
-{{- define "common.ca.merged" -}}
-{{- include "common.tplvalues.merge" ( dict "values" ( list .Values.ca .Values.global.ca ) "context" . ) }}
-{{- end -}}

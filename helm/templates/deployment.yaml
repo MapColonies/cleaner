@@ -4,7 +4,7 @@
 {{- $cloudProviderDockerRegistryUrl := include "cleaner.cloudProviderDockerRegistryUrl" . -}}
 {{- $cloudProviderImagePullSecretName := include "cleaner.cloudProviderImagePullSecretName" . -}}
 {{- $imageTag := include "cleaner.tag" . -}}
-{{- $ca := fromYaml (include "common.ca.merged" .) -}}
+{{- $server := .Values.server -}}
 {{- $storage := fromYaml (include "common.storage.merged" .) -}}
 {{- $s3 := ($storage.s3) | default dict -}}
 {{- $internalPvc := (($storage.fs).internalPvc) | default dict -}}
@@ -62,10 +62,10 @@ spec:
           {{- end }}
           {{- end }}
           volumeMounts:
-            {{- if $ca.secretName }}
-            - mountPath: {{ printf "%s/%s" $ca.path $ca.key | quote }}
+            {{- if .Values.global.ca.secretName }}
+            - mountPath: {{ printf "%s/%s" .Values.global.ca.path .Values.global.ca.key | quote }}
               name: root-ca
-              subPath: {{ quote $ca.key }}
+              subPath: {{ quote .Values.global.ca.key }}
             {{- end }}
             {{- if .Values.extraVolumeMounts -}}
               {{ toYaml .Values.extraVolumeMounts | nindent 12 }}
@@ -80,12 +80,12 @@ spec:
                 fieldRef:
                   fieldPath: metadata.uid
             - name: SERVER_PORT
-              value: {{ .Values.env.targetPort | quote }}
-            {{- if $ca.secretName }}
+              value: {{ $server.targetPort | quote }}
+            {{- if .Values.global.ca.secretName }}
             - name: REQUESTS_CA_BUNDLE
-              value: {{ printf "%s/%s" $ca.path $ca.key | quote }}
+              value: {{ printf "%s/%s" .Values.global.ca.path .Values.global.ca.key | quote }}
             - name: NODE_EXTRA_CA_CERTS
-              value: {{ printf "%s/%s" $ca.path $ca.key | quote }}
+              value: {{ printf "%s/%s" .Values.global.ca.path .Values.global.ca.key | quote }}
             {{- end }}
             {{- if $s3.secretName }}
             - name: S3_ACCESS_KEY_ID
@@ -112,7 +112,7 @@ spec:
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
             httpGet:
               path: {{ .Values.livenessProbe.path }}
-              port: {{ .Values.env.targetPort }}
+              port: {{ $server.targetPort }}
           {{- end }}
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
@@ -121,7 +121,7 @@ spec:
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
             httpGet:
               path: {{ .Values.readinessProbe.path }}
-              port: {{ .Values.env.targetPort }}
+              port: {{ $server.targetPort }}
           {{- end }}
           {{- if .Values.resources.enabled }}
           resources:
@@ -131,10 +131,10 @@ spec:
         {{ tpl (toYaml .Values.sidecars) . | nindent 8 }}
         {{- end }}
       volumes:
-        {{- if $ca.secretName }}
+        {{- if .Values.global.ca.secretName }}
         - name: root-ca
           secret:
-            secretName: {{ $ca.secretName }}
+            secretName: {{ .Values.global.ca.secretName }}
         {{- end }}
         {{- if .Values.extraVolumes -}}
           {{ tpl (toYaml .Values.extraVolumes) . | nindent 8 }}
