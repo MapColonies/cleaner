@@ -110,6 +110,33 @@
         "__name": "FS_SUB_PATHS",
         "__format": "json"
       }
+    },
+    "redis": {
+      "delete": {
+        "batchSize": {
+          "__name": "REDIS_DELETE_BATCH_SIZE",
+          "__format": "number"
+        }
+      },
+      "host": "REDIS_HOST",
+      "port": {
+        "__name": "REDIS_PORT",
+        "__format": "number"
+      },
+      "db": {
+        "__name": "REDIS_DB",
+        "__format": "number"
+      },
+      "scanCount": {
+        "__name": "REDIS_SCAN_COUNT",
+        "__format": "number"
+      },
+      "username": "REDIS_USERNAME",
+      "password": "REDIS_PASSWORD",
+      "tlsEnabled": {
+        "__name": "REDIS_TLS_ENABLED",
+        "__format": "boolean"
+      }
     }
   },
   "strategies": {

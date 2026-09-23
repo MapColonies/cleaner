@@ -3,16 +3,16 @@ import type { TileRange } from '@map-colonies/raster-shared';
 /**
  * Sized so one run crosses every batching boundary: 180 tiles at `strategyBatchSize` 40 is
  * four full batches flushed in two groups of `strategyConcurrency`, followed by a 20-tile
- * trailing partial batch. Each 40-key batch then re-chunks into 25 + 15 inside the S3
- * provider's own delete loop, which a production-sized batch never reaches — its cap is 1000
- * keys, well above the strategy's batch size.
+ * trailing partial batch. Each 40-key batch then re-chunks into 25 + 15 inside the provider's
+ * own delete loop (S3's `DeleteObjects`, Redis' `UNLINK`), which a production-sized batch never
+ * reaches — the caps are far above the strategy's batch size.
  */
 const BATCHING_SCENARIO = {
   range: { zoom: 12, minX: 0, maxX: 11, minY: 0, maxY: 14 } satisfies TileRange,
   tileCount: 180,
   strategyBatchSize: 40,
   strategyConcurrency: 2,
-  s3ChunkSize: 25,
+  providerChunkSize: 25,
   /** One `updateProgress` call per flush of `strategyConcurrency` full batches. */
   expectedFlushCount: 2,
   /** Math.round((80 / 180) * 100) and Math.round((160 / 180) * 100) — one per flush. */

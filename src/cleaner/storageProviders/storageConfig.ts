@@ -42,6 +42,30 @@ export interface S3StorageConfig {
   batchSize: number;
 }
 
+export interface RedisConfig {
+  delete: {
+    batchSize: number;
+  };
+  host: string;
+  port: number;
+  db: number;
+  scanCount: number;
+  username?: string;
+  password?: string;
+  tlsEnabled?: boolean;
+}
+
+export interface RedisStorageConfig {
+  host: string;
+  port: number;
+  db: number;
+  scanCount: number;
+  username?: string;
+  password?: string;
+  tlsEnabled?: boolean;
+  batchSize: number;
+}
+
 /**
  * Reads and validates `storage.fs`.
  * @returns {FsStorageConfig} FS configuration for FsStorageProvider
@@ -89,4 +113,33 @@ export function buildS3StorageConfig(config: ConfigType, logger: Logger): S3Stor
     ...s3StorageConfig,
     batchSize,
   };
+}
+
+/**
+ * Reads and validates `storage.redis`.
+ * @returns {RedisStorageConfig} Redis configuration for RedisStorageProvider
+ * @throws {ConfigurationError} if the config is unusable
+ */
+export function buildRedisStorageConfig(config: ConfigType, logger: Logger): RedisStorageConfig {
+  //TODO: when we create a worker config schema the shape checks below can be dropped along with the cast
+  const redisConfig = config.get('storage.redis') as unknown as RedisConfig;
+
+  const {
+    delete: { batchSize: deleteBatchSize },
+    ...redisStorageConfig
+  } = redisConfig;
+
+  if (deleteBatchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
+  if (redisStorageConfig.scanCount <= 0) throw new ConfigurationError('Redis scan count must be greater than 0');
+
+  // Logged field by field rather than spread, so credentials never reach the logs.
+  logger.info({
+    msg: 'Validated Redis storage config',
+    host: redisStorageConfig.host,
+    port: redisStorageConfig.port,
+    db: redisStorageConfig.db,
+    scanCount: redisStorageConfig.scanCount,
+    batchSize: deleteBatchSize,
+  });
+  return { ...redisStorageConfig, batchSize: deleteBatchSize };
 }
