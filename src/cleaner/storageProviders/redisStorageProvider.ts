@@ -6,7 +6,7 @@ import { inject, injectable } from 'tsyringe';
 import { SERVICES } from '@common/constants';
 import { getChunk } from '@src/cleaner/utils';
 import { describeError } from '../errors';
-import { mergeFailures } from './failuresHandling';
+import { countFailures, mergeFailures } from './failuresHandling';
 import type { DeleteFailure, DeleteResult, IStorageProvider, StorageProvider } from './iStorageProvider';
 import type { RedisStorageConfig } from './storageConfig';
 
@@ -32,8 +32,15 @@ export class RedisStorageProvider implements IStorageProvider<RedisStorageProvid
       return { failures: new Map(), deletedCount: 0 };
     }
 
-    this.logger.info({ msg: 'Deleting keys from Redis', prefix, keysCount: keys.length });
-    return this.unlinkInBatches(keys);
+    const result = await this.unlinkInBatches(keys);
+    this.logger.debug({
+      msg: 'Deleted keys from Redis',
+      prefix,
+      requestedCount: keys.length,
+      deletedCount: result.deletedCount,
+      failedCount: countFailures(result.failures),
+    });
+    return result;
   }
 
   public async deleteResources(params: Extract<DeleteStoredResourcesParams, { storageProvider: RedisStorageProviderType }>): Promise<DeleteResult> {
@@ -42,17 +49,27 @@ export class RedisStorageProvider implements IStorageProvider<RedisStorageProvid
 
     let failures: DeleteFailure = new Map();
     let deletedCount = 0;
+    // May slightly overcount: SCAN can return a key twice while Redis is resizing its keyspace
+    let foundCount = 0;
 
     for await (const keys of this.scanKeys(pattern)) {
       if (keys.length === 0) {
         continue;
       }
+      foundCount += keys.length;
       const result = await this.unlinkInBatches(keys);
       failures = mergeFailures({ source: result.failures, target: failures });
       deletedCount += result.deletedCount;
     }
 
-    this.logger.info({ msg: 'Completed Redis prefix wipe', prefix: params.prefix, deletedCount, failedReasons: failures.size });
+    this.logger.info({
+      msg: 'Completed Redis prefix wipe',
+      prefix: params.prefix,
+      foundCount,
+      deletedCount,
+      failedCount: countFailures(failures),
+      failedReasons: failures.size,
+    });
     return { failures, deletedCount };
   }
 

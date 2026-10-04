@@ -101,7 +101,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       return;
     }
 
-    this.logger.info({ msg: 'Tiles deletion completed successfully', deletedCount });
+    this.logger.info({ msg: 'Tiles deletion completed successfully', totalTiles, deletedCount });
   }
 
   private resolveStorageProvider(params: TilesDeletionParams): StorageTarget & { provider: ResolvedStorageProvider } {
