@@ -63,10 +63,8 @@ export class RedisStorageProvider implements IStorageProvider<RedisStorageProvid
     }
 
     this.logger.info({
-      msg: 'Completed Redis prefix wipe',
+      msg: `Completed Redis prefix wipe for prefix ${params.prefix} deleted ${deletedCount}/${foundCount} keys`,
       prefix: params.prefix,
-      foundCount,
-      deletedCount,
       failedCount: countFailures(failures),
       failedReasons: failures.size,
     });
