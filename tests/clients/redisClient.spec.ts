@@ -1,22 +1,20 @@
 import type { Logger } from '@map-colonies/js-logger';
+// eslint-disable-next-line @typescript-eslint/naming-convention -- ioredis' default export is a class
+import Redis from 'ioredis';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRedisConnection } from '@src/cleaner/clients/redisClient';
 import { createMockLogger, createRedisStorageConfig } from '../helpers/mocks';
 
-const { redisConstructor, connect, quit, scan, unlink } = vi.hoisted(() => ({
+const { redisConstructor, connect, quit } = vi.hoisted(() => ({
   redisConstructor: vi.fn(),
   connect: vi.fn(),
   quit: vi.fn(),
-  scan: vi.fn(),
-  unlink: vi.fn(),
 }));
 
 vi.mock('ioredis', () => ({
   default: class {
     public connect = connect;
     public quit = quit;
-    public scan = scan;
-    public unlink = unlink;
     public constructor(options: unknown) {
       redisConstructor(options);
     }
@@ -34,17 +32,11 @@ describe('createRedisConnection', () => {
   });
 
   describe('connecting', () => {
-    it('should return the connected client itself, not a wrapper', async () => {
-      scan.mockResolvedValue(['0', []]);
-      unlink.mockResolvedValue(1);
-
+    it('should connect once at startup and return the connected Redis client', async () => {
       const client = await createRedisConnection(createRedisStorageConfig(), mockLogger);
-      await client.scan('0', 'MATCH', 'p-*', 'COUNT', 10);
-      await client.unlink('k');
 
       expect(connect).toHaveBeenCalledTimes(1);
-      expect(scan).toHaveBeenCalledWith('0', 'MATCH', 'p-*', 'COUNT', 10);
-      expect(unlink).toHaveBeenCalledWith('k');
+      expect(client).toBeInstanceOf(Redis);
     });
 
     it('should build the client lazily with the configured connection details', async () => {
