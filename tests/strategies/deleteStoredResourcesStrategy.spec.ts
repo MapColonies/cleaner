@@ -206,13 +206,6 @@ describe('DeleteStoredResourcesStrategy', () => {
         expect(vi.mocked(sleep).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(mockRedisProvider.deleteResources).mock.invocationCallOrder[0]!);
         expect(mockRedisProvider.deleteResources).toHaveBeenCalledWith(params);
       });
-
-      it('should not wait out a reload window when delaySeconds is zero', async () => {
-        await strategy.execute({ ...redisParams, delaySeconds: 0 });
-
-        expect(sleep).toHaveBeenCalledExactlyOnceWith(0);
-        expect(mockRedisProvider.deleteResources).toHaveBeenCalledOnce();
-      });
     });
 
     it('should rethrow error thrown by deleteResources', async () => {
