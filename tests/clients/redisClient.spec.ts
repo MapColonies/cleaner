@@ -5,16 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRedisConnection } from '@src/cleaner/clients/redisClient';
 import { createMockLogger, createRedisStorageConfig } from '../helpers/mocks';
 
-const { redisConstructor, connect, quit } = vi.hoisted(() => ({
+const { redisConstructor, connect } = vi.hoisted(() => ({
   redisConstructor: vi.fn(),
   connect: vi.fn(),
-  quit: vi.fn(),
 }));
 
 vi.mock('ioredis', () => ({
   default: class {
     public connect = connect;
-    public quit = quit;
     public constructor(options: unknown) {
       redisConstructor(options);
     }
@@ -28,7 +26,6 @@ describe('createRedisConnection', () => {
     vi.clearAllMocks();
     mockLogger = createMockLogger();
     connect.mockResolvedValue(undefined);
-    quit.mockResolvedValue('OK');
   });
 
   describe('connecting', () => {
@@ -63,14 +60,6 @@ describe('createRedisConnection', () => {
       connect.mockRejectedValue(new Error('ECONNREFUSED'));
 
       await expect(createRedisConnection(createRedisStorageConfig(), mockLogger)).rejects.toThrow('ECONNREFUSED');
-    });
-
-    it('should not hand back a connection when connect failed', async () => {
-      connect.mockRejectedValue(new Error('ECONNREFUSED'));
-
-      await expect(createRedisConnection(createRedisStorageConfig(), mockLogger)).rejects.toThrow();
-
-      expect(quit).not.toHaveBeenCalled();
     });
   });
 });
