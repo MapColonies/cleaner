@@ -1,6 +1,8 @@
 import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { vi } from 'vitest';
+// eslint-disable-next-line @typescript-eslint/naming-convention -- ioredis' default export is a class
+import type Redis from 'ioredis';
+import { vi, type Mock } from 'vitest';
 import type { IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders/iStorageProvider';
 import type {
   FsConfig,
@@ -207,6 +209,47 @@ export const REDIS_VALIDATED_CONFIG_DEFAULTS = {
 
 export function createRedisStorageConfig(overrides: Partial<RedisStorageConfig> = {}): RedisStorageConfig {
   return { ...REDIS_VALIDATED_CONFIG_DEFAULTS, ...overrides };
+}
+
+// ─── Redis Client (RedisStorageProvider) ─────────────────────────────────────
+
+/**
+ * A mock Redis client recording every key it was asked to unlink. Cast at the boundary with `asRedis`;
+ * RedisStorageProvider only ever touches `scan` and `unlink`.
+ */
+export interface MockRedisClient {
+  unlinked: string[];
+  scan: Mock;
+  unlink: Mock;
+}
+
+export function createMockRedisClient(): MockRedisClient {
+  const unlinked: string[] = [];
+  return {
+    unlinked,
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    unlink: vi.fn().mockImplementation(async (...keys: string[]) => {
+      unlinked.push(...keys);
+      return Promise.resolve(keys.length);
+    }),
+  };
+}
+
+export function asRedis(client: MockRedisClient): Redis {
+  return client as unknown as Redis;
+}
+
+/** A client whose SCAN walks `pages` in order, returning to cursor '0' only on the last one. */
+export function createMockScanningRedisClient(pages: string[][]): MockRedisClient {
+  const client = createMockRedisClient();
+  let call = 0;
+  client.scan = vi.fn().mockImplementation(async () => {
+    const page = pages[call] ?? [];
+    call += 1;
+    const cursor = call >= pages.length ? '0' : String(call);
+    return Promise.resolve([cursor, page] as [string, string[]]);
+  });
+  return client;
 }
 
 // ─── JobTrackerClient ─────────────────────────────────────────────────────────

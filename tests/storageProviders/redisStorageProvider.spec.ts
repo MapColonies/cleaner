@@ -1,55 +1,21 @@
-// eslint-disable-next-line @typescript-eslint/naming-convention -- ioredis' default export is a class
-import type Redis from 'ioredis';
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RedisStorageProvider } from '@src/cleaner/storageProviders/redisStorageProvider';
-import { createMockLogger, createRedisStorageConfig } from '../helpers/mocks';
-
-/**
- * A fake Redis recording every key it was asked to unlink. Cast at the boundary like every
- * other mock in `tests/helpers/mocks.ts` — the provider only ever touches `scan` and `unlink`.
- */
-interface FakeRedis {
-  unlinked: string[];
-  scan: Mock;
-  unlink: Mock;
-}
-
-function createFakeClient(): FakeRedis {
-  const unlinked: string[] = [];
-  return {
-    unlinked,
-    scan: vi.fn().mockResolvedValue(['0', []]),
-    unlink: vi.fn().mockImplementation(async (...keys: string[]) => {
-      unlinked.push(...keys);
-      return Promise.resolve(keys.length);
-    }),
-  };
-}
-
-function asRedis(fake: FakeRedis): Redis {
-  return fake as unknown as Redis;
-}
-
-/** A client whose SCAN walks `pages` in order, returning to cursor '0' only on the last one. */
-function createScanningClient(pages: string[][]): FakeRedis {
-  const client = createFakeClient();
-  let call = 0;
-  client.scan = vi.fn().mockImplementation(async () => {
-    const page = pages[call] ?? [];
-    call += 1;
-    const cursor = call >= pages.length ? '0' : String(call);
-    return Promise.resolve([cursor, page] as [string, string[]]);
-  });
-  return client;
-}
+import {
+  asRedis,
+  createMockLogger,
+  createMockRedisClient,
+  createMockScanningRedisClient,
+  createRedisStorageConfig,
+  type MockRedisClient,
+} from '../helpers/mocks';
 
 describe('RedisStorageProvider', () => {
   const config = createRedisStorageConfig({ batchSize: 3, scanCount: 2 });
-  let client: FakeRedis;
+  let client: MockRedisClient;
   let provider: RedisStorageProvider;
 
   beforeEach(() => {
-    client = createFakeClient();
+    client = createMockRedisClient();
     provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
   });
 
@@ -113,7 +79,7 @@ describe('RedisStorageProvider', () => {
 
   describe('#deleteResources', () => {
     it('should scan the prefix and unlink everything it finds', async () => {
-      client = createScanningClient([['p-1-1-1', 'p-1-1-2'], ['p-2-1-1']]);
+      client = createMockScanningRedisClient([['p-1-1-1', 'p-1-1-2'], ['p-2-1-1']]);
       provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
 
       const result = await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
@@ -124,7 +90,7 @@ describe('RedisStorageProvider', () => {
     });
 
     it('should follow the cursor until it returns to 0', async () => {
-      client = createScanningClient([['a'], ['b'], ['c']]);
+      client = createMockScanningRedisClient([['a'], ['b'], ['c']]);
       provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
 
       await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
@@ -133,7 +99,7 @@ describe('RedisStorageProvider', () => {
     });
 
     it('should keep scanning past an empty page, because MATCH filters after retrieval', async () => {
-      client = createScanningClient([[], ['found']]);
+      client = createMockScanningRedisClient([[], ['found']]);
       provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
 
       const result = await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
@@ -143,7 +109,7 @@ describe('RedisStorageProvider', () => {
     });
 
     it('should not unlink at all for an empty page', async () => {
-      client = createScanningClient([[], []]);
+      client = createMockScanningRedisClient([[], []]);
       provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
 
       await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
@@ -152,7 +118,7 @@ describe('RedisStorageProvider', () => {
     });
 
     it('should scan with the prefix and a trailing dash wildcard', async () => {
-      client = createScanningClient([[]]);
+      client = createMockScanningRedisClient([[]]);
       provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
 
       await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'layer-redis_WorldCRS84' });
@@ -161,7 +127,7 @@ describe('RedisStorageProvider', () => {
     });
 
     it('should report deletedCount 0 for a cold cache rather than failing', async () => {
-      client = createScanningClient([[]]);
+      client = createMockScanningRedisClient([[]]);
       provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
 
       const result = await provider.deleteResources({ storageProvider: 'REDIS', prefix: 'p' });
@@ -170,7 +136,7 @@ describe('RedisStorageProvider', () => {
     });
 
     it('should accumulate failures across pages without losing the count', async () => {
-      client = createScanningClient([['a'], ['b']]);
+      client = createMockScanningRedisClient([['a'], ['b']]);
       client.unlink = vi.fn().mockRejectedValue(new Error('READONLY'));
       provider = new RedisStorageProvider(config, asRedis(client), createMockLogger());
 
