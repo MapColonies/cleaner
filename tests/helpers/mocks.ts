@@ -182,11 +182,11 @@ export function createFsStorageConfig(overrides: Partial<FsStorageConfig> = {}):
 export const REDIS_STORAGE_CONFIG_DEFAULTS = {
   delete: {
     batchSize: 3,
+    scanCount: 10,
   },
   host: 'localhost',
   port: 6379,
   db: 0,
-  scanCount: 10,
 } as const satisfies RedisConfig;
 
 export function createMockRedisConfig(overrides: Record<string, unknown> = {}): ConfigType {
@@ -201,7 +201,7 @@ export const REDIS_VALIDATED_CONFIG_DEFAULTS = {
   host: REDIS_STORAGE_CONFIG_DEFAULTS.host,
   port: REDIS_STORAGE_CONFIG_DEFAULTS.port,
   db: REDIS_STORAGE_CONFIG_DEFAULTS.db,
-  scanCount: REDIS_STORAGE_CONFIG_DEFAULTS.scanCount,
+  scanCount: REDIS_STORAGE_CONFIG_DEFAULTS.delete.scanCount,
   batchSize: REDIS_STORAGE_CONFIG_DEFAULTS.delete.batchSize,
 } as const satisfies RedisStorageConfig;
 

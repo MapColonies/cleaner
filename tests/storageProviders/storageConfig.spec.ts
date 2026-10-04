@@ -14,6 +14,7 @@ import {
   createRedisStorageConfig,
   createS3StorageConfig,
   FS_STORAGE_CONFIG_DEFAULTS,
+  REDIS_STORAGE_CONFIG_DEFAULTS,
 } from '../helpers/mocks';
 
 vi.mock('@src/cleaner/utils/fs', () => ({
@@ -154,13 +155,17 @@ describe('storageConfig', () => {
     });
 
     it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
-      const config = createMockRedisConfig({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
+      const config = createMockRedisConfig({
+        delete: { ...REDIS_STORAGE_CONFIG_DEFAULTS.delete, batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) },
+      });
 
       expect(() => buildRedisStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
     });
 
     it('should throw ConfigurationError when scanCount is less than or equal to 0', () => {
-      const config = createMockRedisConfig({ scanCount: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) });
+      const config = createMockRedisConfig({
+        delete: { ...REDIS_STORAGE_CONFIG_DEFAULTS.delete, scanCount: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) },
+      });
 
       expect(() => buildRedisStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
     });

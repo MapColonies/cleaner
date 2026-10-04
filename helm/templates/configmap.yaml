@@ -80,7 +80,7 @@ data:
   REDIS_HOST: {{ $redis.host | quote }}
   REDIS_PORT: {{ $redis.port | default 6379 | quote }}
   REDIS_DB: {{ $redis.db | default 0 | quote }}
-  REDIS_SCAN_COUNT: {{ $redis.scanCount | default 1000 | quote }}
+  REDIS_SCAN_COUNT: {{ $redis.delete.scanCount | default 1000 | quote }}
   REDIS_TLS_ENABLED: {{ $redis.tlsEnabled | default false | quote }}
   {{- with $redis.auth }}
   {{- if .enabled }}

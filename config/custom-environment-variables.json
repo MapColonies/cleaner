@@ -116,6 +116,10 @@
         "batchSize": {
           "__name": "REDIS_DELETE_BATCH_SIZE",
           "__format": "number"
+        },
+        "scanCount": {
+          "__name": "REDIS_SCAN_COUNT",
+          "__format": "number"
         }
       },
       "host": "REDIS_HOST",
@@ -125,10 +129,6 @@
       },
       "db": {
         "__name": "REDIS_DB",
-        "__format": "number"
-      },
-      "scanCount": {
-        "__name": "REDIS_SCAN_COUNT",
         "__format": "number"
       },
       "username": "REDIS_USERNAME",

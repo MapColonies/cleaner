@@ -45,11 +45,11 @@ export interface S3StorageConfig {
 export interface RedisConfig {
   delete: {
     batchSize: number;
+    scanCount: number;
   };
   host: string;
   port: number;
   db: number;
-  scanCount: number;
   username?: string;
   password?: string;
   tlsEnabled?: boolean;
@@ -125,12 +125,12 @@ export function buildRedisStorageConfig(config: ConfigType, logger: Logger): Red
   const redisConfig = config.get('storage.redis') as unknown as RedisConfig;
 
   const {
-    delete: { batchSize: deleteBatchSize },
+    delete: { batchSize: deleteBatchSize, scanCount },
     ...redisStorageConfig
   } = redisConfig;
 
   if (deleteBatchSize <= 0) throw new ConfigurationError('Deletion batch size must be greater than 0');
-  if (redisStorageConfig.scanCount <= 0) throw new ConfigurationError('Redis scan count must be greater than 0');
+  if (scanCount <= 0) throw new ConfigurationError('Redis scan count must be greater than 0');
 
   // Logged field by field rather than spread, so credentials never reach the logs.
   logger.info({
@@ -138,8 +138,8 @@ export function buildRedisStorageConfig(config: ConfigType, logger: Logger): Red
     host: redisStorageConfig.host,
     port: redisStorageConfig.port,
     db: redisStorageConfig.db,
-    scanCount: redisStorageConfig.scanCount,
+    scanCount,
     batchSize: deleteBatchSize,
   });
-  return { ...redisStorageConfig, batchSize: deleteBatchSize };
+  return { ...redisStorageConfig, scanCount, batchSize: deleteBatchSize };
 }

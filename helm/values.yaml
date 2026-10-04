@@ -41,9 +41,9 @@ storage:
       username: ""
       password: ""
     tlsEnabled: false
-    scanCount: 1000
     delete:
       batchSize: 1000
+      scanCount: 1000
 
 mclabels:
   component: backend
