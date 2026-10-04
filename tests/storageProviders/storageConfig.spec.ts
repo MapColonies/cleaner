@@ -21,6 +21,9 @@ vi.mock('@src/cleaner/utils/fs', () => ({
   assertCanDeleteFromFolder: vi.fn(),
 }));
 
+// 0 is the boundary, so it is always covered rather than left to a random draw
+const NON_POSITIVE_VALUES = [0, faker.number.int({ min: -Number.MAX_SAFE_INTEGER, max: -1 })];
+
 describe('storageConfig', () => {
   let mockLogger: Logger;
 
@@ -77,7 +80,7 @@ describe('storageConfig', () => {
 
     it('should propagate a ConfigurationError raised by the base path assertion', () => {
       const expectedError = new ConfigurationError('FS path does not exist: /test');
-      vi.mocked(assertCanDeleteFromFolder).mockImplementation(() => {
+      vi.mocked(assertCanDeleteFromFolder).mockImplementationOnce(() => {
         throw expectedError;
       });
 
@@ -90,8 +93,8 @@ describe('storageConfig', () => {
       expect(() => buildFsStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
     });
 
-    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
-      const config = createMockFsConfig({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
+    it.each(NON_POSITIVE_VALUES)('should throw ConfigurationError when batchSize is %i', (value) => {
+      const config = createMockFsConfig({ delete: { batchSize: value } });
 
       expect(() => buildFsStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
     });
@@ -130,8 +133,8 @@ describe('storageConfig', () => {
       expect(result.batchSize).toBe(1000);
     });
 
-    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
-      const config = createMockS3Config({ delete: { batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) } });
+    it.each(NON_POSITIVE_VALUES)('should throw ConfigurationError when batchSize is %i', (value) => {
+      const config = createMockS3Config({ delete: { batchSize: value } });
 
       expect(() => buildS3StorageConfig(config, mockLogger)).toThrow(ConfigurationError);
     });
@@ -154,18 +157,14 @@ describe('storageConfig', () => {
       expect(result).toMatchObject({ username: 'user', password: 'secret', tlsEnabled: true });
     });
 
-    it('should throw ConfigurationError when batchSize is less than or equal to 0', () => {
-      const config = createMockRedisConfig({
-        delete: { ...REDIS_STORAGE_CONFIG_DEFAULTS.delete, batchSize: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) },
-      });
+    it.each(NON_POSITIVE_VALUES)('should throw ConfigurationError when batchSize is %i', (value) => {
+      const config = createMockRedisConfig({ delete: { ...REDIS_STORAGE_CONFIG_DEFAULTS.delete, batchSize: value } });
 
       expect(() => buildRedisStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
     });
 
-    it('should throw ConfigurationError when scanCount is less than or equal to 0', () => {
-      const config = createMockRedisConfig({
-        delete: { ...REDIS_STORAGE_CONFIG_DEFAULTS.delete, scanCount: faker.number.int({ max: 0, min: -Number.MAX_SAFE_INTEGER }) },
-      });
+    it.each(NON_POSITIVE_VALUES)('should throw ConfigurationError when scanCount is %i', (value) => {
+      const config = createMockRedisConfig({ delete: { ...REDIS_STORAGE_CONFIG_DEFAULTS.delete, scanCount: value } });
 
       expect(() => buildRedisStorageConfig(config, mockLogger)).toThrow(ConfigurationError);
     });
