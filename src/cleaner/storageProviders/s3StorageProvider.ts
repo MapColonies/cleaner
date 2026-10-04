@@ -7,8 +7,8 @@ import {
   NoSuchBucket,
   NotFound,
   paginateListObjectsV2,
-  S3Client,
   S3ServiceException,
+  type S3Client,
   type _Error,
   type _Object,
 } from '@aws-sdk/client-s3';
@@ -32,23 +32,11 @@ type S3StorageProviderType = Extract<StorageProvider, 'S3'>;
 
 @injectable()
 export class S3StorageProvider implements IStorageProvider<S3StorageProviderType> {
-  private readonly s3Client: S3Client;
-
   public constructor(
     @inject(SERVICES.S3_STORAGE_CONFIG) private readonly s3Config: S3StorageConfig,
+    @inject(SERVICES.S3_CLIENT) private readonly s3Client: S3Client,
     @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {
-    // TODO: move client to a singleton resolution since
-    this.s3Client = new S3Client({
-      endpoint: s3Config.endpoint,
-      credentials: {
-        accessKeyId: s3Config.accessKeyId,
-        secretAccessKey: s3Config.secretAccessKey,
-      },
-      forcePathStyle: s3Config.forcePathStyle,
-      region: s3Config.region,
-      tls: s3Config.sslEnabled,
-    });
     this.logger.debug({ msg: 'Loaded S3 storage provider', endpoint: s3Config.endpoint, batchSize: this.s3Config.batchSize });
   }
 

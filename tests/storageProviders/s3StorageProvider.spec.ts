@@ -5,8 +5,8 @@ import {
   NoSuchBucket,
   NotFound,
   paginateListObjectsV2,
-  S3Client,
   S3ServiceException,
+  type S3Client,
   type DeleteObjectsCommandOutput,
 } from '@aws-sdk/client-s3';
 import { faker } from '@faker-js/faker';
@@ -14,7 +14,7 @@ import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UnrecoverableError } from '@src/cleaner/errors';
 import { S3StorageProvider } from '@src/cleaner/storageProviders/s3StorageProvider';
-import { createMockLogger, createS3StorageConfig, S3_VALIDATED_CONFIG_DEFAULTS } from '../helpers/mocks';
+import { createMockLogger, createS3StorageConfig } from '../helpers/mocks';
 
 const mockSend = vi.fn();
 const mockPaginateListObjectsV2Next = vi.fn();
@@ -33,7 +33,6 @@ vi.mock(import('@aws-sdk/client-s3'), async (importOriginal) => {
   const originModule = await importOriginal();
   return {
     ...originModule,
-    S3Client: vi.fn(() => ({ send: mockSend })) as unknown as typeof S3Client,
     DeleteObjectsCommand: vi.fn((input: unknown) => input) as unknown as typeof DeleteObjectsCommand,
     ListObjectsV2Command: vi.fn((input: unknown) => input) as unknown as typeof ListObjectsV2Command,
     paginateListObjectsV2: vi.fn(() => mockPaginateListObjectsV2) as unknown as typeof paginateListObjectsV2,
@@ -41,6 +40,7 @@ vi.mock(import('@aws-sdk/client-s3'), async (importOriginal) => {
 });
 
 const BUCKET = 'test-bucket';
+const mockS3Client = { send: mockSend } as unknown as S3Client;
 
 describe('S3StorageProvider', () => {
   let provider: S3StorageProvider;
@@ -49,26 +49,7 @@ describe('S3StorageProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLogger = createMockLogger();
-    provider = new S3StorageProvider(createS3StorageConfig(), mockLogger);
-  });
-
-  describe('#constructor', () => {
-    it('should construct S3Client with config values', () => {
-      const provider = new S3StorageProvider(createS3StorageConfig(), mockLogger);
-      expect(S3Client).toHaveBeenCalledWith(
-        expect.objectContaining({
-          credentials: {
-            accessKeyId: S3_VALIDATED_CONFIG_DEFAULTS.accessKeyId,
-            secretAccessKey: S3_VALIDATED_CONFIG_DEFAULTS.secretAccessKey,
-          },
-          endpoint: S3_VALIDATED_CONFIG_DEFAULTS.endpoint,
-          forcePathStyle: S3_VALIDATED_CONFIG_DEFAULTS.forcePathStyle,
-          region: S3_VALIDATED_CONFIG_DEFAULTS.region,
-          tls: S3_VALIDATED_CONFIG_DEFAULTS.sslEnabled,
-        })
-      );
-      expect(provider).toBeInstanceOf(S3StorageProvider);
-    });
+    provider = new S3StorageProvider(createS3StorageConfig(), mockS3Client, mockLogger);
   });
 
   describe('#delete', () => {
@@ -168,7 +149,7 @@ describe('S3StorageProvider', () => {
 
     it('should batch paths into chunks of the configured batch size', async () => {
       const paths = Array.from({ length: 1500 }, (_, i) => `object-${i}.txt`);
-      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockLogger);
+      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockS3Client, mockLogger);
 
       await provider.delete(BUCKET, paths);
 
@@ -185,7 +166,7 @@ describe('S3StorageProvider', () => {
 
     it('should never exceed the S3 max keys limit per request for the maximum allowed batch size', async () => {
       const paths = Array.from({ length: 2500 }, (_, i) => `object-${i}.txt`);
-      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockLogger);
+      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 1000 }), mockS3Client, mockLogger);
 
       await provider.delete(BUCKET, paths);
 
@@ -594,7 +575,7 @@ describe('S3StorageProvider', () => {
     });
 
     it('should request pages sized by the configured batch size', async () => {
-      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 500 }), mockLogger);
+      provider = new S3StorageProvider(createS3StorageConfig({ batchSize: 500 }), mockS3Client, mockLogger);
       mockSend
         .mockResolvedValueOnce(undefined) // bucket exists
         .mockRejectedValueOnce(new NotFound({ $metadata: {}, message: 'not found' })); // no listing found for single object

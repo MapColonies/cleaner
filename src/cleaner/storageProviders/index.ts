@@ -9,7 +9,6 @@ export type {
   StorageProviders,
   StorageTarget,
 } from './iStorageProvider';
-export { createRedisConnection } from './redisClient';
 export { RedisStorageProvider } from './redisStorageProvider';
 export { S3StorageProvider } from './s3StorageProvider';
 export {

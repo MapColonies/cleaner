@@ -1,7 +1,7 @@
 import type { Logger } from '@map-colonies/js-logger';
 // eslint-disable-next-line @typescript-eslint/naming-convention -- ioredis' default export is a class
 import Redis from 'ioredis';
-import type { RedisStorageConfig } from './storageConfig';
+import type { RedisStorageConfig } from '../storageProviders/storageConfig';
 
 /**
  * Connects to a standalone Redis.

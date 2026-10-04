@@ -11,13 +11,13 @@ import { SERVICE_NAME, SERVICES } from '@common/constants';
 import { getJobAndTaskToken, InjectionObject, registerDependencies } from '@common/dependencyRegistration';
 import { getTracing } from '@common/tracing';
 import type { StorageProviders } from '@src/cleaner/storageProviders';
+import { createRedisConnection, createS3Client } from './cleaner/clients';
 import { ErrorHandler } from './cleaner/errors';
 import { JobTrackerClient } from './cleaner/httpClients';
 import {
   buildFsStorageConfig,
   buildRedisStorageConfig,
   buildS3StorageConfig,
-  createRedisConnection,
   FsStorageProvider,
   RedisStorageProvider,
   S3StorageProvider,
@@ -48,6 +48,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
   const fsStorageConfig = cleanupStorageProviders.includes(SourceType.FS) ? buildFsStorageConfig(configInstance, logger) : undefined;
   const s3StorageConfig = cleanupStorageProviders.includes(SourceType.S3) ? buildS3StorageConfig(configInstance, logger) : undefined;
   const redisStorageConfig = cleanupStorageProviders.includes(StorageProvider.REDIS) ? buildRedisStorageConfig(configInstance, logger) : undefined;
+  const s3Client = s3StorageConfig ? createS3Client(s3StorageConfig) : undefined;
   const redisConnection = redisStorageConfig ? await createRedisConnection(redisStorageConfig, logger) : undefined;
 
   const dependencies: InjectionObject<unknown>[] = [
@@ -115,6 +116,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
     },
     ...(fsStorageConfig ? [{ token: SERVICES.FS_STORAGE_CONFIG, provider: { useValue: fsStorageConfig } }] : []),
     ...(s3StorageConfig ? [{ token: SERVICES.S3_STORAGE_CONFIG, provider: { useValue: s3StorageConfig } }] : []),
+    ...(s3Client ? [{ token: SERVICES.S3_CLIENT, provider: { useValue: s3Client } }] : []),
     ...(redisStorageConfig ? [{ token: SERVICES.REDIS_STORAGE_CONFIG, provider: { useValue: redisStorageConfig } }] : []),
     ...(redisConnection ? [{ token: SERVICES.REDIS_CONNECTION, provider: { useValue: redisConnection } }] : []),
     {
@@ -122,7 +124,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
       provider: {
         useFactory: instancePerContainerCachingFactory<StorageProviders>((container) => {
           const providers = {
-            ...(s3StorageConfig && { [SourceType.S3]: container.resolve(S3StorageProvider) }),
+            ...(s3Client && { [SourceType.S3]: container.resolve(S3StorageProvider) }),
             ...(fsStorageConfig && { [SourceType.FS]: container.resolve(FsStorageProvider) }),
             ...(redisConnection && { [StorageProvider.REDIS]: container.resolve(RedisStorageProvider) }),
           };
@@ -200,6 +202,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
           const worker = container.resolve<IWorker>(SERVICES.WORKER);
           return async (): Promise<void> => {
             await Promise.all([getTracing().stop(), worker.stop(), redisConnection?.quit()]);
+            s3Client?.destroy();
           };
         },
       },

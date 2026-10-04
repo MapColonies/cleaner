@@ -1,6 +1,6 @@
 import type { Logger } from '@map-colonies/js-logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRedisConnection } from '@src/cleaner/storageProviders/redisClient';
+import { createRedisConnection } from '@src/cleaner/clients/redisClient';
 import { createMockLogger, createRedisStorageConfig } from '../helpers/mocks';
 
 const { redisConstructor, connect, quit, scan, unlink } = vi.hoisted(() => ({

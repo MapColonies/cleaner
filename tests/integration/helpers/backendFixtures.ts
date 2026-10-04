@@ -5,8 +5,8 @@ import { StorageProvider } from '@map-colonies/raster-shared';
 import type { S3Client } from '@aws-sdk/client-s3';
 // eslint-disable-next-line @typescript-eslint/naming-convention -- ioredis' default export is a class
 import type Redis from 'ioredis';
+import { createRedisConnection } from '@src/cleaner/clients';
 import {
-  createRedisConnection,
   FsStorageProvider,
   RedisStorageProvider,
   S3StorageProvider,
@@ -83,7 +83,7 @@ interface ProviderBatchSizes {
 }
 
 function buildProviders(
-  { minio, redis, redisConnection }: BackendHandles,
+  { minio, s3Client, redis, redisConnection }: BackendHandles,
   fsBasePath: string,
   batchSizes: ProviderBatchSizes = {}
 ): StorageProviders {
@@ -95,7 +95,11 @@ function buildProviders(
   const s3StorageConfig = buildS3StorageConfigForMinio(minio);
 
   return {
-    [StorageProvider.S3]: new S3StorageProvider({ ...s3StorageConfig, batchSize: batchSizes.s3 ?? s3StorageConfig.batchSize }, createMockLogger()),
+    [StorageProvider.S3]: new S3StorageProvider(
+      { ...s3StorageConfig, batchSize: batchSizes.s3 ?? s3StorageConfig.batchSize },
+      s3Client,
+      createMockLogger()
+    ),
     [StorageProvider.FS]: new FsStorageProvider(fsStorageConfig, createMockLogger()),
     [StorageProvider.REDIS]: new RedisStorageProvider(buildRedisStorageConfig(redis, batchSizes.redis), redisConnection, createMockLogger()),
   };
