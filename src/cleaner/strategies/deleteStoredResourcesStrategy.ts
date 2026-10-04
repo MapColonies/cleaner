@@ -60,9 +60,6 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
   }
 
   private async awaitReloadWindow(prefix: string, delaySeconds = 0): Promise<void> {
-    if (delaySeconds === 0) {
-      return;
-    }
     this.logger.info({ msg: 'Waiting for the reload window before deleting', prefix, delaySeconds });
     await setTimeout(delaySeconds * MS_PER_SECOND);
   }

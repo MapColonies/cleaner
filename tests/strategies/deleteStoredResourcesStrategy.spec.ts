@@ -189,10 +189,10 @@ describe('DeleteStoredResourcesStrategy', () => {
     });
 
     describe('REDIS provider', () => {
-      it('should wipe the prefix immediately when the task carries no delay', async () => {
+      it('should wipe the prefix without a reload window when the task carries no delay', async () => {
         await strategy.execute(redisParams);
 
-        expect(sleep).not.toHaveBeenCalled();
+        expect(sleep).toHaveBeenCalledExactlyOnceWith(0);
         expect(mockRedisProvider.deleteResources).toHaveBeenCalledWith(redisParams);
         expect(mockS3Provider.deleteResources).not.toHaveBeenCalled();
       });
@@ -207,10 +207,10 @@ describe('DeleteStoredResourcesStrategy', () => {
         expect(mockRedisProvider.deleteResources).toHaveBeenCalledWith(params);
       });
 
-      it('should not wait when delaySeconds is zero', async () => {
+      it('should not wait out a reload window when delaySeconds is zero', async () => {
         await strategy.execute({ ...redisParams, delaySeconds: 0 });
 
-        expect(sleep).not.toHaveBeenCalled();
+        expect(sleep).toHaveBeenCalledExactlyOnceWith(0);
         expect(mockRedisProvider.deleteResources).toHaveBeenCalledOnce();
       });
     });
