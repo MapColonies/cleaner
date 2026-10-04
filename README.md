@@ -64,23 +64,23 @@ npm run test:watch
 #### Integration tests
 
 `npm run test:integration` needs an S3-compatible server and a Redis server. By default it starts
-a Minio and a Redis [testcontainer](https://testcontainers.com/) automatically.
+an S3-compatible and a Redis [testcontainer](https://testcontainers.com/) automatically.
 The images are pinned to the releases deployed in our environments; bump them in
-`tests/integration/helpers/minioContainer.ts` and `tests/integration/helpers/redisContainer.ts`
+`tests/integration/helpers/s3Container.ts` and `tests/integration/helpers/redisContainer.ts`
 when those environments move.
 
 To run against already-running servers instead, set the `TEST_*` variables:
 
-| Variable                 | Default      | Purpose                                                              |
-| ------------------------ | ------------ | -------------------------------------------------------------------- |
-| `TEST_MINIO_ENDPOINT`    | _(unset)_    | Point the suite at an existing Minio. Unset means start a container. |
-| `TEST_MINIO_ACCESS_KEY`  | `minioadmin` | Access key for that server.                                          |
-| `TEST_MINIO_SECRET_KEY`  | `minioadmin` | Secret key for that server.                                          |
-| `TEST_REDIS_HOST`        | _(unset)_    | Point the suite at an existing Redis. Unset means start a container. |
-| `TEST_REDIS_PORT`        | `6379`       | Port for that server.                                                |
+| Variable             | Default      | Purpose                                                                  |
+| -------------------- | ------------ | ------------------------------------------------------------------------ |
+| `TEST_S3_ENDPOINT`   | _(unset)_    | Point the suite at an existing S3 server. Unset means start a container. |
+| `TEST_S3_ACCESS_KEY` | `minioadmin` | Access key for that server.                                              |
+| `TEST_S3_SECRET_KEY` | `minioadmin` | Secret key for that server.                                              |
+| `TEST_REDIS_HOST`    | _(unset)_    | Point the suite at an existing Redis. Unset means start a container.     |
+| `TEST_REDIS_PORT`    | `6379`       | Port for that server.                                                    |
 
-> **The suite creates and deletes buckets on whichever Minio it is given, and calls `FLUSHDB` on
-> whichever Redis it is given.** Never point `TEST_MINIO_ENDPOINT` or `TEST_REDIS_HOST` at a shared
+> **The suite creates and deletes buckets on whichever S3 server it is given, and calls `FLUSHDB` on
+> whichever Redis it is given.** Never point `TEST_S3_ENDPOINT` or `TEST_REDIS_HOST` at a shared
 > or deployed environment, and beware of leaving them exported in a shell profile. Each run prints
 > which mode it selected and against which server.
 

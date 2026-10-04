@@ -15,8 +15,8 @@ import {
   type StorageProviders,
 } from '@src/cleaner/storageProviders';
 import { createMockLogger } from '../../helpers/mocks';
-import { startMinio, type MinioHandle } from './minioContainer';
-import { buildS3StorageConfigForMinio, createTestS3Client, deleteBucket, ensureBucket } from './s3TestKit';
+import { startS3, type S3Handle } from './s3Container';
+import { buildS3StorageConfig, createTestS3Client, deleteBucket, ensureBucket } from './s3TestKit';
 import { makeTempFsBase, rmBase } from './fsTestKit';
 import { startRedis, type RedisHandle } from './redisContainer';
 import { createTestRedisClient, flush } from './redisTestKit';
@@ -32,7 +32,7 @@ const REDIS_SCAN_COUNT = 10;
 const REDIS_DELETE_BATCH_SIZE = 4;
 
 interface BackendHandles {
-  minio: MinioHandle;
+  s3: S3Handle;
   s3Client: S3Client;
   redis: RedisHandle;
   /** Seeding and listing client; the provider gets its own connection. */
@@ -55,18 +55,18 @@ function buildRedisStorageConfig(redis: RedisHandle, batchSize = REDIS_DELETE_BA
 }
 
 async function startBackends(): Promise<BackendHandles> {
-  const [minio, redis] = await Promise.all([startMinio(), startRedis()]);
-  const s3Client = createTestS3Client(minio);
+  const [s3, redis] = await Promise.all([startS3(), startRedis()]);
+  const s3Client = createTestS3Client(s3);
   const redisClient = createTestRedisClient(redis);
   const redisConnection = await createRedisConnection(buildRedisStorageConfig(redis), createMockLogger());
-  return { minio, s3Client, redis, redisClient, redisConnection };
+  return { s3, s3Client, redis, redisClient, redisConnection };
 }
 
-async function stopBackends({ minio, s3Client, redis, redisClient, redisConnection }: BackendHandles): Promise<void> {
+async function stopBackends({ s3, s3Client, redis, redisClient, redisConnection }: BackendHandles): Promise<void> {
   s3Client.destroy();
   await redisConnection.quit();
   redisClient.disconnect();
-  await Promise.all([minio.stop(), redis.stop()]);
+  await Promise.all([s3.stop(), redis.stop()]);
 }
 
 /** Per-provider delete batch sizes; each falls back to the production-shaped default. */
@@ -83,7 +83,7 @@ interface ProviderBatchSizes {
 }
 
 function buildProviders(
-  { minio, s3Client, redis, redisConnection }: BackendHandles,
+  { s3, s3Client, redis, redisConnection }: BackendHandles,
   fsBasePath: string,
   batchSizes: ProviderBatchSizes = {}
 ): StorageProviders {
@@ -92,7 +92,7 @@ function buildProviders(
     subPaths: [FS_ALLOWED_SUB_PATH],
     batchSize: batchSizes.fs ?? FS_DELETE_BATCH_SIZE,
   };
-  const s3StorageConfig = buildS3StorageConfigForMinio(minio);
+  const s3StorageConfig = buildS3StorageConfig(s3);
 
   return {
     [StorageProvider.S3]: new S3StorageProvider(

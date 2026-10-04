@@ -10,7 +10,7 @@ import {
   BucketAlreadyExists,
 } from '@aws-sdk/client-s3';
 import type { S3StorageConfig } from '@src/cleaner/storageProviders';
-import type { MinioHandle } from './minioContainer';
+import type { S3Handle } from './s3Container';
 import { TINY_TILE_BODY } from './tileFixtures';
 
 // S3/MinIO reject a DeleteObjects request carrying more than 1000 keys. Only bucket
@@ -18,7 +18,7 @@ import { TINY_TILE_BODY } from './tileFixtures';
 const S3_DELETE_OBJECTS_MAX_KEYS = 1000;
 const TEST_REGION = 'us-east-1';
 
-function createTestS3Client(handle: MinioHandle): S3Client {
+function createTestS3Client(handle: S3Handle): S3Client {
   return new S3Client({
     endpoint: handle.endpoint,
     credentials: {
@@ -36,7 +36,7 @@ function createTestS3Client(handle: MinioHandle): S3Client {
  * built here straight from the container handle, so the test skips `buildS3StorageConfig`
  * (and with it the `storage.s3` config lookup) but exercises the real provider.
  */
-function buildS3StorageConfigForMinio(handle: MinioHandle): S3StorageConfig {
+function buildS3StorageConfig(handle: S3Handle): S3StorageConfig {
   return {
     endpoint: handle.endpoint,
     accessKeyId: handle.accessKeyId,
@@ -103,4 +103,4 @@ async function putManyTiles(client: S3Client, bucket: string, keys: string[]): P
   }
 }
 
-export { createTestS3Client, buildS3StorageConfigForMinio, ensureBucket, deleteBucket, emptyBucket, putTile, putManyTiles, listAllKeys };
+export { createTestS3Client, buildS3StorageConfig, ensureBucket, deleteBucket, emptyBucket, putTile, putManyTiles, listAllKeys };
