@@ -9,11 +9,11 @@ interface MinioHandle {
 }
 
 /**
- * Pinned to the release running on our Azure deployment, so the suite exercises the same server
- * behavior we deploy against. Pulled from Quay: Docker Hub no longer serves `minio/minio`
+ * SeaweedFS's S3 gateway, pinned to the image our infra deploys, so the suite exercises the same
+ * server behavior. MinIO no longer serves its images anonymously on Docker Hub or Quay.
  */
-const MINIO_IMAGE = 'quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z';
-const MINIO_PORT = 9000;
+const MINIO_IMAGE = 'docker.io/chrislusf/seaweedfs:4.47';
+const MINIO_PORT = 8333;
 const DEFAULT_USER = 'minioadmin';
 const DEFAULT_PASSWORD = 'minioadmin';
 
@@ -31,10 +31,11 @@ async function startMinio(): Promise<MinioHandle> {
   }
   console.log(`Minio: TEST_MINIO_ENDPOINT is not set, starting testcontainer from ${MINIO_IMAGE}`);
   const container: StartedTestContainer = await new GenericContainer(MINIO_IMAGE)
-    .withCommand(['server', '/data'])
+    .withCommand(['server', '-s3', '-dir=/data'])
+    // SeaweedFS registers these as the S3 admin identity
     .withEnvironment({
-      MINIO_ROOT_USER: DEFAULT_USER,
-      MINIO_ROOT_PASSWORD: DEFAULT_PASSWORD,
+      AWS_ACCESS_KEY_ID: DEFAULT_USER,
+      AWS_SECRET_ACCESS_KEY: DEFAULT_PASSWORD,
     })
     .withExposedPorts(MINIO_PORT)
     .start();
