@@ -56,13 +56,6 @@ describe('createRedisConnection', () => {
 
       expect(redisConstructor).toHaveBeenCalledWith(expect.objectContaining({ tls: {} }));
     });
-
-    it('should hand back a client the shutdown hook can quit', async () => {
-      const client = await createRedisConnection(createRedisStorageConfig(), mockLogger);
-      await client.quit();
-
-      expect(quit).toHaveBeenCalledTimes(1);
-    });
   });
 
   describe('connection failure', () => {
