@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/MapColonies/cleaner/compare/v1.2.1...v1.3.0) (2026-10-05)
+
+
+### Features
+
+* redis storage provider and cache deletion jobs (MAPCO-11263) ([#41](https://github.com/MapColonies/cleaner/issues/41)) ([1800929](https://github.com/MapColonies/cleaner/commit/18009294826a4bc63a50aaa7467d948034cb2247))
+* resolve tiles-deletion storage locators from task params (MAPCO-11295) ([#37](https://github.com/MapColonies/cleaner/issues/37)) ([4934a3a](https://github.com/MapColonies/cleaner/commit/4934a3a429d00f6eef1114c03a8fbd288c4e15dc))
+
 ## [1.2.1](https://github.com/MapColonies/cleaner/compare/v1.2.0...v1.2.1) (2026-08-03)
 
 
