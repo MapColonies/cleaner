@@ -57,6 +57,11 @@ Custom definitions
 {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.storage .Values.global.storage ) "context" . ) }}
 {{- end -}}
 
+{{/* storage.redis, then global.storage.redis, then the shared global.redis block */}}
+{{- define "common.redis.merged" -}}
+{{- include "common.tplvalues.merge" ( dict "values" ( list ((.Values.storage).redis | default dict) ((.Values.global.storage).redis | default dict) (.Values.global.redis | default dict) ) "context" . ) }}
+{{- end -}}
+
 {{- define "common.ca.merged" -}}
 {{- include "common.tplvalues.merge" ( dict "values" ( list .Values.ca .Values.global.ca ) "context" . ) }}
 {{- end -}}

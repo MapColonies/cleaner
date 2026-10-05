@@ -7,8 +7,8 @@ import {
   NoSuchBucket,
   NotFound,
   paginateListObjectsV2,
-  S3Client,
   S3ServiceException,
+  type S3Client,
   type _Error,
   type _Object,
 } from '@aws-sdk/client-s3';
@@ -16,7 +16,14 @@ import type { Logger } from '@map-colonies/js-logger';
 import type { DeleteStoredResourcesParams } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
 import { SERVICES } from '@common/constants';
-import { mergeFailures, type DeleteFailure, type DeleteResult, type IStorageProvider, type StorageProvider } from '@src/cleaner/storageProviders';
+import {
+  countFailures,
+  mergeFailures,
+  type DeleteFailure,
+  type DeleteResult,
+  type IStorageProvider,
+  type StorageProvider,
+} from '@src/cleaner/storageProviders';
 import { getChunk, normalizeFolderPath } from '@src/cleaner/utils';
 import { describeError, UnrecoverableError } from '../errors';
 import type { S3StorageConfig } from './storageConfig';
@@ -25,23 +32,11 @@ type S3StorageProviderType = Extract<StorageProvider, 'S3'>;
 
 @injectable()
 export class S3StorageProvider implements IStorageProvider<S3StorageProviderType> {
-  private readonly s3Client: S3Client;
-
   public constructor(
     @inject(SERVICES.S3_STORAGE_CONFIG) private readonly s3Config: S3StorageConfig,
+    @inject(SERVICES.S3_CLIENT) private readonly s3Client: S3Client,
     @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {
-    // TODO: move client to a singleton resolution since
-    this.s3Client = new S3Client({
-      endpoint: s3Config.endpoint,
-      credentials: {
-        accessKeyId: s3Config.accessKeyId,
-        secretAccessKey: s3Config.secretAccessKey,
-      },
-      forcePathStyle: s3Config.forcePathStyle,
-      region: s3Config.region,
-      tls: s3Config.sslEnabled,
-    });
     this.logger.debug({ msg: 'Loaded S3 storage provider', endpoint: s3Config.endpoint, batchSize: this.s3Config.batchSize });
   }
 
@@ -54,7 +49,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
       failures = mergeFailures({ source: chunkFailures, target: failures });
     }
 
-    return { failures };
+    return { failures, deletedCount: paths.length - countFailures(failures) };
   }
 
   public async deleteResources({
@@ -63,8 +58,9 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
   }: Extract<DeleteStoredResourcesParams, { storageProvider: S3StorageProviderType }>): Promise<DeleteResult> {
     this.logger.debug({ msg: `Starting S3 resources deletion`, bucket, pathsCount: paths.length });
     let failures: DeleteFailure = new Map();
+    let deletedCount = 0;
 
-    if (paths.length === 0) return { failures };
+    if (paths.length === 0) return { failures, deletedCount };
     if (paths.some((path) => path.length === 0)) throw new UnrecoverableError('Cannot delete resources directly under root path of the bucket'); // Prevent root deletion
 
     const exists = await this.bucketExists(bucket);
@@ -73,11 +69,12 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     }
 
     for (const path of paths) {
-      const pathFailures = await this.deleteResource({ bucket, path });
-      failures = mergeFailures({ source: pathFailures, target: failures });
+      const pathResult = await this.deleteResource({ bucket, path });
+      failures = mergeFailures({ source: pathResult.failures, target: failures });
+      deletedCount += pathResult.deletedCount;
     }
 
-    return { failures };
+    return { failures, deletedCount };
   }
 
   public async targetExists(bucket: string, path: string): Promise<boolean> {
@@ -146,7 +143,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
     }
   }
 
-  private async deleteResource({ bucket, path }: { bucket: string; path: string }): Promise<DeleteFailure> {
+  private async deleteResource({ bucket, path }: { bucket: string; path: string }): Promise<DeleteResult> {
     this.logger.debug({ msg: 'Deleting a resource', bucket, path });
     let failures: DeleteFailure = new Map();
     let totalDeletedObjectsCount = 0,
@@ -177,8 +174,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
         const chunkFailures = await this.deleteObjects(keys, bucket);
         failures = mergeFailures({ source: chunkFailures, target: failures });
 
-        let failedObjectsCount = 0;
-        chunkFailures.forEach((chunkFailure) => (failedObjectsCount += chunkFailure.count));
+        const failedObjectsCount = countFailures(chunkFailures);
         const deletedObjectsCount = keys.length - failedObjectsCount;
         totalDeletedObjectsCount += deletedObjectsCount;
         totalFailedObjectsCount += failedObjectsCount;
@@ -192,7 +188,7 @@ export class S3StorageProvider implements IStorageProvider<S3StorageProviderType
         });
       }
       this.logger.debug({ msg: 'Resource deletion completed', path, totalDeletedObjectsCount, totalFailedObjectsCount });
-      return failures;
+      return { failures, deletedCount: totalDeletedObjectsCount };
     } catch (err) {
       this.logger.error({
         msg: 'Stream of objects for deletion was interrupted by an error',

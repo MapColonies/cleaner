@@ -1,5 +1,11 @@
 import { faker } from '@faker-js/faker';
-import { StorageProvider, type FsTilesDeletionParams, type S3TilesDeletionParams, type TileRange } from '@map-colonies/raster-shared';
+import {
+  StorageProvider,
+  type FsTilesDeletionParams,
+  type RedisTilesDeletionParams,
+  type S3TilesDeletionParams,
+  type TileRange,
+} from '@map-colonies/raster-shared';
 
 const EXTENSIONS = ['png', 'jpeg'] as const;
 
@@ -23,6 +29,11 @@ function buildTileRange(overrides: Partial<TileRange> = {}): TileRange {
 
 function buildTilesRelativePath(): string {
   return `${faker.word.noun().toLowerCase()}/${faker.string.alphanumeric({ length: 6, casing: 'lower' })}`;
+}
+
+/** Mirrors the observed `{layer}-{productType}-{grid}` cache prefix, dashes included. */
+function buildRedisPrefix(): string {
+  return `${faker.string.alphanumeric({ length: 8, casing: 'lower' })}-Orthophoto-WorldCRS84`;
 }
 
 function buildTilesDeletionCommon(overrides: Partial<TilesDeletionCommon>): TilesDeletionCommon {
@@ -49,5 +60,20 @@ function buildFsTilesDeletionParams(overrides: Partial<FsTilesDeletionParams> = 
   };
 }
 
-export { buildTileRange, buildTilesRelativePath, buildS3TilesDeletionParams, buildFsTilesDeletionParams };
+function buildRedisTilesDeletionParams(overrides: Partial<RedisTilesDeletionParams> = {}): RedisTilesDeletionParams {
+  return {
+    storageProvider: StorageProvider.REDIS,
+    prefix: overrides.prefix ?? buildRedisPrefix(),
+    ranges: overrides.ranges ?? [buildTileRange()],
+  };
+}
+
+export {
+  buildTileRange,
+  buildTilesRelativePath,
+  buildRedisPrefix,
+  buildS3TilesDeletionParams,
+  buildFsTilesDeletionParams,
+  buildRedisTilesDeletionParams,
+};
 export type { TilesDeletionCommon };
