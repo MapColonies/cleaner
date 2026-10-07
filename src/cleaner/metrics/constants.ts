@@ -16,9 +16,6 @@ export const FailureReason = {
 } as const;
 /* eslint-enable @typescript-eslint/naming-convention */
 
-/** Strategy label used when a task fails before its strategy is resolved. */
-export const UNKNOWN_STRATEGY = 'unknown';
-
 // eslint-disable-next-line @typescript-eslint/no-magic-numbers -- histogram bucket boundaries
 export const TASK_DURATION_BUCKETS_SECONDS = [1, 5, 15, 30, 60, 120, 300, 600, 1800, 3600, 7200];
 // eslint-disable-next-line @typescript-eslint/no-magic-numbers -- histogram bucket boundaries

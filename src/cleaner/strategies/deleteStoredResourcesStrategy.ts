@@ -7,10 +7,12 @@ import { MS_PER_SECOND, SERVICES } from '@common/constants';
 import { summarizeDeleteFailures, type IStorageProvider, type StorageProviders } from '@src/cleaner/storageProviders';
 import { RecoverableError, UnrecoverableError } from '../errors';
 import { validateSchema } from '../utils';
+import { StrategyName } from './constants';
 import type { ITaskStrategy } from './taskStrategy';
 
 @injectable()
 export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStoredResourcesParams> {
+  public readonly name = StrategyName.DELETE_STORED_RESOURCES;
   public constructor(
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
     @inject(SERVICES.CONFIG) private readonly config: ConfigType,

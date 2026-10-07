@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { StrategyFactory } from '@src/cleaner/strategies';
+import type { Registry } from 'prom-client';
+import { StrategyFactory, StrategyName } from '@src/cleaner/strategies';
 import { TaskPoller } from '@src/worker/taskPoller';
 import type { PollingPairConfig } from '@src/cleaner/types';
 import { ErrorHandler, UnrecoverableError } from '@src/cleaner/errors';
@@ -12,6 +13,7 @@ import {
   createMockErrorHandler,
   createMockJobTrackerClient,
   createTaskPoller,
+  createTestMetrics,
   buildMockStrategy,
 } from './helpers/mocks';
 import { buildTask, buildPair } from './helpers/fakes';
@@ -23,6 +25,7 @@ describe('TaskPoller', () => {
   let jobTrackerClient: JobTrackerClient;
   let pollingPairs: PollingPairConfig[];
   let poller: TaskPoller;
+  let registry: Registry;
 
   const stopOnAck = () =>
     vi.mocked(queueClient.ack).mockImplementation(async () => {
@@ -44,7 +47,9 @@ describe('TaskPoller', () => {
     errorHandler = createMockErrorHandler();
     jobTrackerClient = createMockJobTrackerClient();
     pollingPairs = [buildPair({ maxAttempts: 5 })];
-    poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient });
+    const testMetrics = createTestMetrics();
+    registry = testMetrics.registry;
+    poller = createTaskPoller({ queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient, metrics: testMetrics.metrics });
   });
 
   describe('stop()', () => {
@@ -206,6 +211,66 @@ describe('TaskPoller', () => {
       // task1: reject failed → early return, no notify. task2: reject succeeded → notify fires.
       expect(jobTrackerClient.notify).toHaveBeenCalledTimes(1);
       expect(jobTrackerClient.notify).toHaveBeenCalledWith(task2.id);
+    });
+  });
+
+  describe('metrics', () => {
+    const getTasksTotal = async () => (await registry.getSingleMetric('cleaner_tasks_total')?.get())?.values;
+    const expectTaskRecorded = async (strategy: string, status: string): Promise<void> => {
+      const pair = pollingPairs[0]!;
+      expect(await getTasksTotal()).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 1, labels: { job_type: pair.jobType, task_type: pair.taskType, strategy, status } },
+      ]);
+    };
+
+    it('records a completed task with its strategy', async () => {
+      vi.mocked(strategyFactory.resolveWithContext).mockReturnValue(buildMockStrategy({ name: StrategyName.DELETE_STORED_RESOURCES }));
+      vi.mocked(queueClient.dequeue).mockResolvedValue(buildTask({ attempts: 1 }));
+      stopOnAck();
+
+      await poller.start();
+
+      await expectTaskRecorded(StrategyName.DELETE_STORED_RESOURCES, 'completed');
+    });
+
+    it('records a retried task when the error handler decides to retry', async () => {
+      const strategy = buildMockStrategy();
+      vi.mocked(strategy.execute).mockRejectedValue(new Error('transient'));
+      vi.mocked(strategyFactory.resolveWithContext).mockReturnValue(strategy);
+      vi.mocked(errorHandler.handleError).mockReturnValue({ shouldRetry: true, reason: 'retry' });
+      vi.mocked(queueClient.dequeue).mockResolvedValue(buildTask({ attempts: 1 }));
+      stopOnReject();
+
+      await poller.start();
+
+      await expectTaskRecorded(StrategyName.TILES_DELETION, 'retried');
+    });
+
+    it('records a failed task with an unknown strategy when it fails before strategy resolution', async () => {
+      vi.mocked(queueClient.dequeue).mockResolvedValue(buildTask({ attempts: pollingPairs[0]!.maxAttempts }));
+      stopOnReject();
+
+      await poller.start();
+
+      await expectTaskRecorded('unknown', 'failed');
+    });
+
+    it('marks the task in progress only while the strategy executes', async () => {
+      const getInProgress = async () => (await registry.getSingleMetric('cleaner_tasks_in_progress')?.get())?.values[0]?.value;
+      let duringExecute: number | undefined;
+      const strategy = buildMockStrategy();
+      vi.mocked(strategy.execute).mockImplementation(async () => {
+        duringExecute = await getInProgress();
+      });
+      vi.mocked(strategyFactory.resolveWithContext).mockReturnValue(strategy);
+      vi.mocked(queueClient.dequeue).mockResolvedValue(buildTask({ attempts: 1 }));
+      stopOnAck();
+
+      await poller.start();
+
+      expect(duringExecute).toBe(1);
+      expect(await getInProgress()).toBe(0);
     });
   });
 

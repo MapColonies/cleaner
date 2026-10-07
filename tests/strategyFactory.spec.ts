@@ -5,11 +5,13 @@ import { container } from 'tsyringe';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import { StrategyNotFoundError } from '../src/cleaner/errors';
-import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
+import { StrategyFactory, StrategyName, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
 import { SERVICES } from '../src/common/constants';
 import { createMockLogger, createMockQueueClient, createMockStorageProvider, createMockStrategyConfig } from './helpers/mocks';
 
 class MockStrategy implements ITaskStrategy {
+  public readonly name = StrategyName.TILES_DELETION;
+
   public validate(params: unknown): Record<string, unknown> {
     return params as Record<string, unknown>;
   }

@@ -17,12 +17,14 @@ import {
 import { RecoverableError, UnrecoverableError, describeError } from '../errors';
 import { resolveTileKeyGenerator, validateSchema } from '../utils';
 import type { TaskContext } from './strategyFactory';
+import { StrategyName } from './constants';
 import type { ITaskStrategy } from './taskStrategy';
 
 const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
 
 @injectable()
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
+  public readonly name = StrategyName.TILES_DELETION;
   private readonly batchSize: number;
   private readonly concurrency: number;
 
