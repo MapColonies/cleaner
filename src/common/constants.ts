@@ -12,6 +12,7 @@ export const SERVICES = {
   CONFIG: Symbol('Config'),
   TRACER: Symbol('Tracer'),
   METRICS: Symbol('METRICS'),
+  CLEANER_METRICS: Symbol('CleanerMetrics'),
   QUEUE_CLIENT: Symbol('QueueClient'),
   TASK_POLLER: Symbol('TaskPoller'),
   ERROR_HANDLER: Symbol('ErrorHandler'),
