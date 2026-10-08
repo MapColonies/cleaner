@@ -202,12 +202,17 @@ Edit `package.json`:
 
 ### Metrics
 
-Prometheus metrics are exposed on the `/metrics` endpoint (default port 8080). Key metrics include:
+Prometheus metrics are exposed on the `/metrics` endpoint (default port 8080). Cleaner metrics:
 
-- Worker task processing duration
-- Task success/failure rates
-- Active task count
-- Custom application metrics
+- `cleaner_tasks_total`, `cleaner_task_duration_seconds`, `cleaner_tasks_in_progress` — task attempts by job type, task type, strategy and status (`completed` / `failed` / `retried`)
+- `cleaner_objects_deleted_total`, `cleaner_objects_failed_total` — deletions and failures (bounded `reason`) by strategy and storage provider; FS stored-resources deletion counts paths, not tiles
+- `cleaner_tiles_deleted_by_zoom_total`, `cleaner_delete_batch_duration_seconds` — tiles-deletion strategy per zoom level and per batch call
+
+### Grafana Dashboard
+
+`dashboard.json` holds the cleaner dashboard (overview, throughput, per-zoom resolutions, latency, Node.js runtime; the Jobnik SDK rows stay collapsed until the jobs-system migration).
+
+To import it: Grafana → **Dashboards** → **New** → **Import**, upload `dashboard.json`, and select the Prometheus data source. Panels filter on the pod labels Prometheus adds when scraping (`app="cleaner"`, `namespace`, `instance`).
 
 ### Tracing
 
