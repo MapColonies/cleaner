@@ -4,6 +4,7 @@ import { deleteStoredResourcesParamsSchema, DeleteStoredResourcesParams, Storage
 import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
 import { MS_PER_SECOND, SERVICES } from '@common/constants';
+import type { CleanerMetrics } from '@src/cleaner/metrics';
 import { summarizeDeleteFailures, type IStorageProvider, type StorageProviders } from '@src/cleaner/storageProviders';
 import { RecoverableError, UnrecoverableError } from '../errors';
 import { validateSchema } from '../utils';
@@ -16,7 +17,8 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
   public constructor(
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
     @inject(SERVICES.CONFIG) private readonly config: ConfigType,
-    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: StorageProviders
+    @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: StorageProviders,
+    @inject(SERVICES.CLEANER_METRICS) private readonly metrics: CleanerMetrics
   ) {}
 
   public validate(params: unknown): DeleteStoredResourcesParams {
@@ -39,7 +41,10 @@ export class DeleteStoredResourcesStrategy implements ITaskStrategy<DeleteStored
       provider: params.storageProvider,
     });
 
-    const { failures } = await provider.deleteResources(params);
+    const { failures, deletedCount } = await provider.deleteResources(params);
+    const labels = { strategy: this.name, storageProvider: params.storageProvider };
+    this.metrics.recordDeleted(labels, deletedCount);
+    this.metrics.recordFailures(labels, failures);
 
     if (failures.size > 0) {
       const { failuresCount, samples, summary } = summarizeDeleteFailures({ failures });
