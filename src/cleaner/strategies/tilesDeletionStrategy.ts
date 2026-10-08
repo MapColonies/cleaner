@@ -1,7 +1,7 @@
 import { NoSuchKey } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { StorageProvider, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
+import { StorageProvider, TilesDeletionParams, tilesDeletionParamsSchema, type TileRange } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
@@ -237,28 +237,37 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     return params.ranges.reduce((sum, r) => sum + (r.maxX - r.minX + 1) * (r.maxY - r.minY + 1), 0);
   }
 
-  /** Yields batches of up to batchSize keys, starting a new batch whenever the zoom level changes. */
+  /**
+   * Yields batches of up to batchSize keys, one zoom level at a time. Ranges are grouped by zoom first
+   * because producers interleave zooms across many small ranges; cutting at every zoom change would
+   * multiply the number of delete calls.
+   */
   private *generateBatches(params: TilesDeletionParams): Generator<TileBatch> {
     const toKeys = resolveTileKeyGenerator(params);
-    let batch: TileBatch | undefined;
-
+    const rangesByZoom = new Map<number, TileRange[]>();
     for (const range of params.ranges) {
-      if (batch !== undefined && batch.zoom !== range.zoom) {
-        yield batch;
-        batch = undefined;
-      }
-      for (const key of toKeys(range)) {
-        batch ??= { zoom: range.zoom, keys: [] };
-        batch.keys.push(key);
-        if (batch.keys.length === this.batchSize) {
-          yield batch;
-          batch = undefined;
-        }
+      const ranges = rangesByZoom.get(range.zoom);
+      if (ranges) {
+        ranges.push(range);
+      } else {
+        rangesByZoom.set(range.zoom, [range]);
       }
     }
 
-    if (batch !== undefined) {
-      yield batch;
+    for (const [zoom, ranges] of rangesByZoom) {
+      let keys: string[] = [];
+      for (const range of ranges) {
+        for (const key of toKeys(range)) {
+          keys.push(key);
+          if (keys.length === this.batchSize) {
+            yield { zoom, keys };
+            keys = [];
+          }
+        }
+      }
+      if (keys.length > 0) {
+        yield { zoom, keys };
+      }
     }
   }
 }

@@ -666,6 +666,27 @@ describe('TilesDeletionStrategy', () => {
       expect(batches).toEqual([[tilePath(10, 0, 0), tilePath(10, 0, 1), tilePath(10, 1, 0)], [tilePath(10, 1, 1)], [tilePath(11, 0, 0)]]);
     });
 
+    it('groups interleaved zoom ranges so batches stay full', async () => {
+      // Producers interleave zooms across many small ranges; cutting at every zoom change would send 4 batches.
+      const interleavedParams: S3TilesDeletionParams = {
+        ...s3Params,
+        ranges: [
+          { zoom: 10, minX: 0, maxX: 0, minY: 0, maxY: 1 },
+          { zoom: 11, minX: 0, maxX: 0, minY: 0, maxY: 0 },
+          { zoom: 10, minX: 1, maxX: 1, minY: 0, maxY: 0 },
+          { zoom: 11, minX: 1, maxX: 1, minY: 0, maxY: 0 },
+        ],
+      };
+
+      await buildStrategyWithMetrics().execute(interleavedParams);
+
+      const batches = vi.mocked(MockS3Provider.delete).mock.calls.map(([, paths]) => paths);
+      expect(batches).toEqual([
+        [tilePath(10, 0, 0), tilePath(10, 0, 1), tilePath(10, 1, 0)],
+        [tilePath(11, 0, 0), tilePath(11, 1, 0)],
+      ]);
+    });
+
     it('records deleted tiles per zoom and in total, and one duration per batch', async () => {
       await buildStrategyWithMetrics().execute(multiZoomParams);
 
