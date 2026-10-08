@@ -15,14 +15,17 @@
       }
     ]
   },
-  "description": "Comprehensive monitoring dashboard for Jobnik SDK - worker, consumer, producer, and system metrics",
+  "description": "Cleaner worker: task outcomes, deletion throughput, per-zoom resolutions and latency",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 1,
+  "id": null,
   "links": [],
   "panels": [
     {
+      "type": "row",
+      "title": "Overview",
+      "id": 1001,
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -30,197 +33,208 @@
         "x": 0,
         "y": 0
       },
-      "id": 100,
-      "panels": [],
-      "title": "Overview & Status",
-      "type": "row"
+      "panels": []
     },
     {
+      "type": "stat",
+      "id": 1002,
+      "title": "Tasks in progress",
+      "description": "Tasks currently being executed",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "SDK version and runtime information",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue"
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 1
       },
-      "id": 1,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "/^version$/",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {},
-        "textMode": "value_and_name",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "jobnik_sdk_info{instance=~\"$instance\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "__auto",
-          "refId": "A"
-        }
-      ],
-      "title": "SDK Version",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Value": true,
-              "__name__": true,
-              "arch": false,
-              "instance": true,
-              "job": true,
-              "node_version": false,
-              "platform": false
-            },
-            "indexByName": {},
-            "renameByName": {}
-          }
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Time since worker started processing tasks",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 86400,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
-              },
-              {
-                "color": "yellow",
-                "value": 300
-              },
-              {
-                "color": "green",
-                "value": 3600
+                "color": "blue",
+                "value": null
               }
             ]
           },
-          "unit": "s"
+          "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 1
-      },
-      "id": 2,
       "options": {
-        "displayMode": "lcd",
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "showUnfilled": true,
-        "sizing": "auto",
-        "text": {}
+        "showPercentChange": false
       },
-      "pluginVersion": "12.0.2",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "jobnik_sdk_worker_uptime_seconds{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
-          "legendFormat": "{{stage_type}}",
-          "refId": "A"
+          "expr": "sum(cleaner_tasks_in_progress{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", task_type=~\"$task_type\", strategy=~\"$strategy\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
-      ],
-      "title": "Worker Uptime",
-      "type": "gauge"
+      ]
     },
     {
+      "type": "stat",
+      "id": 1003,
+      "title": "Completed",
+      "description": "Task attempts acked in the selected range",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Current number of tasks being actively processed",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 20,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
-              },
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", job_type=~\"$job_type\", task_type=~\"$task_type\", strategy=~\"$strategy\", status=\"completed\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 1004,
+      "title": "Failed",
+      "description": "Task attempts rejected without retry in the selected range",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
               {
-                "color": "yellow",
-                "value": 5
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
-                "value": 15
+                "value": 1
               }
             ]
-          }
+          },
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", job_type=~\"$job_type\", task_type=~\"$task_type\", strategy=~\"$strategy\", status=\"failed\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 1005,
+      "title": "Retried",
+      "description": "Task attempts rejected with retry (task returns to Pending) in the selected range",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 4,
@@ -228,44 +242,6 @@
         "x": 12,
         "y": 1
       },
-      "id": 3,
-      "options": {
-        "displayMode": "lcd",
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "showUnfilled": true,
-        "sizing": "auto",
-        "text": {}
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "jobnik_sdk_worker_tasks_active{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
-          "legendFormat": "{{stage_type}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Active Tasks",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Total tasks completed successfully",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -276,12 +252,56 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
               }
             ]
-          }
+          },
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", job_type=~\"$job_type\", task_type=~\"$task_type\", strategy=~\"$strategy\", status=\"retried\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 1006,
+      "title": "Success rate",
+      "description": "completed / (completed + failed) in the selected range; retries are excluded since the task is attempted again",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 4,
@@ -289,61 +309,22 @@
         "x": 16,
         "y": 1
       },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {},
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
-          "legendFormat": "{{stage_type}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Tasks Completed",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Task success rate: completed / (completed + failed)",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 1,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
-                "color": "yellow",
-                "value": 0.95
+                "color": "orange",
+                "value": 0.9
               },
               {
                 "color": "green",
@@ -355,45 +336,101 @@
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 20,
-        "y": 1
-      },
-      "id": 5,
       "options": {
-        "displayMode": "lcd",
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "showUnfilled": true,
-        "sizing": "auto",
-        "text": {}
+        "showPercentChange": false
       },
-      "pluginVersion": "12.0.2",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "(\n  sum(jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"})\n  /\n  (\n    sum(jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"})\n    +\n    sum(jobnik_sdk_worker_tasks_failed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"})\n  )\n) or vector(1)",
-          "legendFormat": "Success Rate",
-          "refId": "A"
+          "expr": "sum(increase(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", job_type=~\"$job_type\", task_type=~\"$task_type\", strategy=~\"$strategy\", status=\"completed\"}[$__range])) / (sum(increase(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", job_type=~\"$job_type\", task_type=~\"$task_type\", strategy=~\"$strategy\", status=~\"completed|failed\"}[$__range])))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
-      ],
-      "title": "Task Success Rate",
-      "type": "gauge"
+      ]
     },
     {
+      "type": "stat",
+      "id": 1007,
+      "title": "Objects deleted",
+      "description": "Tiles / keys / objects deleted in the selected range (FS stored-resources deletion counts paths)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum(increase(cleaner_objects_deleted_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", strategy=~\"$strategy\", storage_provider=~\"$storage_provider\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Throughput",
+      "id": 1008,
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -401,67 +438,16 @@
         "x": 0,
         "y": 5
       },
-      "id": 200,
-      "panels": [],
-      "title": "Worker - Task Processing Performance",
-      "type": "row"
+      "panels": []
     },
     {
+      "type": "timeseries",
+      "id": 1009,
+      "title": "Deleted / sec",
+      "description": "Deletion throughput by strategy and storage provider. FS stored-resources deletion removes whole directories, so that series is paths/sec, not tiles/sec.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Task processing duration distribution by stage type",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -469,92 +455,23 @@
         "x": 0,
         "y": 6
       },
-      "id": 201,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_worker_task_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p50 - {{stage_type}} - {{status}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_worker_task_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p95 - {{stage_type}} - {{status}}",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(jobnik_sdk_worker_task_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p99 - {{stage_type}} - {{status}}",
-          "refId": "C"
-        }
-      ],
-      "title": "Task Duration Percentiles",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Rate of tasks completed vs failed over time (tasks per minute for better readability)",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "objects/s",
             "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
             "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
+            "lineInterpolation": "linear",
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -565,44 +482,60 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           },
-          "unit": "tpm"
+          "unit": "short"
         },
         "overrides": [
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": "/.*failed.*/"
+              "id": "byName",
+              "options": "delete_stored_resources / FS"
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/.*completed.*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
+                "id": "displayName",
+                "value": "delete_stored_resources / FS (paths/s)"
               }
             ]
           }
         ]
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (strategy, storage_provider) (rate(cleaner_objects_deleted_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", strategy=~\"$strategy\", storage_provider=~\"$storage_provider\"}[$__rate_interval]))",
+          "legendFormat": "{{strategy}} / {{storage_provider}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 1010,
+      "title": "Failed / sec",
+      "description": "Failed deletions by bounded reason (raw reasons are in the logs)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 8,
@@ -610,247 +543,18 @@
         "x": 12,
         "y": 6
       },
-      "id": 202,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum(rate(jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (stage_type) * 60",
-          "legendFormat": "Completed - {{stage_type}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum(rate(jobnik_sdk_worker_tasks_failed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (stage_type, error_type) * 60",
-          "hide": false,
-          "legendFormat": "Failed ({{error_type}}) - {{stage_type}}",
-          "refId": "B"
-        }
-      ],
-      "title": "Task Processing Rate (Tasks/min)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Circuit breaker state: 0=closed (healthy), 1=half_open (testing), 2=open (failing)",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "green",
-                  "index": 0,
-                  "text": "Closed (Healthy)"
-                },
-                "1": {
-                  "color": "yellow",
-                  "index": 1,
-                  "text": "Half-Open (Testing)"
-                },
-                "2": {
-                  "color": "red",
-                  "index": 2,
-                  "text": "Open (Failing)"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 2
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 14
-      },
-      "id": 203,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {},
-        "textMode": "value_and_name",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "jobnik_sdk_worker_circuit_breaker_state{instance=~\"$instance\", stage_type=~\"$stage_type\", breaker=\"task_handler\"}",
-          "legendFormat": "Task Handler",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "jobnik_sdk_worker_circuit_breaker_state{instance=~\"$instance\", stage_type=~\"$stage_type\", breaker=\"dequeue_task\"}",
-          "legendFormat": "Dequeue Task",
-          "refId": "B"
-        }
-      ],
-      "title": "Circuit Breaker Status",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Total times circuit breakers have opened (indicates failures)",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 5
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 14
-      },
-      "id": 204,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {},
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum(jobnik_sdk_worker_circuit_breaker_opens_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}) by (breaker, stage_type)",
-          "legendFormat": "{{breaker}} - {{stage_type}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Circuit Breaker Opens (Total)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Consecutive polls that returned no tasks - indicates queue health",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "objects/s",
             "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
             "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
+            "lineInterpolation": "linear",
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -858,7 +562,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "line+area"
+              "mode": "off"
             }
           },
           "mappings": [],
@@ -866,323 +570,79 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
-              },
-              {
-                "color": "yellow",
-                "value": 100
-              },
-              {
-                "color": "red",
-                "value": 500
+                "color": "green",
+                "value": null
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 12,
-        "y": 14
-      },
-      "id": 205,
       "options": {
         "legend": {
-          "calcs": ["last"],
+          "calcs": ["mean", "max", "last"],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.2",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "jobnik_sdk_worker_consecutive_empty_polls{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
-          "legendFormat": "{{stage_type}}",
+          "expr": "sum by (reason) (rate(cleaner_objects_failed_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", strategy=~\"$strategy\", storage_provider=~\"$storage_provider\"}[$__rate_interval]))",
+          "legendFormat": "{{reason}}",
           "refId": "A"
         }
-      ],
-      "title": "Consecutive Empty Polls (Queue Health)",
-      "type": "timeseries"
+      ]
     },
     {
+      "type": "row",
+      "title": "Resolutions (tiles-deletion only)",
+      "id": 1011,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 14
       },
-      "id": 300,
-      "panels": [],
-      "title": "Consumer - Dequeue & Update Operations",
-      "type": "row"
+      "panels": []
     },
     {
+      "type": "timeseries",
+      "id": 1012,
+      "title": "Tiles deleted / sec per zoom",
+      "description": "Stacked per-zoom deletion throughput of the tiles-deletion strategy",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Time taken to dequeue tasks from the API by status",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 19
+        "y": 15
       },
-      "id": 301,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_consumer_dequeue_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p50 - {{stage_type}} - {{status}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_consumer_dequeue_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p95 - {{stage_type}} - {{status}}",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(jobnik_sdk_consumer_dequeue_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p99 - {{stage_type}} - {{status}}",
-          "refId": "C"
-        }
-      ],
-      "title": "Dequeue Duration Percentiles",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Time taken to update task status via the API",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "tiles/s",
             "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 19
-      },
-      "id": 302,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_consumer_task_update_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p50 - {{stage_type}} - {{status}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_consumer_task_update_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p95 - {{stage_type}} - {{status}}",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(jobnik_sdk_consumer_task_update_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
-          "legendFormat": "p99 - {{stage_type}} - {{status}}",
-          "refId": "C"
-        }
-      ],
-      "title": "Task Update Duration Percentiles",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Task update success vs error rate",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "lineInterpolation": "linear",
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {
@@ -1198,892 +658,352 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "short"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/.*success.*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/.*error.*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
-      "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 27
-      },
-      "id": 303,
       "options": {
         "legend": {
-          "calcs": ["mean", "last"],
+          "calcs": ["mean", "max", "last"],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.2",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(rate(jobnik_sdk_consumer_task_updates_total{instance=~\"$instance\", stage_type=~\"$stage_type\", result=\"success\"}[$__rate_interval])) by (stage_type, status)",
-          "legendFormat": "Success - {{status}} - {{stage_type}}",
+          "expr": "sum by (zoom) (rate(cleaner_tiles_deleted_by_zoom_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", storage_provider=~\"$storage_provider\", zoom=~\"$zoom\"}[$__rate_interval]))",
+          "legendFormat": "z{{zoom}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum(rate(jobnik_sdk_consumer_task_updates_total{instance=~\"$instance\", stage_type=~\"$stage_type\", result=\"error\"}[$__rate_interval])) by (stage_type, status)",
-          "legendFormat": "Error - {{status}} - {{stage_type}}",
-          "refId": "B"
         }
-      ],
-      "title": "Task Update Operations (Success vs Error)",
-      "type": "timeseries"
+      ]
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 33
-      },
-      "id": 400,
-      "panels": [],
-      "title": "Producer - Job, Stage, & Task Creation",
-      "type": "row"
-    },
-    {
+      "type": "barchart",
+      "id": 1013,
+      "title": "Tiles deleted per zoom (range)",
+      "description": "Total tiles deleted per zoom level in the selected range",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Total producer operations by type (create_job, create_stage, create_tasks)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "axisLabel": "tiles"
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue"
+                "color": "green",
+                "value": null
               }
             ]
-          }
+          },
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 5,
-        "w": 24,
-        "x": 0,
-        "y": 34
-      },
-      "id": 404,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {},
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum(jobnik_sdk_producer_operations_total{instance=~\"$instance\"}) by (operation, result)",
-          "legendFormat": "{{operation}} ({{result}})",
-          "refId": "A"
-        }
-      ],
-      "title": "Producer Operations Total",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Time taken to create jobs via the API",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 39
-      },
-      "id": 401,
-      "options": {
+        "xField": "zoom",
+        "showValue": "auto",
+        "barWidth": 0.8,
+        "groupWidth": 0.7,
+        "xTickLabelRotation": 0,
         "legend": {
-          "calcs": ["mean", "max", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_producer_job_create_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, job_type, result))",
-          "legendFormat": "p95 - {{job_type}} - {{result}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_producer_job_create_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, job_type, result))",
-          "legendFormat": "p50 - {{job_type}} - {{result}}",
-          "refId": "B"
-        }
-      ],
-      "title": "Job Creation Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Time taken to create stages via the API",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 46
-      },
-      "id": 402,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_producer_stage_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
-          "legendFormat": "p95 - {{stage_type}} - {{result}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_producer_stage_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
-          "legendFormat": "p50 - {{stage_type}} - {{result}}",
-          "refId": "B"
-        }
-      ],
-      "title": "Stage Creation Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Time taken to create tasks via the API",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 53
-      },
-      "id": 403,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_producer_task_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
-          "legendFormat": "p95 - {{stage_type}} - {{result}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_producer_task_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
-          "legendFormat": "p50 - {{stage_type}} - {{result}}",
-          "refId": "B"
-        }
-      ],
-      "title": "Task Creation Duration",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 60
-      },
-      "id": 500,
-      "panels": [],
-      "title": "HTTP & API Performance",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "HTTP request duration percentiles by method",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 61
-      },
-      "id": 501,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_http_request_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method, status_code))",
-          "legendFormat": "p95 - {{method}} ({{status_code}})",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_http_request_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method, status_code))",
-          "legendFormat": "p50 - {{method}} ({{status_code}})",
-          "refId": "B"
-        }
-      ],
-      "title": "HTTP Request Duration by Method",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "HTTP request rate by method and status code",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "reqps"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/.*(4|5)\\d\\d.*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/.*2\\d\\d.*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 61
-      },
-      "id": 502,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "last"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "sum(rate(jobnik_sdk_http_request_duration_seconds_count{instance=~\"$instance\"}[$__rate_interval])) by (method, status_code)",
-          "legendFormat": "{{method}} - {{status_code}}",
-          "refId": "A"
-        }
-      ],
-      "title": "HTTP Request Rate (by method & status)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "HTTP request body size distribution",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 69
-      },
-      "id": 503,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.0.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_http_request_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method))",
-          "legendFormat": "p95 - {{method}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_http_request_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method))",
-          "legendFormat": "p50 - {{method}}",
-          "refId": "B"
-        }
-      ],
-      "title": "HTTP Request Size Distribution",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Total HTTP retry attempts by method and reason",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "yellow",
-                "value": 10
-              },
-              {
-                "color": "red",
-                "value": 50
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 69
-      },
-      "id": 504,
-      "options": {
-        "displayMode": "gradient",
-        "legend": {
-          "calcs": [],
+          "showLegend": false,
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": false
+          "calcs": []
         },
-        "maxVizHeight": 300,
-        "minVizHeight": 50,
-        "minVizWidth": 0,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "text": {},
-        "valueMode": "color"
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "12.0.2",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "sum(jobnik_sdk_http_retries_total{instance=~\"$instance\"}) by (method, reason)",
-          "legendFormat": "{{method}} - {{reason}}",
-          "refId": "A"
+          "expr": "sum by (zoom) (increase(cleaner_tiles_deleted_by_zoom_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", storage_provider=~\"$storage_provider\", zoom=~\"$zoom\"}[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
         }
       ],
-      "title": "HTTP Retries Total",
-      "type": "bargauge"
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "tiles"
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "zoom",
+                "destinationType": "number"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "zoom"
+              }
+            ]
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "zoom",
+                "destinationType": "string"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ]
     },
     {
+      "type": "row",
+      "title": "Latency",
+      "id": 1014,
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 75
+        "y": 23
       },
-      "id": 600,
-      "panels": [],
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 1015,
+      "title": "Task duration",
+      "description": "Task attempt duration (dequeue to ack/reject) by strategy",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, strategy) (rate(cleaner_task_duration_seconds_bucket{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", job_type=~\"$job_type\", task_type=~\"$task_type\", strategy=~\"$strategy\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{strategy}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, strategy) (rate(cleaner_task_duration_seconds_bucket{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", job_type=~\"$job_type\", task_type=~\"$task_type\", strategy=~\"$strategy\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{strategy}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 1016,
+      "title": "Batch delete duration",
+      "description": "Duration of a single tiles-deletion batch delete call by storage provider",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, storage_provider) (rate(cleaner_delete_batch_duration_seconds_bucket{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", storage_provider=~\"$storage_provider\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{storage_provider}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, storage_provider) (rate(cleaner_delete_batch_duration_seconds_bucket{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", storage_provider=~\"$storage_provider\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{storage_provider}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "row",
       "title": "System Resources - Node.js Runtime",
-      "type": "row"
+      "id": 1017,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "panels": []
     },
     {
       "datasource": {
@@ -2146,7 +1066,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 76
+        "y": 33
       },
       "id": 601,
       "options": {
@@ -2169,7 +1089,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(process_cpu_user_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
+          "expr": "rate(process_cpu_user_seconds_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}[$__rate_interval])",
           "legendFormat": "User CPU",
           "refId": "A"
         },
@@ -2178,7 +1098,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(process_cpu_system_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
+          "expr": "rate(process_cpu_system_seconds_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}[$__rate_interval])",
           "legendFormat": "System CPU",
           "refId": "B"
         }
@@ -2247,7 +1167,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 76
+        "y": 33
       },
       "id": 602,
       "options": {
@@ -2270,7 +1190,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "process_resident_memory_bytes{instance=~\"$instance\"}",
+          "expr": "process_resident_memory_bytes{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "Resident Memory",
           "refId": "A"
         },
@@ -2279,7 +1199,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "nodejs_heap_size_used_bytes{instance=~\"$instance\"}",
+          "expr": "nodejs_heap_size_used_bytes{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "Heap Used",
           "refId": "B"
         },
@@ -2288,7 +1208,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "nodejs_heap_size_total_bytes{instance=~\"$instance\"}",
+          "expr": "nodejs_heap_size_total_bytes{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "Heap Total",
           "refId": "C"
         }
@@ -2365,7 +1285,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 76
+        "y": 33
       },
       "id": 603,
       "options": {
@@ -2388,7 +1308,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "nodejs_eventloop_lag_seconds{instance=~\"$instance\"}",
+          "expr": "nodejs_eventloop_lag_seconds{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "Current Lag",
           "refId": "A"
         },
@@ -2397,7 +1317,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "nodejs_eventloop_lag_mean_seconds{instance=~\"$instance\"}",
+          "expr": "nodejs_eventloop_lag_mean_seconds{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "Mean Lag",
           "refId": "B"
         },
@@ -2406,7 +1326,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "nodejs_eventloop_lag_p99_seconds{instance=~\"$instance\"}",
+          "expr": "nodejs_eventloop_lag_p99_seconds{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "p99 Lag",
           "refId": "C"
         }
@@ -2475,7 +1395,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 84
+        "y": 41
       },
       "id": 604,
       "options": {
@@ -2498,7 +1418,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(nodejs_gc_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, kind))",
+          "expr": "histogram_quantile(0.95, sum(rate(nodejs_gc_duration_seconds_bucket{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}[$__rate_interval])) by (le, kind))",
           "legendFormat": "p95 - {{kind}}",
           "refId": "A"
         },
@@ -2507,7 +1427,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(nodejs_gc_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, kind))",
+          "expr": "histogram_quantile(0.50, sum(rate(nodejs_gc_duration_seconds_bucket{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}[$__rate_interval])) by (le, kind))",
           "legendFormat": "p50 - {{kind}}",
           "refId": "B"
         }
@@ -2598,7 +1518,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 84
+        "y": 41
       },
       "id": 605,
       "options": {
@@ -2621,7 +1541,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "process_open_fds{instance=~\"$instance\"}",
+          "expr": "process_open_fds{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "Open FDs",
           "refId": "A"
         },
@@ -2630,26 +1550,2077 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "process_max_fds{instance=~\"$instance\"}",
+          "expr": "process_max_fds{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\"}",
           "legendFormat": "Max FDs",
           "refId": "B"
         }
       ],
       "title": "File Descriptors",
       "type": "timeseries"
+    },
+    {
+      "type": "row",
+      "title": "Jobnik SDK · Overview & Status (inactive until jobs-system migration)",
+      "id": 1018,
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "SDK version and runtime information",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 48
+          },
+          "id": 1,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "/^version$/",
+              "values": false
+            },
+            "showPercentChange": false,
+            "text": {},
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "jobnik_sdk_info{instance=~\"$instance\"}",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "__auto",
+              "refId": "A"
+            }
+          ],
+          "title": "SDK Version",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "__name__": true,
+                  "arch": false,
+                  "instance": true,
+                  "job": true,
+                  "node_version": false,
+                  "platform": false
+                },
+                "indexByName": {},
+                "renameByName": {}
+              }
+            }
+          ],
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Time since worker started processing tasks",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 86400,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red"
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 300
+                  },
+                  {
+                    "color": "green",
+                    "value": 3600
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 48
+          },
+          "id": 2,
+          "options": {
+            "displayMode": "lcd",
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "showUnfilled": true,
+            "sizing": "auto",
+            "text": {}
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "jobnik_sdk_worker_uptime_seconds{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
+              "legendFormat": "{{stage_type}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Worker Uptime",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Current number of tasks being actively processed",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 20,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 5
+                  },
+                  {
+                    "color": "red",
+                    "value": 15
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 12,
+            "y": 48
+          },
+          "id": 3,
+          "options": {
+            "displayMode": "lcd",
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "showUnfilled": true,
+            "sizing": "auto",
+            "text": {}
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "jobnik_sdk_worker_tasks_active{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
+              "legendFormat": "{{stage_type}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Active Tasks",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Total tasks completed successfully",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 48
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "text": {},
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
+              "legendFormat": "{{stage_type}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Tasks Completed",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Task success rate: completed / (completed + failed)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red"
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.95
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.99
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 48
+          },
+          "id": 5,
+          "options": {
+            "displayMode": "lcd",
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "showUnfilled": true,
+            "sizing": "auto",
+            "text": {}
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "(\n  sum(jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"})\n  /\n  (\n    sum(jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"})\n    +\n    sum(jobnik_sdk_worker_tasks_failed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"})\n  )\n) or vector(1)",
+              "legendFormat": "Success Rate",
+              "refId": "A"
+            }
+          ],
+          "title": "Task Success Rate",
+          "type": "gauge"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Jobnik SDK · Worker - Task Processing Performance (inactive until jobs-system migration)",
+      "id": 1019,
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Task processing duration distribution by stage type",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 49
+          },
+          "id": 201,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_worker_task_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p50 - {{stage_type}} - {{status}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_worker_task_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p95 - {{stage_type}} - {{status}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(jobnik_sdk_worker_task_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p99 - {{stage_type}} - {{status}}",
+              "refId": "C"
+            }
+          ],
+          "title": "Task Duration Percentiles",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Rate of tasks completed vs failed over time (tasks per minute for better readability)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "tpm"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/.*failed.*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/.*completed.*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 49
+          },
+          "id": 202,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(jobnik_sdk_worker_tasks_completed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (stage_type) * 60",
+              "legendFormat": "Completed - {{stage_type}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(jobnik_sdk_worker_tasks_failed_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (stage_type, error_type) * 60",
+              "hide": false,
+              "legendFormat": "Failed ({{error_type}}) - {{stage_type}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Task Processing Rate (Tasks/min)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Circuit breaker state: 0=closed (healthy), 1=half_open (testing), 2=open (failing)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "green",
+                      "index": 0,
+                      "text": "Closed (Healthy)"
+                    },
+                    "1": {
+                      "color": "yellow",
+                      "index": 1,
+                      "text": "Half-Open (Testing)"
+                    },
+                    "2": {
+                      "color": "red",
+                      "index": 2,
+                      "text": "Open (Failing)"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 2
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 57
+          },
+          "id": 203,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "text": {},
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "jobnik_sdk_worker_circuit_breaker_state{instance=~\"$instance\", stage_type=~\"$stage_type\", breaker=\"task_handler\"}",
+              "legendFormat": "Task Handler",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "jobnik_sdk_worker_circuit_breaker_state{instance=~\"$instance\", stage_type=~\"$stage_type\", breaker=\"dequeue_task\"}",
+              "legendFormat": "Dequeue Task",
+              "refId": "B"
+            }
+          ],
+          "title": "Circuit Breaker Status",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Total times circuit breakers have opened (indicates failures)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 5
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 57
+          },
+          "id": 204,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "text": {},
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(jobnik_sdk_worker_circuit_breaker_opens_total{instance=~\"$instance\", stage_type=~\"$stage_type\"}) by (breaker, stage_type)",
+              "legendFormat": "{{breaker}} - {{stage_type}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Circuit Breaker Opens (Total)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Consecutive polls that returned no tasks - indicates queue health",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "line+area"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 100
+                  },
+                  {
+                    "color": "red",
+                    "value": 500
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 12,
+            "y": 57
+          },
+          "id": 205,
+          "options": {
+            "legend": {
+              "calcs": ["last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "jobnik_sdk_worker_consecutive_empty_polls{instance=~\"$instance\", stage_type=~\"$stage_type\"}",
+              "legendFormat": "{{stage_type}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Consecutive Empty Polls (Queue Health)",
+          "type": "timeseries"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Jobnik SDK · Consumer - Dequeue & Update Operations (inactive until jobs-system migration)",
+      "id": 1020,
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Time taken to dequeue tasks from the API by status",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 50
+          },
+          "id": 301,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_consumer_dequeue_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p50 - {{stage_type}} - {{status}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_consumer_dequeue_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p95 - {{stage_type}} - {{status}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(jobnik_sdk_consumer_dequeue_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p99 - {{stage_type}} - {{status}}",
+              "refId": "C"
+            }
+          ],
+          "title": "Dequeue Duration Percentiles",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Time taken to update task status via the API",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 50
+          },
+          "id": 302,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_consumer_task_update_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p50 - {{stage_type}} - {{status}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_consumer_task_update_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p95 - {{stage_type}} - {{status}}",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(jobnik_sdk_consumer_task_update_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, status))",
+              "legendFormat": "p99 - {{stage_type}} - {{status}}",
+              "refId": "C"
+            }
+          ],
+          "title": "Task Update Duration Percentiles",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Task update success vs error rate",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/.*success.*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/.*error.*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 24,
+            "x": 0,
+            "y": 58
+          },
+          "id": 303,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(jobnik_sdk_consumer_task_updates_total{instance=~\"$instance\", stage_type=~\"$stage_type\", result=\"success\"}[$__rate_interval])) by (stage_type, status)",
+              "legendFormat": "Success - {{status}} - {{stage_type}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(jobnik_sdk_consumer_task_updates_total{instance=~\"$instance\", stage_type=~\"$stage_type\", result=\"error\"}[$__rate_interval])) by (stage_type, status)",
+              "legendFormat": "Error - {{status}} - {{stage_type}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Task Update Operations (Success vs Error)",
+          "type": "timeseries"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Jobnik SDK · Producer - Job, Stage, & Task Creation (inactive until jobs-system migration)",
+      "id": 1021,
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Total producer operations by type (create_job, create_stage, create_tasks)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 51
+          },
+          "id": 404,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "text": {},
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(jobnik_sdk_producer_operations_total{instance=~\"$instance\"}) by (operation, result)",
+              "legendFormat": "{{operation}} ({{result}})",
+              "refId": "A"
+            }
+          ],
+          "title": "Producer Operations Total",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Time taken to create jobs via the API",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 56
+          },
+          "id": 401,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_producer_job_create_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, job_type, result))",
+              "legendFormat": "p95 - {{job_type}} - {{result}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_producer_job_create_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, job_type, result))",
+              "legendFormat": "p50 - {{job_type}} - {{result}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Job Creation Duration",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Time taken to create stages via the API",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 63
+          },
+          "id": 402,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_producer_stage_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
+              "legendFormat": "p95 - {{stage_type}} - {{result}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_producer_stage_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
+              "legendFormat": "p50 - {{stage_type}} - {{result}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Stage Creation Duration",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Time taken to create tasks via the API",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 70
+          },
+          "id": 403,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_producer_task_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
+              "legendFormat": "p95 - {{stage_type}} - {{result}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_producer_task_create_duration_seconds_bucket{instance=~\"$instance\", stage_type=~\"$stage_type\"}[$__rate_interval])) by (le, stage_type, result))",
+              "legendFormat": "p50 - {{stage_type}} - {{result}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Task Creation Duration",
+          "type": "timeseries"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Jobnik SDK · HTTP & API Performance (inactive until jobs-system migration)",
+      "id": 1022,
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "HTTP request duration percentiles by method",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 52
+          },
+          "id": 501,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_http_request_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method, status_code))",
+              "legendFormat": "p95 - {{method}} ({{status_code}})",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_http_request_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method, status_code))",
+              "legendFormat": "p50 - {{method}} ({{status_code}})",
+              "refId": "B"
+            }
+          ],
+          "title": "HTTP Request Duration by Method",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "HTTP request rate by method and status code",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/.*(4|5)\\d\\d.*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/.*2\\d\\d.*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 52
+          },
+          "id": 502,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "last"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(jobnik_sdk_http_request_duration_seconds_count{instance=~\"$instance\"}[$__rate_interval])) by (method, status_code)",
+              "legendFormat": "{{method}} - {{status_code}}",
+              "refId": "A"
+            }
+          ],
+          "title": "HTTP Request Rate (by method & status)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "HTTP request body size distribution",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 0,
+            "y": 60
+          },
+          "id": 503,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(jobnik_sdk_http_request_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method))",
+              "legendFormat": "p95 - {{method}}",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(jobnik_sdk_http_request_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, method))",
+              "legendFormat": "p50 - {{method}}",
+              "refId": "B"
+            }
+          ],
+          "title": "HTTP Request Size Distribution",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Total HTTP retry attempts by method and reason",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 10
+                  },
+                  {
+                    "color": "red",
+                    "value": 50
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 12,
+            "y": 60
+          },
+          "id": 504,
+          "options": {
+            "displayMode": "gradient",
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "maxVizHeight": 300,
+            "minVizHeight": 50,
+            "minVizWidth": 0,
+            "namePlacement": "auto",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "sizing": "auto",
+            "text": {},
+            "valueMode": "color"
+          },
+          "pluginVersion": "12.0.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(jobnik_sdk_http_retries_total{instance=~\"$instance\"}) by (method, reason)",
+              "legendFormat": "{{method}} - {{reason}}",
+              "refId": "A"
+            }
+          ],
+          "title": "HTTP Retries Total",
+          "type": "bargauge"
+        }
+      ]
     }
   ],
-  "preload": false,
-  "refresh": "10s",
+  "refresh": "30s",
   "schemaVersion": 41,
-  "tags": ["jobnik", "sdk", "monitoring", "worker", "producer", "consumer"],
+  "tags": ["cleaner", "raster", "worker"],
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "prometheus",
-          "value": "ff2wm9j172xa8e"
-        },
+        "current": {},
         "includeAll": false,
         "label": "Data Source",
         "name": "DS_PROMETHEUS",
@@ -2660,28 +3631,174 @@
         "type": "datasource"
       },
       {
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(jobnik_sdk_worker_uptime_seconds, instance)",
-        "includeAll": true,
-        "label": "Instance",
-        "multi": true,
-        "name": "instance",
-        "options": [],
+        "definition": "label_values(process_start_time_seconds{app=\"cleaner\"}, namespace)",
         "query": {
-          "query": "label_values(jobnik_sdk_worker_uptime_seconds, instance)",
+          "query": "label_values(process_start_time_seconds{app=\"cleaner\"}, namespace)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
-        "regex": "",
+        "includeAll": false,
+        "multi": false,
+        "refresh": 2,
         "sort": 1,
-        "type": "query"
+        "regex": "",
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "instance",
+        "label": "Instance",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(process_start_time_seconds{app=\"cleaner\", namespace=~\"$namespace\"}, instance)",
+        "query": {
+          "query": "label_values(process_start_time_seconds{app=\"cleaner\", namespace=~\"$namespace\"}, instance)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1,
+        "regex": "",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "job_type",
+        "label": "Job type",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\"}, job_type)",
+        "query": {
+          "query": "label_values(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\"}, job_type)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1,
+        "regex": "",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "allValue": ".*"
+      },
+      {
+        "name": "task_type",
+        "label": "Task type",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\"}, task_type)",
+        "query": {
+          "query": "label_values(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\"}, task_type)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1,
+        "regex": "",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "allValue": ".*"
+      },
+      {
+        "name": "strategy",
+        "label": "Strategy",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\"}, strategy)",
+        "query": {
+          "query": "label_values(cleaner_tasks_total{app=\"cleaner\", namespace=~\"$namespace\"}, strategy)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1,
+        "regex": "",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "allValue": ".*"
+      },
+      {
+        "name": "storage_provider",
+        "label": "Storage provider",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(cleaner_objects_deleted_total{app=\"cleaner\", namespace=~\"$namespace\"}, storage_provider)",
+        "query": {
+          "query": "label_values(cleaner_objects_deleted_total{app=\"cleaner\", namespace=~\"$namespace\"}, storage_provider)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1,
+        "regex": "",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "allValue": ".*"
+      },
+      {
+        "name": "zoom",
+        "label": "Zoom",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(cleaner_tiles_deleted_by_zoom_total{app=\"cleaner\", namespace=~\"$namespace\"}, zoom)",
+        "query": {
+          "query": "label_values(cleaner_tiles_deleted_by_zoom_total{app=\"cleaner\", namespace=~\"$namespace\"}, zoom)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1,
+        "regex": "",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "allValue": ".*"
       },
       {
         "current": {
@@ -2694,7 +3811,7 @@
         },
         "definition": "label_values(jobnik_sdk_worker_uptime_seconds, stage_type)",
         "includeAll": true,
-        "label": "Stage Type",
+        "label": "Stage Type (Jobnik SDK)",
         "multi": true,
         "name": "stage_type",
         "options": [],
@@ -2710,14 +3827,14 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {
     "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"]
   },
   "timezone": "",
-  "title": "Jobnik SDK - Performance & Operations",
-  "uid": "jobnik-sdk-dashboard",
-  "version": 8
+  "title": "Cleaner - Deletion Metrics",
+  "uid": "cleaner-dashboard",
+  "version": 1
 }
