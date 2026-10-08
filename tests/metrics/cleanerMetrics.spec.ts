@@ -77,10 +77,12 @@ describe('CleanerMetrics', () => {
       ]);
     });
 
-    it('does not create a series for a zero count', async () => {
+    it('creates the series at zero for a zero count', async () => {
       metrics.recordDeleted({ strategy: 'tiles_deletion', storageProvider: 'S3' }, 0);
 
-      expect(await getValues(registry, 'cleaner_objects_deleted_total')).toEqual([]);
+      expect(await getValues(registry, 'cleaner_objects_deleted_total')).toEqual([
+        { value: 0, labels: { strategy: 'tiles_deletion', storage_provider: 'S3' } },
+      ]);
     });
   });
 
@@ -109,6 +111,14 @@ describe('CleanerMetrics', () => {
 
       expect(await getValues(registry, 'cleaner_tiles_deleted_by_zoom_total')).toEqual([
         { value: 4, labels: { storage_provider: 'REDIS', zoom: '7' } },
+      ]);
+    });
+
+    it('creates the series at zero for a zero count', async () => {
+      metrics.recordTilesDeletedByZoom('REDIS', 7, 0);
+
+      expect(await getValues(registry, 'cleaner_tiles_deleted_by_zoom_total')).toEqual([
+        { value: 0, labels: { storage_provider: 'REDIS', zoom: '7' } },
       ]);
     });
   });

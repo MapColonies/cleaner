@@ -82,10 +82,9 @@ export class CleanerMetrics {
     this.taskDuration.observe(labels, durationSeconds);
   }
 
+  /** Records zero counts too, so the series exists (at 0) as soon as a deletion runs. */
   public recordDeleted({ strategy, storageProvider }: DeletionLabels, count: number): void {
-    if (count > 0) {
-      this.objectsDeleted.inc({ strategy, storage_provider: storageProvider }, count);
-    }
+    this.objectsDeleted.inc({ strategy, storage_provider: storageProvider }, count);
   }
 
   public recordFailures({ strategy, storageProvider }: DeletionLabels, failures: DeleteFailure): void {
@@ -95,9 +94,7 @@ export class CleanerMetrics {
   }
 
   public recordTilesDeletedByZoom(storageProvider: string, zoom: number, count: number): void {
-    if (count > 0) {
-      this.tilesDeletedByZoom.inc({ storage_provider: storageProvider, zoom: String(zoom) }, count);
-    }
+    this.tilesDeletedByZoom.inc({ storage_provider: storageProvider, zoom: String(zoom) }, count);
   }
 
   /** @returns a function that records the elapsed batch duration when called */
