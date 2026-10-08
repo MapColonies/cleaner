@@ -7,12 +7,13 @@ import {
   SourceType,
   StorageProvider,
 } from '@map-colonies/raster-shared';
+import type { MetricValue, Registry } from 'prom-client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import type { TaskContext } from '@src/cleaner/strategies/strategyFactory';
 import { TilesDeletionStrategy } from '@src/cleaner/strategies/tilesDeletionStrategy';
-import { createMockLogger, createMockStorageProvider, createMockStrategyConfig } from '../helpers/mocks';
+import { createMockLogger, createMockStorageProvider, createMockStrategyConfig, createTestMetrics } from '../helpers/mocks';
 
 const S3_BUCKET = 'test-bucket';
 const FS_SUB_PATH = 'artifacts/tiles';
@@ -57,7 +58,14 @@ describe('TilesDeletionStrategy', () => {
     };
     const queueClient = { updateProgress: mockUpdateProgress } as unknown as QueueClient;
 
-    strategy = new TilesDeletionStrategy(createMockLogger(), createMockStrategyConfig(), storageProviders, queueClient, TASK_CONTEXT);
+    strategy = new TilesDeletionStrategy(
+      createMockLogger(),
+      createMockStrategyConfig(),
+      storageProviders,
+      queueClient,
+      TASK_CONTEXT,
+      createTestMetrics().metrics
+    );
   });
 
   describe('#validate', () => {
@@ -179,7 +187,8 @@ describe('TilesDeletionStrategy', () => {
           createMockStrategyConfig(),
           storageProviders,
           { updateProgress: mockUpdateProgress } as unknown as QueueClient,
-          TASK_CONTEXT
+          TASK_CONTEXT,
+          createTestMetrics().metrics
         );
 
         await expect(strategy.execute(s3Params)).rejects.toThrow(UnrecoverableError);
@@ -210,18 +219,18 @@ describe('TilesDeletionStrategy', () => {
         expect(paths.every((p) => p.endsWith('.jpeg'))).toBe(true);
       });
 
-      it('should concatenate tiles from multiple ranges', async () => {
+      it('should concatenate tiles from multiple ranges of the same zoom', async () => {
         const params: S3TilesDeletionParams = {
           ...s3Params,
           ranges: [
             { zoom: 5, minX: 0, maxX: 0, minY: 0, maxY: 0 },
-            { zoom: 6, minX: 0, maxX: 0, minY: 0, maxY: 0 },
+            { zoom: 5, minX: 3, maxX: 3, minY: 0, maxY: 0 },
           ],
         };
 
         await strategy.execute(params);
 
-        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(5, 0, 0), tilePath(6, 0, 0)]);
+        expect(MockS3Provider.delete).toHaveBeenCalledWith(S3_BUCKET, [tilePath(5, 0, 0), tilePath(5, 3, 0)]);
       });
 
       it('should offset x/y correctly when range does not start at 0', async () => {
@@ -246,7 +255,14 @@ describe('TilesDeletionStrategy', () => {
 
       const buildStrategy = (storageProviders: StorageProviders): TilesDeletionStrategy => {
         const queueClient = { updateProgress: mockUpdateProgress } as unknown as QueueClient;
-        return new TilesDeletionStrategy(createMockLogger(), createMockStrategyConfig(), storageProviders, queueClient, TASK_CONTEXT);
+        return new TilesDeletionStrategy(
+          createMockLogger(),
+          createMockStrategyConfig(),
+          storageProviders,
+          queueClient,
+          TASK_CONTEXT,
+          createTestMetrics().metrics
+        );
       };
 
       beforeEach(() => {
@@ -540,7 +556,7 @@ describe('TilesDeletionStrategy', () => {
           'strategies.tilesDeletion.batchSize': batchSize,
           'strategies.tilesDeletion.concurrency': 2,
         });
-        return new TilesDeletionStrategy(mockLogger, config, storageProviders, queueClient, TASK_CONTEXT);
+        return new TilesDeletionStrategy(mockLogger, config, storageProviders, queueClient, TASK_CONTEXT, createTestMetrics().metrics);
       }
 
       it('should report the count the provider observed rather than the number of tiles attempted', async () => {
@@ -613,6 +629,93 @@ describe('TilesDeletionStrategy', () => {
           })
         );
       });
+    });
+  });
+  describe('metrics', () => {
+    let registry: Registry;
+    const getValues = async (name: string): Promise<MetricValue<string>[]> => (await registry.getSingleMetric(name)?.get())?.values ?? [];
+
+    // zoom 10 spans 4 tiles and zoom 11 one tile; batchSize 3 would mix them if batches crossed zooms.
+    const multiZoomParams: S3TilesDeletionParams = {
+      ...s3Params,
+      ranges: [
+        { zoom: 10, minX: 0, maxX: 1, minY: 0, maxY: 1 },
+        { zoom: 11, minX: 0, maxX: 0, minY: 0, maxY: 0 },
+      ],
+    };
+
+    const buildStrategyWithMetrics = (): TilesDeletionStrategy => {
+      const testMetrics = createTestMetrics();
+      registry = testMetrics.registry;
+      const storageProviders: StorageProviders = { [SourceType.S3]: MockS3Provider };
+      const queueClient = { updateProgress: mockUpdateProgress } as unknown as QueueClient;
+      const config = createMockStrategyConfig({ 'strategies.tilesDeletion.batchSize': 3, 'strategies.tilesDeletion.concurrency': 2 });
+      return new TilesDeletionStrategy(createMockLogger(), config, storageProviders, queueClient, TASK_CONTEXT, testMetrics.metrics);
+    };
+
+    beforeEach(() => {
+      vi.mocked(MockS3Provider.delete).mockImplementation(async (_target, paths) =>
+        Promise.resolve({ failures: new Map(), deletedCount: paths.length })
+      );
+    });
+
+    it('never mixes zoom levels in one batch', async () => {
+      await buildStrategyWithMetrics().execute(multiZoomParams);
+
+      const batches = vi.mocked(MockS3Provider.delete).mock.calls.map(([, paths]) => paths);
+      expect(batches).toEqual([[tilePath(10, 0, 0), tilePath(10, 0, 1), tilePath(10, 1, 0)], [tilePath(10, 1, 1)], [tilePath(11, 0, 0)]]);
+    });
+
+    it('groups interleaved zoom ranges so batches stay full', async () => {
+      // Producers interleave zooms across many small ranges; cutting at every zoom change would send 4 batches.
+      const interleavedParams: S3TilesDeletionParams = {
+        ...s3Params,
+        ranges: [
+          { zoom: 10, minX: 0, maxX: 0, minY: 0, maxY: 1 },
+          { zoom: 11, minX: 0, maxX: 0, minY: 0, maxY: 0 },
+          { zoom: 10, minX: 1, maxX: 1, minY: 0, maxY: 0 },
+          { zoom: 11, minX: 1, maxX: 1, minY: 0, maxY: 0 },
+        ],
+      };
+
+      await buildStrategyWithMetrics().execute(interleavedParams);
+
+      const batches = vi.mocked(MockS3Provider.delete).mock.calls.map(([, paths]) => paths);
+      expect(batches).toEqual([
+        [tilePath(10, 0, 0), tilePath(10, 0, 1), tilePath(10, 1, 0)],
+        [tilePath(11, 0, 0), tilePath(11, 1, 0)],
+      ]);
+    });
+
+    it('records deleted tiles per zoom and in total, and one duration per batch', async () => {
+      await buildStrategyWithMetrics().execute(multiZoomParams);
+
+      expect(await getValues('cleaner_tiles_deleted_by_zoom_total')).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 4, labels: { storage_provider: 'S3', zoom: '10' } },
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 1, labels: { storage_provider: 'S3', zoom: '11' } },
+      ]);
+      expect(await getValues('cleaner_objects_deleted_total')).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 5, labels: { strategy: 'tiles_deletion', storage_provider: 'S3' } },
+      ]);
+      const batchCount = (await getValues('cleaner_delete_batch_duration_seconds')).find(
+        (v) => (v as { metricName?: string }).metricName === 'cleaner_delete_batch_duration_seconds_count'
+      );
+      expect(batchCount?.value).toBe(3);
+    });
+
+    it('records a rejected batch as failures of its whole size under the mapped reason', async () => {
+      vi.mocked(MockS3Provider.delete).mockRejectedValueOnce(Object.assign(new Error('connect refused'), { code: 'ECONNREFUSED' }));
+
+      await expect(buildStrategyWithMetrics().execute(multiZoomParams)).rejects.toThrow(RecoverableError);
+
+      expect(await getValues('cleaner_objects_failed_total')).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 3, labels: { strategy: 'tiles_deletion', storage_provider: 'S3', reason: 'connection' } },
+      ]);
+      expect((await getValues('cleaner_objects_deleted_total'))[0]?.value).toBe(2);
     });
   });
 });

@@ -1,3 +1,5 @@
+import type { StrategyName } from './constants';
+
 /**
  * Strategy interface for task execution.
  * Concrete strategies implement task-specific business logic and validation.
@@ -5,6 +7,9 @@
  * @template T - The type of validated task parameters
  */
 export interface ITaskStrategy<T = Record<string, unknown>> {
+  /** Identifies the strategy in metrics */
+  readonly name: StrategyName;
+
   /**
    * Validates unknown task parameters against the strategy's schema.
    *
