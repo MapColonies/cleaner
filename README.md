@@ -11,6 +11,16 @@ A production-ready TypeScript boilerplate for building distributed task workers 
 - **Health checks and graceful shutdown** with @godaddy/terminus
 - **Comprehensive testing** setup with Vitest for unit and integration tests
 
+## Redis cache deletion (replaces cache-seeder)
+
+MapProxy Redis tile-cache invalidation moved here from the retired [`cache-seeder`](https://github.com/MapColonies/cache-seeder) worker (MAPCO-11268).
+
+`cache-seeder` deleted tiles one by one through the `mapproxy-seed` CLI, inside a Python/MapProxy image. Now `overseer` creates `Update_Delete_Cache` / `Swap_Delete_Cache` jobs. `cleaner` deletes the affected Redis keys directly, using the same storage-provider model it already uses for S3 and FS:
+- **Update:** deletes the tile ranges covered by the previous footprint.
+- **Swap update:** wipes the layer's whole cache prefix.
+
+The background research is on Confluence: [Redis Cache Cleaning Performance — Research & Recommendations](https://mapcolonies.atlassian.net/wiki/spaces/MAPConflicResolution/pages/3267756033/Redis+Cache+Cleaning+Performance+Research+Recommendations).
+
 ## Prerequisites
 
 - Node.js >= 24.0.0
