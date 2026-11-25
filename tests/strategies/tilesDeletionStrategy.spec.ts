@@ -717,5 +717,38 @@ describe('TilesDeletionStrategy', () => {
       ]);
       expect((await getValues('cleaner_objects_deleted_total'))[0]?.value).toBe(2);
     });
+
+    it('counts missing tiles as not-found, not as failures', async () => {
+      vi.mocked(MockS3Provider.delete).mockResolvedValueOnce({
+        failures: new Map([['NoSuchKey', { count: 2, sample: tilePath(10, 0, 0) }]]),
+        deletedCount: 1,
+      });
+
+      await buildStrategyWithMetrics().execute(multiZoomParams);
+
+      expect(await getValues('cleaner_objects_not_found_total')).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 2, labels: { strategy: 'tiles_deletion', storage_provider: 'S3' } },
+      ]);
+      expect(await getValues('cleaner_objects_failed_total')).toEqual([]);
+    });
+
+    it('keeps real failures in the failed counter when mixed with missing tiles', async () => {
+      vi.mocked(MockS3Provider.delete).mockResolvedValueOnce({
+        failures: new Map([
+          ['NoSuchKey', { count: 1, sample: tilePath(10, 0, 0) }],
+          ['NoSuchBucket', { count: 2, sample: tilePath(10, 0, 1) }],
+        ]),
+        deletedCount: 0,
+      });
+
+      await expect(buildStrategyWithMetrics().execute(multiZoomParams)).rejects.toThrow(RecoverableError);
+
+      expect((await getValues('cleaner_objects_not_found_total'))[0]?.value).toBe(1);
+      expect(await getValues('cleaner_objects_failed_total')).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 2, labels: { strategy: 'tiles_deletion', storage_provider: 'S3', reason: 'bucket_not_found' } },
+      ]);
+    });
   });
 });

@@ -8,6 +8,7 @@ export const TaskStatus = {
 
 export const FailureReason = {
   NOT_FOUND: 'not_found',
+  BUCKET_NOT_FOUND: 'bucket_not_found',
   ACCESS_DENIED: 'access_denied',
   TIMEOUT: 'timeout',
   CONNECTION: 'connection',

@@ -14,6 +14,7 @@ export class CleanerMetrics {
   private readonly tasksInProgress: Gauge<'task_type' | 'strategy'>;
   private readonly objectsDeleted: Counter<'strategy' | 'storage_provider'>;
   private readonly objectsFailed: Counter<'strategy' | 'storage_provider' | 'reason'>;
+  private readonly objectsNotFound: Counter<'strategy' | 'storage_provider'>;
   private readonly tilesDeletedByZoom: Counter<'storage_provider' | 'zoom'>;
   private readonly batchDuration: Histogram<'storage_provider'>;
 
@@ -49,6 +50,12 @@ export class CleanerMetrics {
       name: 'cleaner_objects_failed_total',
       help: 'Objects that failed to delete, by bounded failure reason',
       labelNames: ['strategy', 'storage_provider', 'reason'],
+      registers,
+    });
+    this.objectsNotFound = new Counter({
+      name: 'cleaner_objects_not_found_total',
+      help: 'Objects already missing when deleted; counted as success, not as failures',
+      labelNames: ['strategy', 'storage_provider'],
       registers,
     });
     this.tilesDeletedByZoom = new Counter({
@@ -91,6 +98,10 @@ export class CleanerMetrics {
     for (const [rawReason, { count }] of failures) {
       this.objectsFailed.inc({ strategy, storage_provider: storageProvider, reason: toFailureReason(rawReason) }, count);
     }
+  }
+
+  public recordNotFound({ strategy, storageProvider }: DeletionLabels, count: number): void {
+    this.objectsNotFound.inc({ strategy, storage_provider: storageProvider }, count);
   }
 
   public recordTilesDeletedByZoom(storageProvider: string, zoom: number, count: number): void {

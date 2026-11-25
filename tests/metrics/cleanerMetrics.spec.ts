@@ -105,6 +105,27 @@ describe('CleanerMetrics', () => {
     });
   });
 
+  describe('recordNotFound', () => {
+    it('adds the count per strategy and provider', async () => {
+      const labels = { strategy: 'tiles_deletion', storageProvider: 'S3' };
+
+      metrics.recordNotFound(labels, 3);
+      metrics.recordNotFound(labels, 2);
+
+      expect(await getValues(registry, 'cleaner_objects_not_found_total')).toEqual([
+        { value: 5, labels: { strategy: 'tiles_deletion', storage_provider: 'S3' } },
+      ]);
+    });
+
+    it('creates the series at zero for a zero count', async () => {
+      metrics.recordNotFound({ strategy: 'tiles_deletion', storageProvider: 'S3' }, 0);
+
+      expect(await getValues(registry, 'cleaner_objects_not_found_total')).toEqual([
+        { value: 0, labels: { strategy: 'tiles_deletion', storage_provider: 'S3' } },
+      ]);
+    });
+  });
+
   describe('recordTilesDeletedByZoom', () => {
     it('adds the count per provider and zoom', async () => {
       metrics.recordTilesDeletedByZoom('REDIS', 7, 4);

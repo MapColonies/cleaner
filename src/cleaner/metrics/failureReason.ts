@@ -8,7 +8,8 @@ const REASON_PATTERNS: [FailureReason, string[]][] = [
     FailureReason.ACCESS_DENIED,
     ['eacces', 'eperm', 'accessdenied', 'forbidden', 'invalidaccesskeyid', 'signaturedoesnotmatch', 'noauth', 'noperm', 'wrongpass'],
   ],
-  [FailureReason.NOT_FOUND, ['enoent', 'nosuch', 'notfound']],
+  [FailureReason.BUCKET_NOT_FOUND, ['nosuchbucket']],
+  [FailureReason.NOT_FOUND, ['enoent', 'nosuchkey', 'notfound']],
 ];
 
 /**

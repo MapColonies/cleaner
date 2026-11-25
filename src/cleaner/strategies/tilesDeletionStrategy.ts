@@ -77,11 +77,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
    * Terminal progress to 100% is handled by the queue's task-ack — no explicit call needed here.
    */
   private reportOutcome(failures: DeleteFailure, totalTiles: number, deletedCount: number): void {
-    const retryable: DeleteFailure = new Map();
-    const notFound: DeleteFailure = new Map();
-    for (const [reason, failure] of failures) {
-      (NOT_FOUND_REASONS.has(reason) ? notFound : retryable).set(reason, failure);
-    }
+    const { notFound, retryable } = this.partitionFailures(failures);
     const notFoundCount = countFailures(notFound);
 
     if (retryable.size > 0) {
@@ -111,6 +107,16 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     }
 
     this.logger.info({ msg: 'Tiles deletion completed successfully', totalTiles, deletedCount });
+  }
+
+  /** Splits failures into already-missing tiles (success — deletion is idempotent) and real, retryable failures. */
+  private partitionFailures(failures: DeleteFailure): { notFound: DeleteFailure; retryable: DeleteFailure } {
+    const notFound: DeleteFailure = new Map();
+    const retryable: DeleteFailure = new Map();
+    for (const [reason, failure] of failures) {
+      (NOT_FOUND_REASONS.has(reason) ? notFound : retryable).set(reason, failure);
+    }
+    return { notFound, retryable };
   }
 
   private resolveStorageProvider(params: TilesDeletionParams): StorageTarget & { provider: ResolvedStorageProvider } {
@@ -223,8 +229,10 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     pendingBatches.length = 0;
 
     const labels = { strategy: this.name, storageProvider };
+    const { notFound, retryable } = this.partitionFailures(failures);
     this.metrics.recordDeleted(labels, deletedCount);
-    this.metrics.recordFailures(labels, failures);
+    this.metrics.recordNotFound(labels, countFailures(notFound));
+    this.metrics.recordFailures(labels, retryable);
     return { batchFailures: failures, processedTilesCount, deletedCount };
   }
 

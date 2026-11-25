@@ -5,7 +5,7 @@ describe('toFailureReason', () => {
   it.each([
     ['ENOENT', FailureReason.NOT_FOUND],
     ['NoSuchKey', FailureReason.NOT_FOUND],
-    ['NoSuchBucket', FailureReason.NOT_FOUND],
+    ['NoSuchBucket', FailureReason.BUCKET_NOT_FOUND],
     ['EACCES', FailureReason.ACCESS_DENIED],
     ['EPERM', FailureReason.ACCESS_DENIED],
     ['AccessDenied', FailureReason.ACCESS_DENIED],
