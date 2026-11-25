@@ -451,7 +451,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 6
       },
@@ -508,7 +508,7 @@
         "legend": {
           "calcs": ["mean", "max", "last"],
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -532,15 +532,15 @@
       "type": "timeseries",
       "id": 1010,
       "title": "Failed / sec",
-      "description": "Failed deletions by bounded reason (raw reasons are in the logs)",
+      "description": "Real deletion failures (these fail the task), by bounded reason; raw reasons are in the logs. Tiles that were already missing are not failures; see Already missing / sec.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 6
       },
       "fieldConfig": {
@@ -583,7 +583,7 @@
         "legend": {
           "calcs": ["mean", "max", "last"],
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -599,6 +599,81 @@
           },
           "expr": "sum by (reason) (rate(cleaner_objects_failed_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", strategy=~\"$strategy\", storage_provider=~\"$storage_provider\"}[$__rate_interval]))",
           "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 1023,
+      "title": "Already missing / sec",
+      "description": "Tiles-deletion only: tiles that were already gone (NoSuchKey / ENOENT). Deletion is idempotent, so these count as success, not failures. A missing bucket (NoSuchBucket) is a real failure and appears in Failed / sec as bucket_not_found.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "tiles/s",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "lineInterpolation": "linear",
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "last"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (storage_provider) (rate(cleaner_objects_not_found_total{app=\"cleaner\", namespace=~\"$namespace\", instance=~\"$instance\", strategy=~\"$strategy\", storage_provider=~\"$storage_provider\"}[$__rate_interval]))",
+          "legendFormat": "{{storage_provider}}",
           "refId": "A"
         }
       ]

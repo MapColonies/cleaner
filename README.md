@@ -206,6 +206,7 @@ Prometheus metrics are exposed on the `/metrics` endpoint (default port 8080). C
 
 - `cleaner_tasks_total`, `cleaner_task_duration_seconds`, `cleaner_tasks_in_progress` — task attempts by job type, task type, strategy and status (`completed` / `failed` / `retried`)
 - `cleaner_objects_deleted_total`, `cleaner_objects_failed_total` — deletions and failures (bounded `reason`) by strategy and storage provider; FS stored-resources deletion counts paths, not tiles
+- `cleaner_objects_not_found_total` — tiles that were already missing during tiles deletion (`NoSuchKey` / `ENOENT`); counted as success, not in `cleaner_objects_failed_total`
 - `cleaner_tiles_deleted_by_zoom_total`, `cleaner_delete_batch_duration_seconds` — tiles-deletion strategy per zoom level and per batch call
 
 ### Grafana Dashboard
