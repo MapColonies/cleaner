@@ -568,6 +568,22 @@ describe('TilesDeletionStrategy', () => {
         expect(mockLogger.info).toHaveBeenCalledWith(expect.objectContaining({ msg: 'Tiles deletion completed successfully', deletedCount: 2 }));
       });
 
+      it('should log failed and not-found tile counts separately in progress', async () => {
+        vi.mocked(MockS3Provider.delete).mockResolvedValue({
+          failures: new Map([
+            ['NoSuchKey', { count: 2, sample: tilePath(10, 0, 0) }],
+            ['AccessDenied', { count: 1, sample: tilePath(10, 0, 1) }],
+          ]),
+          deletedCount: 1,
+        });
+
+        await expect(buildStrategyWithLogger().execute(s3Params)).rejects.toThrow(RecoverableError);
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ msg: 'Tiles deletion progress', deletionProgress: '4/4', failedTiles: 1, notFoundTiles: 2 })
+        );
+      });
+
       it('should sum the observed count across batches', async () => {
         // batchSize 1 over a 2x2 range → four delete calls
         vi.mocked(MockS3Provider.delete)

@@ -169,7 +169,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
         failures = mergeFailures({ source: flushed.batchFailures, target: failures });
         const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
         await this.queueClient.updateProgress(jobId, taskId, percentage);
-        this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.size });
+        this.logProgress(processedTiles, totalTiles, failures);
       }
     }
 
@@ -178,10 +178,20 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
       processedTiles += flushed.processedTilesCount;
       deletedCount += flushed.deletedCount;
       failures = mergeFailures({ source: flushed.batchFailures, target: failures });
-      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.size });
+      this.logProgress(processedTiles, totalTiles, failures);
     }
 
     return { failures, deletedCount };
+  }
+
+  private logProgress(processedTiles: number, totalTiles: number, failures: DeleteFailure): void {
+    const { notFound, retryable } = this.partitionFailures(failures);
+    this.logger.info({
+      msg: 'Tiles deletion progress',
+      deletionProgress: `${processedTiles}/${totalTiles}`,
+      failedTiles: countFailures(retryable),
+      notFoundTiles: countFailures(notFound),
+    });
   }
 
   /**
