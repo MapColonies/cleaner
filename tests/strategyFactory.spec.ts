@@ -5,11 +5,13 @@ import { container } from 'tsyringe';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import { StrategyNotFoundError } from '../src/cleaner/errors';
-import { StrategyFactory, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
+import { StrategyFactory, StrategyName, TilesDeletionStrategy, type ITaskStrategy, type TaskContext } from '../src/cleaner/strategies';
 import { SERVICES } from '../src/common/constants';
-import { createMockLogger, createMockQueueClient, createMockStorageProvider, createMockStrategyConfig } from './helpers/mocks';
+import { createMockLogger, createMockQueueClient, createMockStorageProvider, createMockStrategyConfig, createTestMetrics } from './helpers/mocks';
 
 class MockStrategy implements ITaskStrategy {
+  public readonly name = StrategyName.TILES_DELETION;
+
   public validate(params: unknown): Record<string, unknown> {
     return params as Record<string, unknown>;
   }
@@ -42,6 +44,7 @@ describe('StrategyFactory', () => {
     container.register(SERVICES.CONFIG, { useValue: createMockStrategyConfig() });
     container.register(SERVICES.STORAGE_PROVIDERS, { useValue: storageProviders });
     container.register(SERVICES.QUEUE_CLIENT, { useValue: createMockQueueClient() });
+    container.register(SERVICES.CLEANER_METRICS, { useValue: createTestMetrics().metrics });
 
     strategyFactory = new StrategyFactory(mockLogger);
   });

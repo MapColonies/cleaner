@@ -14,7 +14,13 @@ import type { StorageProviders } from '@src/cleaner/storageProviders';
 import type { JobTrackerClient } from '@src/cleaner/httpClients';
 import type { PollingPairConfig } from '@src/cleaner/types';
 import { buildTask } from '../../helpers/fakes/taskFakes';
-import { createMockLogger, createMockQueueClient, createMockStrategyConfig, createMockJobTrackerClient } from '../../helpers/mocks';
+import {
+  createMockLogger,
+  createMockQueueClient,
+  createMockStrategyConfig,
+  createMockJobTrackerClient,
+  createTestMetrics,
+} from '../../helpers/mocks';
 
 const POLLER_WATCHDOG_MS = 30_000;
 
@@ -119,9 +125,12 @@ function buildPoller({
   const jobTrackerClient = createMockJobTrackerClient();
   container.register(SERVICES.JOB_TRACKER_CLIENT, { useValue: jobTrackerClient });
 
+  const { metrics } = createTestMetrics();
+  container.register(SERVICES.CLEANER_METRICS, { useValue: metrics });
+
   const strategyFactory = container.resolve(StrategyFactory);
   const errorHandler = container.resolve(ErrorHandler);
-  const poller = new TaskPoller(createMockLogger(), config, queueClient, strategyFactory, errorHandler, [pollingPair], jobTrackerClient);
+  const poller = new TaskPoller(createMockLogger(), config, queueClient, strategyFactory, errorHandler, [pollingPair], jobTrackerClient, metrics);
 
   const runSingleTask = async (): Promise<void> => {
     const startPromise = poller.start();

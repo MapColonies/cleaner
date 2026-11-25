@@ -7,12 +7,13 @@ import {
   type FsDeleteStoredResourcesParams,
   type S3DeleteStoredResourcesParams,
 } from '@map-colonies/raster-shared';
+import type { MetricValue, Registry } from 'prom-client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecoverableError, UnrecoverableError, ValidationError } from '@src/cleaner/errors';
 import type { IStorageProvider, StorageProviders } from '@src/cleaner/storageProviders';
 import { DeleteStoredResourcesStrategy } from '@src/cleaner/strategies/deleteStoredResourcesStrategy';
 import type { ConfigType } from '@src/common/config';
-import { createMockStoredResourcesDeletionStrategyConfig, createMockLogger, createMockStorageProvider } from '../helpers/mocks';
+import { createMockStoredResourcesDeletionStrategyConfig, createMockLogger, createMockStorageProvider, createTestMetrics } from '../helpers/mocks';
 
 const S3_BUCKET = 'test-bucket';
 const FS_SUB_PATH = 'test/artifacts/tiles';
@@ -36,6 +37,8 @@ describe('DeleteStoredResourcesStrategy', () => {
   let mockRedisProvider: IStorageProvider<'REDIS'>;
   let mockLogger: Logger;
   let mockConfig: ConfigType;
+  let metrics: ReturnType<typeof createTestMetrics>['metrics'];
+  let registry: Registry;
 
   beforeEach(() => {
     mockS3Provider = createMockStorageProvider();
@@ -44,6 +47,7 @@ describe('DeleteStoredResourcesStrategy', () => {
     mockLogger = createMockLogger();
     vi.mocked(sleep).mockClear();
     mockConfig = createMockStoredResourcesDeletionStrategyConfig();
+    ({ metrics, registry } = createTestMetrics());
 
     const storageProviders: StorageProviders = {
       [SourceType.FS]: mockFsProvider,
@@ -51,7 +55,7 @@ describe('DeleteStoredResourcesStrategy', () => {
       [StorageProvider.REDIS]: mockRedisProvider,
     };
 
-    strategy = new DeleteStoredResourcesStrategy(mockLogger, mockConfig, storageProviders);
+    strategy = new DeleteStoredResourcesStrategy(mockLogger, mockConfig, storageProviders, metrics);
   });
 
   describe('#validate', () => {
@@ -141,7 +145,7 @@ describe('DeleteStoredResourcesStrategy', () => {
         [SourceType.FS]: mockFsProvider,
         [SourceType.S3]: undefined,
       } as unknown as StorageProviders;
-      strategy = new DeleteStoredResourcesStrategy(mockLogger, mockConfig, storageProviders);
+      strategy = new DeleteStoredResourcesStrategy(mockLogger, mockConfig, storageProviders, metrics);
 
       const result = strategy.execute(s3Params);
 
@@ -215,6 +219,43 @@ describe('DeleteStoredResourcesStrategy', () => {
       const result = strategy.execute(s3Params);
 
       await expect(result).rejects.toThrow(expectedError);
+    });
+  });
+  describe('metrics', () => {
+    const getValues = async (name: string): Promise<MetricValue<string>[]> => (await registry.getSingleMetric(name)?.get())?.values ?? [];
+
+    it('records the deleted count under the stored-resources strategy and the provider', async () => {
+      vi.mocked(mockS3Provider.deleteResources).mockResolvedValue({ failures: new Map(), deletedCount: 42 });
+
+      await strategy.execute(s3Params);
+
+      expect(await getValues('cleaner_objects_deleted_total')).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 42, labels: { strategy: 'delete_stored_resources', storage_provider: 'S3' } },
+      ]);
+    });
+
+    it('records FS deletions in paths, as reported by the provider', async () => {
+      vi.mocked(mockFsProvider.deleteResources).mockResolvedValue({ failures: new Map(), deletedCount: 1 });
+
+      await strategy.execute(fsParams);
+
+      expect((await getValues('cleaner_objects_deleted_total'))[0]?.value).toBe(1);
+    });
+
+    it('records failures by bounded reason before rejecting the task', async () => {
+      vi.mocked(mockRedisProvider.deleteResources).mockResolvedValue({
+        failures: new Map([['Connection is closed.', { count: 7, sample: `${PREFIX}-1-0-0` }]]),
+        deletedCount: 3,
+      });
+
+      await expect(strategy.execute(redisParams)).rejects.toThrow(RecoverableError);
+
+      expect(await getValues('cleaner_objects_failed_total')).toEqual([
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Prometheus label names
+        { value: 7, labels: { strategy: 'delete_stored_resources', storage_provider: 'REDIS', reason: 'connection' } },
+      ]);
+      expect((await getValues('cleaner_objects_deleted_total'))[0]?.value).toBe(3);
     });
   });
 });

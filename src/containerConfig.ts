@@ -14,6 +14,7 @@ import type { StorageProviders } from '@src/cleaner/storageProviders';
 import { createRedisConnection, createS3Client } from './cleaner/clients';
 import { ErrorHandler } from './cleaner/errors';
 import { JobTrackerClient } from './cleaner/httpClients';
+import { CleanerMetrics } from './cleaner/metrics';
 import {
   buildFsStorageConfig,
   buildRedisStorageConfig,
@@ -42,6 +43,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
   const tracer = trace.getTracer(SERVICE_NAME);
   const metricsRegistry = new Registry();
   configInstance.initializeMetrics(metricsRegistry);
+  const cleanerMetrics = new CleanerMetrics(metricsRegistry);
 
   // Startup validations
   const cleanupStorageProviders = configInstance.get('storage.cleanupStorageProviders') as unknown as string[];
@@ -56,6 +58,7 @@ export const registerExternalValues = async (options?: RegisterOptions): Promise
     { token: SERVICES.LOGGER, provider: { useValue: logger } },
     { token: SERVICES.TRACER, provider: { useValue: tracer } },
     { token: SERVICES.METRICS, provider: { useValue: metricsRegistry } },
+    { token: SERVICES.CLEANER_METRICS, provider: { useValue: cleanerMetrics } },
     {
       token: SERVICES.JOBNIK_SDK,
       provider: {

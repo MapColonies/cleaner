@@ -2,6 +2,7 @@ import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
 // eslint-disable-next-line @typescript-eslint/naming-convention -- ioredis' default export is a class
 import type Redis from 'ioredis';
+import { Registry } from 'prom-client';
 import { vi, type Mock } from 'vitest';
 import type { IStorageProvider, StorageProvider } from '@src/cleaner/storageProviders/iStorageProvider';
 import type {
@@ -13,8 +14,9 @@ import type {
   S3StorageConfig,
 } from '@src/cleaner/storageProviders/storageConfig';
 import type { ErrorHandler } from '../../src/cleaner/errors';
+import { CleanerMetrics } from '../../src/cleaner/metrics';
 import type { JobTrackerClient } from '../../src/cleaner/httpClients';
-import type { ITaskStrategy, StrategyFactory } from '../../src/cleaner/strategies';
+import { StrategyName, type ITaskStrategy, type StrategyFactory } from '../../src/cleaner/strategies';
 import type { ErrorDecision, PollingPairConfig } from '../../src/cleaner/types';
 import type { ConfigType } from '../../src/common/config';
 import { TaskPoller } from '../../src/worker/taskPoller';
@@ -54,6 +56,7 @@ export function createMockQueueClient(): QueueClient {
 
 export function buildMockStrategy(overrides: Partial<ITaskStrategy> = {}): ITaskStrategy {
   return {
+    name: StrategyName.TILES_DELETION,
     validate: vi.fn().mockReturnValue({}),
     execute: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -258,6 +261,14 @@ export function createMockJobTrackerClient(): JobTrackerClient {
   return { notify: vi.fn().mockResolvedValue(undefined) } as unknown as JobTrackerClient;
 }
 
+// ─── Metrics ─────────────────────────────────────────────────────────────────
+
+/** Real metrics on an isolated registry, so tests can assert recorded values. */
+export function createTestMetrics(): { metrics: CleanerMetrics; registry: Registry } {
+  const registry = new Registry();
+  return { metrics: new CleanerMetrics(registry), registry };
+}
+
 // ─── TaskPoller factory ───────────────────────────────────────────────────────
 
 /**
@@ -272,6 +283,7 @@ export function createTaskPoller({
   errorHandler = createMockErrorHandler(),
   pollingPairs,
   jobTrackerClient = createMockJobTrackerClient(),
+  metrics = createTestMetrics().metrics,
 }: {
   logger?: Logger;
   config?: ConfigType;
@@ -280,6 +292,7 @@ export function createTaskPoller({
   errorHandler?: ErrorHandler;
   pollingPairs: PollingPairConfig[];
   jobTrackerClient?: JobTrackerClient;
+  metrics?: CleanerMetrics;
 }): TaskPoller {
-  return new TaskPoller(logger, config, queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient);
+  return new TaskPoller(logger, config, queueClient, strategyFactory, errorHandler, pollingPairs, jobTrackerClient, metrics);
 }

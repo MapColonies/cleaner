@@ -1,10 +1,11 @@
 import { NoSuchKey } from '@aws-sdk/client-s3';
 import type { Logger } from '@map-colonies/js-logger';
 import type { TaskHandler as QueueClient } from '@map-colonies/mc-priority-queue';
-import { StorageProvider, TilesDeletionParams, tilesDeletionParamsSchema } from '@map-colonies/raster-shared';
+import { StorageProvider, TilesDeletionParams, tilesDeletionParamsSchema, type TileRange } from '@map-colonies/raster-shared';
 import { inject, injectable } from 'tsyringe';
 import type { ConfigType } from '@common/config';
 import { PERCENTAGE_COMPLETE, SERVICES } from '@common/constants';
+import type { CleanerMetrics } from '@src/cleaner/metrics';
 import {
   countFailures,
   mergeFailures,
@@ -17,12 +18,19 @@ import {
 import { RecoverableError, UnrecoverableError, describeError } from '../errors';
 import { resolveTileKeyGenerator, validateSchema } from '../utils';
 import type { TaskContext } from './strategyFactory';
+import { StrategyName } from './constants';
 import type { ITaskStrategy } from './taskStrategy';
 
 const NOT_FOUND_REASONS = new Set<string>([NoSuchKey.name, 'ENOENT']);
 
+interface TileBatch {
+  zoom: number;
+  keys: string[];
+}
+
 @injectable()
 export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams> {
+  public readonly name = StrategyName.TILES_DELETION;
   private readonly batchSize: number;
   private readonly concurrency: number;
 
@@ -31,7 +39,8 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     @inject(SERVICES.CONFIG) config: ConfigType,
     @inject(SERVICES.STORAGE_PROVIDERS) private readonly storageProviders: StorageProviders,
     @inject(SERVICES.QUEUE_CLIENT) private readonly queueClient: QueueClient,
-    @inject(SERVICES.TASK_CONTEXT) private readonly taskContext: TaskContext
+    @inject(SERVICES.TASK_CONTEXT) private readonly taskContext: TaskContext,
+    @inject(SERVICES.CLEANER_METRICS) private readonly metrics: CleanerMetrics
   ) {
     this.batchSize = config.get('strategies.tilesDeletion.batchSize') as unknown as number;
     this.concurrency = config.get('strategies.tilesDeletion.concurrency') as unknown as number;
@@ -68,11 +77,7 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
    * Terminal progress to 100% is handled by the queue's task-ack — no explicit call needed here.
    */
   private reportOutcome(failures: DeleteFailure, totalTiles: number, deletedCount: number): void {
-    const retryable: DeleteFailure = new Map();
-    const notFound: DeleteFailure = new Map();
-    for (const [reason, failure] of failures) {
-      (NOT_FOUND_REASONS.has(reason) ? notFound : retryable).set(reason, failure);
-    }
+    const { notFound, retryable } = this.partitionFailures(failures);
     const notFoundCount = countFailures(notFound);
 
     if (retryable.size > 0) {
@@ -102,6 +107,16 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     }
 
     this.logger.info({ msg: 'Tiles deletion completed successfully', totalTiles, deletedCount });
+  }
+
+  /** Splits failures into already-missing tiles (success — deletion is idempotent) and real, retryable failures. */
+  private partitionFailures(failures: DeleteFailure): { notFound: DeleteFailure; retryable: DeleteFailure } {
+    const notFound: DeleteFailure = new Map();
+    const retryable: DeleteFailure = new Map();
+    for (const [reason, failure] of failures) {
+      (NOT_FOUND_REASONS.has(reason) ? notFound : retryable).set(reason, failure);
+    }
+    return { notFound, retryable };
   }
 
   private resolveStorageProvider(params: TilesDeletionParams): StorageTarget & { provider: ResolvedStorageProvider } {
@@ -141,40 +156,42 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   ): Promise<{ failures: DeleteFailure; deletedCount: number }> {
     const { jobId, taskId } = this.taskContext;
     let failures: DeleteFailure = new Map();
-    const pendingBatches: string[][] = [];
-    let batch: string[] = [];
+    const pendingBatches: TileBatch[] = [];
     let processedTiles = 0;
     let deletedCount = 0;
 
-    for (const tileKey of this.generateTileKeys(params)) {
-      batch.push(tileKey);
-      if (batch.length === this.batchSize) {
-        pendingBatches.push(batch);
-        batch = [];
-        if (pendingBatches.length === this.concurrency) {
-          const flushed = await this.flushBatches(provider, storageTarget, pendingBatches);
-          processedTiles += flushed.processedTilesCount;
-          deletedCount += flushed.deletedCount;
-          failures = mergeFailures({ source: flushed.batchFailures, target: failures });
-          const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
-          await this.queueClient.updateProgress(jobId, taskId, percentage);
-          this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.size });
-        }
+    for (const batch of this.generateBatches(params)) {
+      pendingBatches.push(batch);
+      if (pendingBatches.length === this.concurrency) {
+        const flushed = await this.flushBatches(provider, storageTarget, params.storageProvider, pendingBatches);
+        processedTiles += flushed.processedTilesCount;
+        deletedCount += flushed.deletedCount;
+        failures = mergeFailures({ source: flushed.batchFailures, target: failures });
+        const percentage = Math.round((processedTiles / totalTiles) * PERCENTAGE_COMPLETE);
+        await this.queueClient.updateProgress(jobId, taskId, percentage);
+        this.logProgress(processedTiles, totalTiles, failures);
       }
     }
 
-    if (batch.length > 0) {
-      pendingBatches.push(batch);
-    }
     if (pendingBatches.length > 0) {
-      const flushed = await this.flushBatches(provider, storageTarget, pendingBatches);
+      const flushed = await this.flushBatches(provider, storageTarget, params.storageProvider, pendingBatches);
       processedTiles += flushed.processedTilesCount;
       deletedCount += flushed.deletedCount;
       failures = mergeFailures({ source: flushed.batchFailures, target: failures });
-      this.logger.info({ msg: 'Tiles deletion progress', deletionProgress: `${processedTiles}/${totalTiles}`, failedTiles: failures.size });
+      this.logProgress(processedTiles, totalTiles, failures);
     }
 
     return { failures, deletedCount };
+  }
+
+  private logProgress(processedTiles: number, totalTiles: number, failures: DeleteFailure): void {
+    const { notFound, retryable } = this.partitionFailures(failures);
+    this.logger.info({
+      msg: 'Tiles deletion progress',
+      deletionProgress: `${processedTiles}/${totalTiles}`,
+      failedTiles: countFailures(retryable),
+      notFoundTiles: countFailures(notFound),
+    });
   }
 
   /**
@@ -188,27 +205,44 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
   private async flushBatches(
     provider: ResolvedStorageProvider,
     storageTarget: string,
-    pendingBatches: string[][]
+    storageProvider: string,
+    pendingBatches: TileBatch[]
   ): Promise<{ batchFailures: DeleteFailure; processedTilesCount: number; deletedCount: number }> {
     let failures: DeleteFailure = new Map();
     let deletedCount = 0;
 
-    const processedTilesCount = pendingBatches.reduce((sum, b) => sum + b.length, 0);
-    const results = await Promise.allSettled(pendingBatches.map(async (batch) => provider.delete(storageTarget, batch)));
+    const processedTilesCount = pendingBatches.reduce((sum, b) => sum + b.keys.length, 0);
+    const results = await Promise.allSettled(
+      pendingBatches.map(async (batch) => {
+        const endTimer = this.metrics.startBatchTimer(storageProvider);
+        try {
+          return await provider.delete(storageTarget, batch.keys);
+        } finally {
+          endTimer();
+        }
+      })
+    );
     for (const [index, result] of results.entries()) {
+      const batch = pendingBatches[index]!;
       if (result.status === 'fulfilled') {
         failures = mergeFailures({ source: result.value.failures, target: failures });
         deletedCount += result.value.deletedCount;
+        this.metrics.recordTilesDeletedByZoom(storageProvider, batch.zoom, result.value.deletedCount);
       } else {
         const error: unknown = result.reason;
         const reason = describeError(error);
         this.logger.error({ msg: 'Batch delete threw unexpectedly', reason, error });
-        const batch = pendingBatches[index] ?? [];
         const failure = failures.get(reason);
-        failures.set(reason, { count: (failure?.count ?? 0) + batch.length, sample: failure?.sample ?? batch[0]! });
+        failures.set(reason, { count: (failure?.count ?? 0) + batch.keys.length, sample: failure?.sample ?? batch.keys[0]! });
       }
     }
     pendingBatches.length = 0;
+
+    const labels = { strategy: this.name, storageProvider };
+    const { notFound, retryable } = this.partitionFailures(failures);
+    this.metrics.recordDeleted(labels, deletedCount);
+    this.metrics.recordNotFound(labels, countFailures(notFound));
+    this.metrics.recordFailures(labels, retryable);
     return { batchFailures: failures, processedTilesCount, deletedCount };
   }
 
@@ -221,11 +255,37 @@ export class TilesDeletionStrategy implements ITaskStrategy<TilesDeletionParams>
     return params.ranges.reduce((sum, r) => sum + (r.maxX - r.minX + 1) * (r.maxY - r.minY + 1), 0);
   }
 
-  private *generateTileKeys(params: TilesDeletionParams): Generator<string> {
+  /**
+   * Yields batches of up to batchSize keys, one zoom level at a time. Ranges are grouped by zoom first
+   * because producers interleave zooms across many small ranges; cutting at every zoom change would
+   * multiply the number of delete calls.
+   */
+  private *generateBatches(params: TilesDeletionParams): Generator<TileBatch> {
     const toKeys = resolveTileKeyGenerator(params);
-
+    const rangesByZoom = new Map<number, TileRange[]>();
     for (const range of params.ranges) {
-      yield* toKeys(range);
+      const ranges = rangesByZoom.get(range.zoom);
+      if (ranges) {
+        ranges.push(range);
+      } else {
+        rangesByZoom.set(range.zoom, [range]);
+      }
+    }
+
+    for (const [zoom, ranges] of rangesByZoom) {
+      let keys: string[] = [];
+      for (const range of ranges) {
+        for (const key of toKeys(range)) {
+          keys.push(key);
+          if (keys.length === this.batchSize) {
+            yield { zoom, keys };
+            keys = [];
+          }
+        }
+      }
+      if (keys.length > 0) {
+        yield { zoom, keys };
+      }
     }
   }
 }
